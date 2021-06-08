@@ -1,0 +1,9 @@
+---
+input: "C:/Users/amarx/PycharmProjects/Morphelia/docs/NRCMs_livecells_calceinam/"
+output: "docs/"
+files:
+  - "Cells.txt"
+ # - "Primarieswithoutborder.csv"
+ # - "Cytoplasm.csv"
+treatment: "Treatment.csv" # None if no treatment file exists
+...
