@@ -1,6 +1,6 @@
 ---
 input: "C:/Users/amarx/PycharmProjects/Morphelia/docs/NRCMs_livecells_calceinam/"
-output: "docs/"
+output: "C:/Users/amarx/PycharmProjects/Morphelia/docs/NRCMs_livecells_calceinam/"
 files:
   - "Cells.txt"
  # - "Primarieswithoutborder.csv"
