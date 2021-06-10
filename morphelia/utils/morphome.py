@@ -372,11 +372,12 @@ class MorphData(object):
         # take data from class is md is None
         if md is None:
             assert self.morphome is not None, "No morphome initialized in this class."
-            obs_cols = [col for col in self.morphome.columns if any(matcher.lower() in col.lower() for matcher in self.obs_ids)]
+            obs_cols = [col for col in self.morphome.columns if
+                        any(matcher.lower() in col.lower() for matcher in self.obs_ids)]
             # variable annotation
             var = pd.DataFrame(index=self.morphome.drop(obs_cols, axis=1).columns)
             # create AnnData object
-            md = ad.AnnData(X=self.morphome.drop(obs_cols, axis=1), obs=self.morphome[obs_cols], var=var)
+            md = ad.AnnData(X=self.morphome.drop(obs_cols, axis=1).to_numpy(), obs=self.morphome[obs_cols], var=var)
 
         else:
             obs_cols = [col for col in md.columns if
@@ -384,12 +385,12 @@ class MorphData(object):
             # variable annotation
             var = pd.DataFrame(index=md.drop(obs_cols, axis=1).columns)
             # create AnnData object
-            md = ad.AnnData(X=md.drop(obs_cols, axis=1), obs=md[obs_cols], var=var)
+            md = ad.AnnData(X=md.drop(obs_cols, axis=1).to_numpy(), obs=md[obs_cols], var=var)
 
         return md
 
     def save_anndata(self, md, output, name=None):
-        """Saves morphological as anndata.AnnData object in HDF5 format.
+        """Saves morphological data as anndata.AnnData object in HDF5 format.
 
         Args:
             md (anndata.AnnData or pandas.DataFrame): Multidimensional morphological data.
@@ -398,10 +399,7 @@ class MorphData(object):
         """
         # convert dataframe to anndata
         if isinstance(md, pd.DataFrame):
-            try:
-                md = self.to_anndata(md=md)
-            except ValueError:
-                print('Data con not be converted to anndata.AnnData.')
+            md = self.to_anndata(md=md)
         elif isinstance(md, ad.AnnData):
             pass
         else:

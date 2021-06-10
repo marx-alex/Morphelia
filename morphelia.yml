@@ -17,8 +17,13 @@ dependencies:
   - seaborn=0.11.1
   - torchaudio
   - torchvision
+  - python-igraph
+  - leidenalg
+  - pytables
+  - numba
   - pip
   - pip:
     - umap-learn==0.5.1
     - pyyaml
     - opencv-contrib-python==4.5.*
+    - scanpy

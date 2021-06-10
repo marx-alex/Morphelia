@@ -5,6 +5,7 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 import anndata as ad
+from sklearn.preprocessing import MinMaxScaler
 
 
 def aggregate(md, by=("BatchNumber", "PlateNumber", "Metadata_Well")):
@@ -94,3 +95,34 @@ def subsample(md, perc=0.1, by=("BatchNumber", "PlateNumber", "Metadata_Well")):
     obs_ss = pd.DataFrame(obs_ss)
 
     return ad.AnnData(X=X_ss, obs=obs_ss, var=md.var)
+
+
+def drop_nan(md, verbose=False):
+    """Drop variables that contain invalid variables.
+
+    Args:
+        md (anndata.AnnData): Multidimensional morphological data.
+        verbose (bool)
+    """
+    mask = ~np.isnan(md.X).any(axis=0)
+    masked_vars = md.var[mask].index.tolist()
+
+    if verbose:
+        print(f"Dropped variables: {md.var[~mask].index.tolist()}")
+
+    md = md[:, masked_vars].copy()
+
+    return md
+
+
+def min_max_scaler(md, min=0, max=1):
+    """Wraper for sklearns MinMaxScaler.
+
+    Args:
+        md (anndata.AnnData): Multidimensional morphological data.
+        min, max (int): Desired range of transformed data.
+    """
+    scaler = MinMaxScaler(feature_range=(min, max))
+    md.X = scaler.fit_transform(md.X)
+
+    return md
