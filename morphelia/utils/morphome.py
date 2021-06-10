@@ -284,6 +284,8 @@ class MorphData(object):
 
                 # insert information about plate number
                 plate_df.insert(loc=0, column="PlateNumber", value=(plate_i + 1))
+                # insert information about batch number
+                plate_df.insert(loc=0, column="BatchNumber", value=(batch_i + 1))
                 # concatenate batchdata_list
                 if to_disk != 'plate':
                     batchdata_list.append(plate_df)
@@ -293,8 +295,6 @@ class MorphData(object):
 
             if to_disk != 'plate':
                 batch_df = pd.concat(batchdata_list, ignore_index=True)
-                # insert information about batch number
-                batch_df.insert(loc=0, column="BatchNumber", value=(batch_i + 1))
 
                 if to_disk != 'batch':
                     morphome_list.append(batch_df)

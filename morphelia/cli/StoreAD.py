@@ -32,22 +32,16 @@ def run(inp, files, treatment, out, store):
         if re.match(f".*{store}\d*.h5ad", filename):
             files.append(filename)
 
-    # create subsamples and aggregations
-    if store == 'plate':
-        by = ["PlateNumber", "Metadata_Well"]
-    else:
-        by = ["BatchNumber", "PlateNumber", "Metadata_Well"]
-
     subsamples = []
     aggs = []
     for file in files:
         adata = ad.read_h5ad(os.path.join(out, file))
         # subsample
-        edit = subsample(adata, perc=0.1, by=by)
+        edit = subsample(adata, perc=0.1)
         # edit.write(os.path.join(out, f'subs_{file}'))
         subsamples.append(edit)
         # aggregate
-        edit = aggregate(adata, by=by)
+        edit = aggregate(adata)
         # edit.write(os.path.join(out, f'agg_{file}'))
         aggs.append(edit)
 
