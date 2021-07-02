@@ -5,25 +5,32 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - python=3.9
-  - anndata=0.7.6
-  - matplotlib=3.4.1
-  - networkx=2.5.1
-  - numpy=1.20.2
-  - pandas=1.2.4
-  - pytorch=1.8.1
-  - scikit-learn=0.24.2
-  - scipy=1.6.3
-  - seaborn=0.11.1
+  - python=3.8
+  - anndata
+  - matplotlib
+  - networkx
+  - numpy
+  - pandas
+  - pytorch
+  - scikit-learn
+  - scikit-image
+  - scipy
+  - seaborn
   - torchaudio
   - torchvision
   - python-igraph
   - leidenalg
-  - pytables
   - numba
+  - jupyter
+  - pytables
+  - multicore-tsne
+  - fa2
   - pip
   - pip:
     - umap-learn==0.5.1
     - pyyaml
     - opencv-contrib-python==4.5.*
     - scanpy
+    - harmonyTS
+    - palantir
+    - fastcluster

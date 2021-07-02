@@ -44,7 +44,7 @@ class Stitcher(object):
         loc_id (str): Unique identifier for object location variables (x and y)
     """
 
-    def __init__(self, morphome, tile_grid=(5, 5), stitch_obj="Cells", size=(2048, 2028), overlap=0.2,
+    def __init__(self, morphome, tile_grid=(5, 5), stitch_obj="Cells", size=(2048, 2048), overlap=0.2,
                  stitch_features=("AreaShape_Compactness", "AreaShape_Eccentricity", "AreaShape_MajorAxisLength"),
                  tile_var="Metadata_Field", trow_var="Metadata_TileRow", tcol_var="Metadata_TileCol",
                  min_inliers=4, tile_reading="horizontal", group_vars=("BatchNumber", "PlateNumber", "Metadata_Well"),

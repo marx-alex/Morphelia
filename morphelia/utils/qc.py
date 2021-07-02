@@ -86,20 +86,20 @@ def plot_qc(md, well_var="Metadata_Well", color=None, size=None, select=None, we
     if color is not None:
         if color not in md.var.index.to_list():
             raise ValueError(f"Color value not found: {color}.")
-        color_dict = dict(zip(md.obs[well_var], *md[:, color].X))
+        color_dict = dict(zip(md.obs[well_var], md[:, color].X.copy().flatten()))
         kwargs['c'] = [color_dict[well] if well in color_dict.keys() else np.nan for well in well_lst]
 
     if size is not None:
         if size not in md.var.index.to_list():
             raise ValueError(f"Size value not found: {size}")
-        size_dict = dict(zip(md.obs[well_var], *md[:, size].X))
+        size_dict = dict(zip(md.obs[well_var], md[:, size].X.copy().flatten()))
         size_arr = np.array([size_dict[well] if well in size_dict.keys() else np.nan for well in well_lst])
         points = np.interp(size_arr, (np.nanmin(size_arr), np.nanmax(size_arr)), (bot, top))
         points = np.nan_to_num(points, nan=top)
         kwargs['s'] = points
 
     # nan colors
-    cmap = matplotlib.cm.plasma.copy()
+    cmap = matplotlib.cm.plasma
     cmap.set_bad("lightgrey")
     kwargs['cmap'] = cmap
 

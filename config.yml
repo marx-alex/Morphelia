@@ -1,9 +1,56 @@
 ---
-input: "C:/Users/amarx/PycharmProjects/Morphelia/docs/NRCMs_livecells_calceinam/"
-output: "C:/Users/amarx/PycharmProjects/Morphelia/docs/NRCMs_livecells_calceinam/"
+input: "C:/Users/amarx/PycharmProjects/Morphelia/data/NRCMs_livecells_calceinam/"
+output: "C:/Users/amarx/PycharmProjects/Morphelia/data/NRCMs_livecells_calceinam/"
+output_fn: "cardio_ss"
+# name of files with subsamples and aggregated data
+agg_name: "morph_data_agg.h5ad" # don not forget suffix
+ss_name: "morph_data_ss_10.h5ad"  # don not forget suffix
+
+################################
+# StoreAD
+################################
+to_disk: 'plate'  # 'plate', 'batch' or None
 files:
   - "Cells.txt"
  # - "Primarieswithoutborder.csv"
  # - "Cytoplasm.csv"
-treatment: "Treatment.csv" # None if no treatment file exists
+treatment: "Treatment.csv"  # None if no treatment file exists
+
+################################
+# Pseudostitch
+################################
+stitched_name: 'morph_data_stitched.h5ad' # don not forget suffix
+stitched_inp: 'ss_name'
+pseudostitch_inp:
+tile_rows: 5
+tile_cols: 5
+img_overlap: 0.2
+
+################################
+# Preprocess
+################################
+pp_name: 'morph_data_pp.h5ad'  # don not forget suffix
+pp_inp: 'stitched_name'
+batch_id: "BatchNumber"
+batch_covariates:
+  - "PlateNumber"
+#  - "Metadata_Treatment"
+area_filter:
+  - 'Cells_AreaShape_Area'
+#  - 'Primarieswithoutborder_AreaShape_Area'
+intens_filter:
+  - 'Cells_Intensity_IntegratedIntensity_CalceinAM'
+#  - 'Primarieswithoutborder_Intensity_IntegratedIntensity_DNA'
+treat_var: 'Metadata_Treatment' # Metadata_[variable from Treatment.csv]
+filter_debris: False # Cell und Nuclei size needed
+
+################################
+# FeatureAgglo
+################################
+agglo_name: 'morph_data_agglo.h5ad' # don not forget suffix
+agglo_inp: 'pp_name'
+k: 'estimate' # 'estimate' or int
+cluster_min: 2
+cluster_max: 20 # min and max clusters
+
 ...

@@ -38,7 +38,7 @@ def boxplot(md, x, y, hue=None, **kwargs):
             axs.legend(loc='upper right')
     else:
         for ix in range(len(y_data)):
-            sns.boxplot(x=x, y=y_data[0], hue=hue, data=md.obs, ax=axs[ix], flierprops=flierprops, **kwargs)
+            sns.boxplot(x=x, y=y_data[ix], hue=hue, data=md.obs, ax=axs[ix], flierprops=flierprops, **kwargs)
             axs[ix].set_ylabel(y[ix])
             if hue is not None:
                 axs[ix].legend(loc='upper right')

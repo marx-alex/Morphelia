@@ -13,6 +13,9 @@ setup(
     ],
     entry_points={'console_scripts': [
         'StoreAD = morphelia.cli.StoreAD:main',
+        'Preprocess = morphelia.cli.Preprocess:main',
+        'Pseudostitch = morphelia.cli.Pseudostitch:main',
+        'FeatureAgglo = morphelia.cli.FeatureAgglo:main'
     ]}
 
 )

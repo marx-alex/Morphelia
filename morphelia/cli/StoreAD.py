@@ -38,18 +38,16 @@ def run(inp, files, treatment, out, store):
         adata = ad.read_h5ad(os.path.join(out, file))
         # subsample
         edit = subsample(adata, perc=0.1)
-        # edit.write(os.path.join(out, f'subs_{file}'))
         subsamples.append(edit)
         # aggregate
         edit = aggregate(adata)
-        # edit.write(os.path.join(out, f'agg_{file}'))
         aggs.append(edit)
 
     # concatenate
     subsamples = subsamples[0].concatenate(subsamples[1:])
-    subsamples.write(os.path.join(out, "morph_data_ss_10.h5ad"))
+    subsamples.write(os.path.join(out, inp['ss_name']))
     aggs = aggs[0].concatenate(aggs[1:])
-    aggs.write(os.path.join(out, "morph_data_agg.h5ad"))
+    aggs.write(os.path.join(out, inp['agg_name']))
 
 
 def main(args=None):
@@ -59,14 +57,11 @@ def main(args=None):
     parser = argparse.ArgumentParser(description=f'Convert cellprofiler to hdf5.')
 
     parser.add_argument('config', type=str, help='config file in yaml format.')
-    parser.add_argument('-s', '--store', type=str, default='plate',
-                        choices=['batch', 'plate'], help="Store 'plate' or 'batch' to disk.")
 
     # parse
     args = parser.parse_args(args)
 
     yml_path = args.config
-    store = args.store
 
     with open(yml_path, 'r') as f:
         data = yaml.load(f, Loader=yaml.FullLoader)
@@ -76,4 +71,4 @@ def main(args=None):
         files=data['files'],
         treatment=data['treatment'],
         out=data['output'],
-        store=store)
+        store=data['to_disk'])

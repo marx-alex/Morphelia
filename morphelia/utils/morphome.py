@@ -308,9 +308,11 @@ class MorphData(object):
         else:
             morphome = None
 
-        return self.__init__(morphome=morphome, tile_grid=tile_grid, tile_reading=tile_reading, tile_var=tile_var,
-                             add_tile_pos=add_tile_pos, treat_delimiter=treat_delimiter, obj_delimiter=obj_delimiter,
-                             datadict=datadict)
+        self.__init__(morphome=morphome, tile_grid=tile_grid, tile_reading=tile_reading, tile_var=tile_var,
+                      add_tile_pos=add_tile_pos, treat_delimiter=treat_delimiter, obj_delimiter=obj_delimiter,
+                      datadict=datadict)
+
+        return self
 
     def add_tile_pos(self, morphome):
         # add row and columns of tiles to the morphome depending on the reading method
@@ -369,7 +371,7 @@ class MorphData(object):
         if obs_ids is not None:
             self.obs_ids.append(list(obs_ids))
 
-        # take data from class is md is None
+        # take data from class if md is None
         if md is None:
             assert self.morphome is not None, "No morphome initialized in this class."
             obs_cols = [col for col in self.morphome.columns if
