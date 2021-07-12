@@ -10,7 +10,7 @@ import matplotlib
 import numpy as np
 
 
-def plot_qc(md, well_var="Metadata_Well", color=None, size=None, select=None, wells=96, **kwargs):
+def qc_plot(md, well_var="Metadata_Well", color=None, size=None, select=None, wells=96, **kwargs):
     """Plot data of a 96-well or 384-well plate into a well-shaped plot.
     
     Can be used for quality control after (microscopy) experiments with

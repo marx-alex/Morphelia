@@ -21,7 +21,6 @@ treatment: "Treatment.csv"  # None if no treatment file exists
 ################################
 stitched_name: 'morph_data_stitched.h5ad' # don not forget suffix
 stitched_inp: 'ss_name'
-pseudostitch_inp:
 tile_rows: 5
 tile_cols: 5
 img_overlap: 0.2
@@ -32,9 +31,6 @@ img_overlap: 0.2
 pp_name: 'morph_data_pp.h5ad'  # don not forget suffix
 pp_inp: 'stitched_name'
 batch_id: "BatchNumber"
-batch_covariates:
-  - "PlateNumber"
-#  - "Metadata_Treatment"
 area_filter:
   - 'Cells_AreaShape_Area'
 #  - 'Primarieswithoutborder_AreaShape_Area'

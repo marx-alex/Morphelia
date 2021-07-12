@@ -2,7 +2,7 @@ import argparse
 import yaml
 import os
 import anndata as ad
-from morphelia.utils.pseudostitch import pseudostitch
+from morphelia.preprocessing.pseudostitch import pseudostitch
 
 
 def run(inp):

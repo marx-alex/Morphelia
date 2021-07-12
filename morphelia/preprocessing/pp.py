@@ -38,7 +38,7 @@ def aggregate(md, by=("BatchNumber", "PlateNumber", "Metadata_Well")):
         group_ix = sub_df.index
 
         # aggregate group
-        agg = np.mean(md[group_ix, :].X, axis=0).reshape(1, -1)
+        agg = np.median(md[group_ix, :].X, axis=0).reshape(1, -1)
         # concatenate aggregated groups
         X_agg.append(agg)
 
@@ -118,7 +118,8 @@ def drop_nan(md, drop_inf=True, drop_dtype_max=True, verbose=False):
     if verbose:
         print(f"Dropped variables: {md.var[~mask].index.tolist()}")
 
-    md = md[:, masked_vars].copy()
+
+    md = md[:, masked_vars]
 
     return md
 

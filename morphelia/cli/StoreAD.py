@@ -5,19 +5,19 @@ import re
 
 import anndata as ad
 
-from morphelia.utils.morphome import MorphData
-from morphelia.utils.pp import aggregate, subsample
+from morphelia.tools.morphome import MorphData
+from morphelia.preprocessing.pp import aggregate, subsample
 
 
-def run(inp, files, treatment, out, store):
+def run(inp, agg_name, ss_name, files, treatment, out, store):
     """Read and write CellProfiler output."""
     if not os.path.exists(inp):
+        raise OSError(f"Input directory does not exist: {inp}")
+    elif not os.path.exists(out):
         try:
             os.makedirs(inp)
-        except OSError:
-            print(f"Input directory does not exist: {inp}")
-    elif not os.path.exists(out):
-        out = inp
+        except ValueError:
+            print(f"Output directory can not be made: {out}")
 
     # initialize MorphData and save batches directly to disk
     # otherwise memory problems are expected
@@ -45,9 +45,9 @@ def run(inp, files, treatment, out, store):
 
     # concatenate
     subsamples = subsamples[0].concatenate(subsamples[1:])
-    subsamples.write(os.path.join(out, inp['ss_name']))
+    subsamples.write(os.path.join(out, ss_name))
     aggs = aggs[0].concatenate(aggs[1:])
-    aggs.write(os.path.join(out, inp['agg_name']))
+    aggs.write(os.path.join(out, agg_name))
 
 
 def main(args=None):
@@ -68,6 +68,8 @@ def main(args=None):
 
     # run
     run(inp=data['input'],
+        agg_name=data['agg_name'],
+        ss_name=data['ss_name'],
         files=data['files'],
         treatment=data['treatment'],
         out=data['output'],

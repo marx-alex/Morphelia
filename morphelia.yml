@@ -13,6 +13,7 @@ dependencies:
   - pandas
   - pytorch
   - scikit-learn
+  - scikit-learn-intelex
   - scikit-image
   - scipy
   - seaborn
@@ -25,6 +26,8 @@ dependencies:
   - pytables
   - multicore-tsne
   - fa2
+  - statsmodels
+  - tqdm
   - pip
   - pip:
     - umap-learn==0.5.1

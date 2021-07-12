@@ -1,10 +1,9 @@
 import argparse
 import yaml
 import scanpy as sc
-import anndata as ad
 import os
-from morphelia.utils.pp import *
-from morphelia.utils.debris import filter_debris
+from morphelia.preprocessing.pp import *
+from morphelia.preprocessing.debris import filter_debris
 from morphelia.extern.pl import highly_variable_genes
 
 
@@ -75,17 +74,17 @@ def run(inp):
     # drop nan
     adata = drop_nan(adata, verbose=True)
 
+    # batch correction
+    print("[STEP 6] Batch correction.")
+    sc.pp.combat(adata, key=inp['batch_id'])
+
     # get highly variable features
-    print("[STEP 6] Select highly variable features.")
+    print("[STEP 7] Select highly variable features.")
     sc.pp.highly_variable_genes(adata)
     highly_variable_genes(adata, save='_hvg.png')
 
     # select highly variable features
     adata = adata[:, adata.var.highly_variable]
-
-    # batch correction
-    print("[STEP 7] Batch correction.")
-    sc.pp.combat(adata, key=inp['batch_id'], covariates=inp['batch_covariates'])
 
     # get z-scores
     print("[STEP 8] Building z-scores.")

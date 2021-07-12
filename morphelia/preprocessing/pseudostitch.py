@@ -66,7 +66,7 @@ def pseudostitch(md, update_loc=False, tile_grid=(5, 5),
         matcher.lower() in col.lower() for matcher in group_vars)]) == len(
         group_vars), f"Grouping variables not in observations: {group_vars}"
     # check variables for grouping
-    assert len(group_vars) == 3, f"Grouping variables should be three: Batch number," \
+    assert len(group_vars) == 3, f"3 grouping variables expected: Batch number, " \
                                  f"Plate Number and Well Number. ({group_vars})"
 
     # indicate duplicates in overlap regions

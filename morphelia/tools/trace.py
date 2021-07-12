@@ -149,7 +149,7 @@ def show_trace(obs, fields,
         field_df = obs.query(query_term)
 
         # create graph from annotations
-        G, pos = create_graph(field_df, trace_var, loc_x, loc_y, time_var)
+        G, pos = _create_graph(field_df, trace_var, loc_x, loc_y, time_var)
         # take input array as size
         if node_size is not None:
             ns = node_size[pd.to_numeric(field_df.index, errors='coerce')]
@@ -208,7 +208,7 @@ def show_trace(obs, fields,
     return None
 
 
-def create_graph(objects, trace_var, loc_x, loc_y, time_var):
+def _create_graph(objects, trace_var, loc_x, loc_y, time_var):
     """Creates directed graph for all given objects.
 
     Args:
