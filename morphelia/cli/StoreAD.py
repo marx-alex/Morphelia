@@ -15,7 +15,7 @@ def run(inp, agg_name, ss_name, files, treatment, out, store):
         raise OSError(f"Input directory does not exist: {inp}")
     elif not os.path.exists(out):
         try:
-            os.makedirs(inp)
+            os.makedirs(out)
         except ValueError:
             print(f"Output directory can not be made: {out}")
 

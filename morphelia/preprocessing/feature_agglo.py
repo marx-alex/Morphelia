@@ -36,12 +36,16 @@ def feature_agglo(md, k='estimate', cluster_range=(2, 100), cutoff_mad=0.25,
         anndata.AnnData
     """
     # check cluster_range
+    try:
+        cluster_range = list(cluster_range)
+    except TypeError:
+        print("list or tuple expected for cluster_range "
+              f"instead got: {type(cluster_range)}")
     if not len(cluster_range) == 2:
         raise ValueError("cluster_range should be a tuple or list of length 2, "
                          f"instead got: {cluster_range}")
     if cluster_range[1] > md.shape[1]:
         warnings.warn("Maximal expected k is larger than number of features", UserWarning)
-        cluster_range = list(cluster_range)
         cluster_range[1] = md.shape[1]
 
     # initiate subsample
@@ -102,7 +106,7 @@ def _estimate_k(X_ss, obs_ss, cluster_range, group_by,
         X_ss (np.ndarray): cells x features.
         obs_ss (pd.DataFrame): Subset of observations.
         cluster_range (list): Minimum and maximum numbers of clusters to compute.
-        row_colors (np.array): Color groups of cells.
+        group_by (np.array): Color groups of cells.
         show (bool): Plots MAD score and number of clusters.
         save (str): Path where to save figure.
         cutoff (int): Cutoff for MAD score.
