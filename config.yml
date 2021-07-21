@@ -34,9 +34,15 @@ batch_id: "BatchNumber"
 area_filter:
   - 'Cells_AreaShape_Area'
 #  - 'Primarieswithoutborder_AreaShape_Area'
+area_thresh:
+  - 10000
+# -?
 intens_filter:
-  - 'Cells_Intensity_IntegratedIntensity_CalceinAM'
+  - 'Cells_Intensity_MedianIntensity_CalceinAM'
 #  - 'Primarieswithoutborder_Intensity_IntegratedIntensity_DNA'
+intens_thresh:
+  - 0.8
+#  - 0.8
 treat_var: 'Metadata_Treatment' # Metadata_[variable from Treatment.csv]
 filter_debris: False # Cell und Nuclei size needed
 
@@ -48,5 +54,23 @@ agglo_inp: 'pp_name'
 k: 'estimate' # 'estimate' or int
 cluster_min: 2
 cluster_max: 20 # min and max clusters
+
+################################
+# LMM
+################################
+lmm_name: 'morph_data_lmm.h5ad' # do not forged suffix
+lmm_inp: 'agglo_name'
+time_series: True
+drop_low_sign: False # Drop Features with low significance
+
+################################
+# Embedding
+################################
+emb_name: 'morph_data_emb.h5ad'
+emb_inp: 'agglo_name'
+neighbors: 10
+n_pcs: 40 # PCs for computing neighborhood graph
+use_paga: False # Use PAGA for UMAP
+
 
 ...

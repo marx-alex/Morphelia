@@ -1,6 +1,7 @@
 # import internal libraries
 import math
 import string
+import os
 
 # import external libraries
 import matplotlib.pyplot as plt
@@ -10,20 +11,22 @@ import matplotlib
 import numpy as np
 
 
-def qc_plot(md, well_var="Metadata_Well", color=None, size=None, select=None, wells=96, **kwargs):
+def qc_plot(adata, well_var="Metadata_Well", color=None, size=None, select=None, wells=96,
+            save=None, **kwargs):
     """Plot data of a 96-well or 384-well plate into a well-shaped plot.
     
     Can be used for quality control after (microscopy) experiments with
     96-well or 384-well plates.
     
     Args:
-        md (anndata.AnnData): Annotated dataset with multidimensional morphological data.
+        adata (anndata.AnnData): Annotated dataset with multidimensional morphological data.
             Annotations should include information about batch, plate and well.
         well_var (str): Name of variable that contains well.
         color (str): Variable to use for color representations.
         size (str): Variable to use for size representations.
         select (dict): Masks data by annotations. 
         wells (int): Select type of plate: 96 or 384.
+        save (str): Path where to save figure.
     
     Returns:
         matplotlib.pyplot.figure
@@ -33,15 +36,15 @@ def qc_plot(md, well_var="Metadata_Well", color=None, size=None, select=None, we
     if select is not None:
         try:
             qry = ' and '.join(["{} == {}".format(k, v) for k, v in select.items()])
-            qry_ix = md.obs.query(qry).index
-            md = md[qry_ix, :]
+            qry_ix = adata.obs.query(qry).index
+            adata = adata[qry_ix, :]
         except ValueError:
             print("Something wrong with select. Can not be used to query AnnData!")
 
     # check that well variables are unique
-    if well_var not in md.obs.columns:
+    if well_var not in adata.obs.columns:
         raise ValueError(f"Variable for wells are not found: {well_var}")
-    if not md.obs[well_var].is_unique:
+    if not adata.obs[well_var].is_unique:
         raise ValueError(f"Values for Wells are not unique. Maybe use select to pass a single plate.")
 
     # create figure
@@ -84,16 +87,24 @@ def qc_plot(md, well_var="Metadata_Well", color=None, size=None, select=None, we
     kwargs.setdefault('plotnonfinite', True)
 
     if color is not None:
-        if color not in md.var.index.to_list():
+        if color in adata.var_names.to_list():
+            color_dict = dict(zip(adata.obs[well_var], adata[:, color].X.copy().flatten()))
+            kwargs['c'] = [color_dict[well] if well in color_dict.keys() else np.nan for well in well_lst]
+        elif color in adata.obs.columns:
+            color_dict = dict(zip(adata.obs[well_var], adata.obs[color]))
+            kwargs['c'] = [color_dict[well] if well in color_dict.keys() else np.nan for well in well_lst]
+        else:
             raise ValueError(f"Color value not found: {color}.")
-        color_dict = dict(zip(md.obs[well_var], md[:, color].X.copy().flatten()))
-        kwargs['c'] = [color_dict[well] if well in color_dict.keys() else np.nan for well in well_lst]
 
     if size is not None:
-        if size not in md.var.index.to_list():
+        if size in adata.var.index.to_list():
+            size_dict = dict(zip(adata.obs[well_var], adata[:, size].X.copy().flatten()))
+            size_arr = np.array([size_dict[well] if well in size_dict.keys() else np.nan for well in well_lst])
+        elif size in adata.obs.columns:
+            size_dict = dict(zip(adata.obs[well_var], adata.obs[size]))
+            size_arr = np.array([size_dict[well] if well in size_dict.keys() else np.nan for well in well_lst])
+        else:
             raise ValueError(f"Size value not found: {size}")
-        size_dict = dict(zip(md.obs[well_var], md[:, size].X.copy().flatten()))
-        size_arr = np.array([size_dict[well] if well in size_dict.keys() else np.nan for well in well_lst])
         points = np.interp(size_arr, (np.nanmin(size_arr), np.nanmax(size_arr)), (bot, top))
         points = np.nan_to_num(points, nan=top)
         kwargs['s'] = points
@@ -151,5 +162,12 @@ def qc_plot(md, well_var="Metadata_Well", color=None, size=None, select=None, we
 
     for label in ax.get_yticklabels():
         label.set_fontproperties(ticks_font)
+
+    # save
+    if save is not None:
+        try:
+            plt.savefig(os.path.join(save, "qc_plot.png"))
+        except OSError:
+            print(f'Can not save figure to {save}.')
 
     return fig, ax

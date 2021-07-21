@@ -1,193 +1,130 @@
-# import internal libraries
-from collections import defaultdict
-
 # import external libraries
 import numpy as np
-import pandas as pd
-import anndata as ad
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
 
 
-def aggregate(md, by=("BatchNumber", "PlateNumber", "Metadata_Well")):
-    """Aggregate multidimensional morphological data by populations.
-
-    Args:
-        md (anndata.AnnData): Annotated data object.
-        by (list of str): Variables to use for aggregation.
-
-    Returns:
-        anndata.AnnData
-    """
-    # check that variables in by are in anndata
-    if not all(var in md.obs.columns for var in by):
-        raise KeyError(f"Variables defined in 'by' are not in annotations: {by}")
-
-    # store aggregated data
-    X_agg = []
-    obs_agg = defaultdict(list)
-
-    # iterate over md with grouping variables
-    for groups, sub_df in md.obs.groupby(list(by)):
-        # cache annotations
-        for key, val in sub_df.iloc[0, :].to_dict().items():
-            obs_agg[key].append(val)
-        # add object number to observations
-        obs_agg['CellNumber'].append(len(sub_df))
-
-        # cache indices of group
-        group_ix = sub_df.index
-
-        # aggregate group
-        agg = np.median(md[group_ix, :].X, axis=0).reshape(1, -1)
-        # concatenate aggregated groups
-        X_agg.append(agg)
-
-    # make anndata object from aggregated data
-    X_agg = np.concatenate(X_agg, axis=0)
-    obs_agg = pd.DataFrame(obs_agg)
-
-    return ad.AnnData(X=X_agg, obs=obs_agg, var=md.var)
-
-
-def subsample(md, perc=0.1, by=("BatchNumber", "PlateNumber", "Metadata_Well"),
-              seed=0):
-    """Gives a subsample of the data by selecting objects from given groups.
-
-    Args:
-        md (anndata.AnnData): Annotated data object.
-        perc (float): Percentage of objects to store in subsample.
-        by (list of str): Variables to use for aggregation.
-        seed (int): Seed for initialization.
-
-    Returns:
-        anndata.AnnData
-    """
-    # check that variables in by are in anndata
-    if not all(var in md.obs.columns for var in by):
-        raise KeyError(f"Variables defined in 'by' are not in annotations: {by}")
-    if perc < 0 or perc > 1:
-        raise ValueError(f"Use a float between 0 and 1 for perc: {perc}")
-
-    # store subsample data
-    X_ss = []
-    obs_ss = defaultdict(list)
-
-    # iterate over md with grouping variables
-    for groups, sub_df in md.obs.groupby(list(by)):
-
-        n = round(perc * len(sub_df))
-        # cache indices subsample
-        group_ix = sub_df.sample(n=n, random_state=seed).index
-
-        if len(group_ix) > 0:
-            # cache annotations
-            for key, val in sub_df.loc[group_ix, :].to_dict('list').items():
-                obs_ss[key].extend(val)
-
-            # subsample group
-            agg = md[group_ix, :].X
-
-            # concatenate aggregated groups
-            X_ss.append(agg)
-
-    # make anndata object from aggregated data
-    X_ss = np.concatenate(X_ss, axis=0)
-    obs_ss = pd.DataFrame(obs_ss)
-
-    return ad.AnnData(X=X_ss, obs=obs_ss, var=md.var)
-
-
-def drop_nan(md, drop_inf=True, drop_dtype_max=True, verbose=False):
+def drop_nan(adata, drop_inf=True, drop_dtype_max=True, verbose=False):
     """Drop variables that contain invalid variables.
 
     Args:
-        md (anndata.AnnData): Multidimensional morphological data.
+        adata (anndata.AnnData): Multidimensional morphological data.
         drop_inf (bool): Drop also infinity values.
         drop_dtype_max (bool): Drop values to large for dtype.
         verbose (bool)
     """
-    if drop_inf:
-        md.X[(md.X == np.inf) | (md.X == -np.inf)] = np.nan
+    if np.isnan(adata.X).any():
+        if drop_inf:
+            adata.X[(adata.X == np.inf) | (adata.X == -np.inf)] = np.nan
 
-    if drop_dtype_max:
-        md.X[md.X > np.finfo(md.X.dtype).max] = np.nan
+        if drop_dtype_max:
+            adata.X[adata.X > np.finfo(adata.X.dtype).max] = np.nan
 
-    mask = ~np.isnan(md.X).any(axis=0)
-    masked_vars = md.var[mask].index.tolist()
+        mask = ~np.isnan(adata.X).any(axis=0)
+        masked_vars = adata.var[mask].index.tolist()
 
-    if verbose:
-        print(f"Dropped variables: {md.var[~mask].index.tolist()}")
+        if verbose:
+            print(f"Dropped NaN containing variables: {adata.var[~mask].index.tolist()}")
+
+        adata = adata[:, masked_vars]
+
+    return adata
 
 
-    md = md[:, masked_vars]
-
-    return md
-
-
-def min_max_scaler(md, min=0, max=1):
+def min_max_scaler(adata, min=0, max=1):
     """Wraper for sklearns MinMaxScaler.
 
     Args:
-        md (anndata.AnnData): Multidimensional morphological data.
+        adata (anndata.AnnData): Multidimensional morphological data.
         min, max (int): Desired range of transformed data.
     """
     scaler = MinMaxScaler(feature_range=(min, max))
-    md.X = scaler.fit_transform(md.X)
+    adata.X = scaler.fit_transform(adata.X)
 
-    return md
+    return adata
 
 
-def filter_cells(md, var, std_thresh=1.96, side='both'):
+def filter_quant(adata, var, std_thresh=1.96, side='both'):
     """Filter cells by identifying outliers from a distribution
     of a single value.
 
     Args:
-        md (anndata.AnnData): Multidimensional morphological data.
+        adata (anndata.AnnData): Multidimensional morphological data.
         var (str): Variable to use for filtering.
         std_thresh (int): Threshold to use for outlier identification.
             x-fold of standard deviation in both or one directions.
         side (str): 'left', 'right' or 'both'
     """
     # get standard deviation and mean
-    std = np.nanstd(md[:, var].X)
-    mean = np.nanmean(md[:, var].X)
+    std = np.nanstd(adata[:, var].X)
+    mean = np.nanmean(adata[:, var].X)
 
     # do filtering
     if side not in ['left', 'right', 'both']:
         raise ValueError(f"side should be 'left', 'right' or 'both': {side}")
     if side == 'both' or side == 'left':
-        md = md[md[:, var].X > (mean - (std_thresh*std)), :]
+        adata = adata[adata[:, var].X > (mean - (std_thresh * std)), :]
     if side == 'both' or side == 'right':
-        md = md[md[:, var].X < (mean + (std_thresh * std)), :]
+        adata = adata[adata[:, var].X < (mean + (std_thresh * std)), :]
 
-    return md
+    return adata
 
 
-def unique_feats(md, verbose=False):
+def filter_thresh(adata, var, thresh, side='right'):
+    """Filter cells by thresholding.
+
+    Args:
+        adata (anndata.AnnData): Multidimensional morphological data.
+        var (str): Variable to use for filtering.
+        thresh (int): Threshold.
+        side (str):
+            'right': Cap values above threshold.
+            'left': Cap values under threshold.
+    """
+    sides = ['right', 'left']
+    assert side in sides, f"expected side to be either 'right' or 'left', instead got {side}"
+
+    # do filtering
+    if var in adata.var_names:
+        if side == 'right':
+            adata = adata[adata[:, var].X < thresh, :]
+        elif side == 'left':
+            adata = adata[adata[:, var].X > thresh, :]
+    elif var in adata.obs.columns:
+        if side == 'right':
+            adata = adata[adata.obs[var] < thresh, :]
+        elif side == 'left':
+            adata = adata[adata.obs[var] > thresh, :]
+    else:
+        raise ValueError(f"Variable not in AnnData object: {var}")
+
+    return adata
+
+
+def drop_duplicates(adata, verbose=False):
     """Drops all feature vectors that are duplicates.
 
     Args:
-        md (anndata.AnnData): Multidimensional morphological data.
+        adata (anndata.AnnData): Multidimensional morphological data.
         verbose (bool)
     """
-    _, index = np.unique(md.X, axis=1, return_index=True)
+    _, index = np.unique(adata.X, axis=1, return_index=True)
 
     if verbose:
-        print(f"Dropped features: {md.var.index[[ix for ix in range(md.X.shape[1]) if ix not in index]]}")
+        print(f"Dropped duplicated features: {adata.var.index[[ix for ix in range(adata.X.shape[1]) if ix not in index]]}")
 
     # apply filter
-    md = md[:, index]
+    adata = adata[:, index]
 
-    return md
+    return adata
 
 
-def z_transform(md, by=("BatchNumber", "PlateNumber"), robust=False,
+def z_transform(adata, by=("BatchNumber", "PlateNumber"), robust=False,
                 clip=None, **kwargs):
     """Wrapper for sklearns StandardScaler to scale morphological data
     to unit variance by groups.
 
     Args:
-        md (anndata.AnnData): Multidimensional morphological data.
+        adata (anndata.AnnData): Multidimensional morphological data.
         by (iterable, str or None): Groups to apply function to.
             If None, apply to whole anndata.AnnData object.
         robust (bool): If true, use sklearn.preprocessing.RobustScaler
@@ -195,7 +132,7 @@ def z_transform(md, by=("BatchNumber", "PlateNumber"), robust=False,
         ** kwargs: Arguments passed to scaler.
     """
     # check that variables in by are in anndata
-    if not all(var in md.obs.columns for var in by):
+    if not all(var in adata.obs.columns for var in by):
         raise KeyError(f"Variables defined in 'by' are not in annotations: {by}")
 
     if isinstance(by, str):
@@ -209,16 +146,56 @@ def z_transform(md, by=("BatchNumber", "PlateNumber"), robust=False,
         scaler = StandardScaler(**kwargs)
 
     # iterate over md with grouping variables
-    for groups, sub_df in md.obs.groupby(by):
-
+    for groups, sub_df in adata.obs.groupby(by):
         # cache indices of group
         group_ix = sub_df.index
         # transform group with scaler
-        md[group_ix, :].X = scaler.fit_transform(md[group_ix, :].X)
+        adata[group_ix, :].X = scaler.fit_transform(adata[group_ix, :].X)
 
     if clip is not None:
         assert (clip > 0), f'Value for clip should be above 0, instead got {clip}'
-        md.X[md.X > clip] = clip
-        md.X[md.X < -clip] = -clip
+        adata.X[adata.X > clip] = clip
+        adata.X[adata.X < -clip] = -clip
 
-    return md
+    return adata
+
+
+def drop_all_equal(adata, axis=0, verbose=False):
+    """Drops rows (cells) or columns (features)
+    if all values are equal.
+
+    Args:
+        adata (anndata.AnnData): Multidimensional morphological data.
+        axis (int): 0 for columns, 1 for rows.
+        verbose (bool)
+    """
+    # check if axis exists
+    if axis >= adata.X.ndim:
+        raise ValueError(f"adata.X with {adata.X.ndim} dimensions"
+                         f"has no axis {axis}")
+
+    # get mask and apply it to adata
+    if axis == 0:
+        mask = np.all(adata.X == adata.X[0, :], axis=axis)
+
+        if verbose:
+            dropped = adata.var_names[mask]
+            print(f"Dropped uniform features: {dropped}")
+
+        # apply mask
+        adata = adata[:, ~mask]
+
+    elif axis == 1:
+        mask = np.all(adata.X == adata.X[:, 0], axis=axis)
+
+        if verbose:
+            dropped = adata.obs.index[mask]
+            print(f"Dropped cells: {dropped}")
+
+        # apply mask
+        adata = adata[~mask, :]
+    else:
+        raise ValueError(f"axis should be 0 for columns and 1 for rows, "
+                         f"instead got {axis}")
+
+    return adata

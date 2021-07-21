@@ -2,9 +2,10 @@ import argparse
 import yaml
 import scanpy as sc
 import os
-from morphelia.preprocessing.pp import *
-from morphelia.preprocessing.debris import filter_debris
+import anndata as ad
+from morphelia.preprocessing import *
 from morphelia.extern.pl import highly_variable_genes
+from morphelia.stats import lmm_feat_select
 
 
 def run(inp):
@@ -26,28 +27,28 @@ def run(inp):
     adata = ad.read_h5ad(inp_data)
 
     # drop duplicate features
-    print("[STEP 1] Get unique features.")
-    adata = unique_feats(adata, verbose=True)
-
-    # drop nan
+    print("[STEP 1] Drop NaN columns, dublicates and uniform features.")
     adata = drop_nan(adata, verbose=True)
+    adata = drop_duplicates(adata, verbose=True)
+    adata = drop_all_equal(adata, verbose=True)
 
     # filter cells
     print("[STEP 2] Filter cells.")
 
-    for shape, intens in list(zip(inp['area_filter'], inp['intens_filter'])):
+    for area, intens, area_thresh, intens_thresh in list(zip(inp['area_filter'], inp['intens_filter'],
+                                                             inp['area_thresh'], inp['intens_thresh'])):
 
-        sc.pl.violin(adata, shape,
-                     jitter=0.4, save=f'_raw_{shape}.png')
+        sc.pl.violin(adata, area,
+                     jitter=0.4, save=f'_raw_{area}.png')
         sc.pl.violin(adata, intens,
                      jitter=0.4, save=f'_filtered_{intens}.png')
 
-        sc.pl.scatter(adata, x=shape, y=intens, save=f'_raw_{shape}_{intens}.png')
+        sc.pl.scatter(adata, x=area, y=intens, save=f'_raw_{area}_{intens}.png')
 
-        adata = filter_cells(adata, shape, side='both')
-        adata = filter_cells(adata, intens, side='right')
+        adata = filter_thresh(adata, area, area_thresh)
+        adata = filter_thresh(adata, intens, intens_thresh)
 
-        sc.pl.scatter(adata, x=shape, y=intens, save=f'_filtered_{shape}_{intens}.png')
+        sc.pl.scatter(adata, x=area, y=intens, save=f'_filtered_{area}_{intens}.png')
 
     # filter debris
     print("[STEP 3] Filter debris.")
@@ -74,12 +75,15 @@ def run(inp):
     # drop nan
     adata = drop_nan(adata, verbose=True)
 
+    print("[STEP 6] Drop highly correlated features.")
+    adata = drop_highly_correlated(adata, thresh=0.95, verbose=True, show=True, save=figdir)
+
     # batch correction
-    print("[STEP 6] Batch correction.")
+    print("[STEP 7] Batch correction.")
     sc.pp.combat(adata, key=inp['batch_id'])
 
     # get highly variable features
-    print("[STEP 7] Select highly variable features.")
+    print("[STEP 8] Select highly variable features.")
     sc.pp.highly_variable_genes(adata)
     highly_variable_genes(adata, save='_hvg.png')
 
@@ -87,11 +91,11 @@ def run(inp):
     adata = adata[:, adata.var.highly_variable]
 
     # get z-scores
-    print("[STEP 8] Building z-scores.")
+    print("[STEP 9] Building z-scores.")
     adata = z_transform(adata, clip=10)
 
     # write file
-    print("[STEP 9] Write file.")
+    print("[STEP 10] Write file.")
     adata.write(os.path.join(inp['output'], inp['pp_name']))
 
 

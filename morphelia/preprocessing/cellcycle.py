@@ -5,7 +5,7 @@ import seaborn as sns
 import os
 
 
-def assign_cc(md, new_feat="Metadata_CellCycle",
+def assign_cc(adata, new_feat="Metadata_CellCycle",
               feat='Primarieswithoutborder_Intensity_IntegratedIntensity_DNA',
               by=("BatchNumber", "PlateNumber"),
               treat_var="Metadata_Treatment",
@@ -18,7 +18,7 @@ def assign_cc(md, new_feat="Metadata_CellCycle",
     below the confidence interval are assigned dead.
 
     Args:
-        md (anndata.AnnData): Multidimensional morphological data.
+        adata (anndata.AnnData): Multidimensional morphological data.
         new_feat (str): Name for new annotation.
         feat (str): Feature to apply threshold on.
         by (iterable): Get threshold for every batch, plat and treatment.
@@ -38,22 +38,22 @@ def assign_cc(md, new_feat="Metadata_CellCycle",
 
     by.append(treat_var)
     # check that variables in by are in anndata
-    if not all(var in md.obs.columns for var in by):
+    if not all(var in adata.obs.columns for var in by):
         raise KeyError(f"Variables defined in 'by' are not in annotations: {by}")
 
     # initiate new cell cycle annotation
-    md.obs[new_feat] = 0
+    adata.obs[new_feat] = 0
 
     # number of distributions
     k = 2
 
     # iterate over md with grouping variables
-    for groups, sub_df in md.obs.groupby(by):
+    for groups, sub_df in adata.obs.groupby(by):
         # cache indices of group
         group_ix = sub_df.index
 
         # initiate and fit the KDE model
-        X = md[group_ix, feat].X.copy()
+        X = adata[group_ix, feat].X.copy()
         X_min = np.min(X)
         X_max = np.max(X)
         X_plot = np.linspace(X_min, X_max, n)
@@ -79,7 +79,7 @@ def assign_cc(md, new_feat="Metadata_CellCycle",
 
         # apply threshold to get new cell cycle annotations
         g1_ix = group_ix[(X < thresh).flatten()]
-        md.obs.loc[g1_ix, new_feat] = "G1"
+        adata.obs.loc[g1_ix, new_feat] = "G1"
 
         if dead_thresh is not None:
             # get threshold for dead cells
@@ -87,7 +87,7 @@ def assign_cc(md, new_feat="Metadata_CellCycle",
 
             # apply threshold for dead cells
             dead_ix = group_ix[(X < thresh_dead).flatten()]
-            md.obs.loc[dead_ix, new_feat] = "DEAD"
+            adata.obs.loc[dead_ix, new_feat] = "DEAD"
 
         group_dict = dict(zip(by, groups))
 
@@ -121,6 +121,6 @@ def assign_cc(md, new_feat="Metadata_CellCycle",
                     print(f'Can not save figure to {save}.')
 
     # assign remaining zeros to G2/S phase
-    md.obs.loc[md.obs[new_feat] == 0, new_feat] = 'G2S'
+    adata.obs.loc[adata.obs[new_feat] == 0, new_feat] = 'G2S'
 
-    return md
+    return adata

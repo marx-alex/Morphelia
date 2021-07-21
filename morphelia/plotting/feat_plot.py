@@ -5,12 +5,12 @@ import seaborn as sns
 __all__ = ["boxplot", "violin"]
 
 
-def boxplot(md, x, y, hue=None, **kwargs):
+def boxplot(adata, x, y, hue=None, **kwargs):
     """Plot one or more variables of single or
     aggregated cells for different time points.
 
     Args:
-        md (anndata.AnnData): Annotated data matrix with multiple measurements for single objects over time.
+        adata (anndata.AnnData): Annotated data matrix with multiple measurements for single objects over time.
         x (str): Variable name from md.obs.
         y (str of list of str): Name of variables to show.
         hue (str): Variable name from md.obs.
@@ -20,7 +20,7 @@ def boxplot(md, x, y, hue=None, **kwargs):
     """
     # store y variables as vectors
     y_data = []
-    sub_arr = md[:, y].X
+    sub_arr = adata[:, y].X
     for column in sub_arr.T:
         y_data.append(column.flatten())
 
@@ -32,13 +32,13 @@ def boxplot(md, x, y, hue=None, **kwargs):
 
     # plot
     if len(y_data) == 1:
-        sns.boxplot(x=x, y=y_data[0], hue=hue, data=md.obs, ax=axs, flierprops=flierprops, **kwargs)
+        sns.boxplot(x=x, y=y_data[0], hue=hue, data=adata.obs, ax=axs, flierprops=flierprops, **kwargs)
         axs.set_ylabel(y)
         if hue is not None:
             axs.legend(loc='upper right')
     else:
         for ix in range(len(y_data)):
-            sns.boxplot(x=x, y=y_data[ix], hue=hue, data=md.obs, ax=axs[ix], flierprops=flierprops, **kwargs)
+            sns.boxplot(x=x, y=y_data[ix], hue=hue, data=adata.obs, ax=axs[ix], flierprops=flierprops, **kwargs)
             axs[ix].set_ylabel(y[ix])
             if hue is not None:
                 axs[ix].legend(loc='upper right')
@@ -48,12 +48,12 @@ def boxplot(md, x, y, hue=None, **kwargs):
     return fig, axs
 
 
-def violin(md, x, y, hue=None, jitter=False, **kwargs):
+def violin(adata, x, y, hue=None, jitter=False, **kwargs):
     """Plot one or more variables of single or
     aggregated cells for different time points.
 
     Args:
-        md (anndata.AnnData): Annotated data matrix with multiple measurements for single objects over time.
+        adata (anndata.AnnData): Annotated data matrix with multiple measurements for single objects over time.
         x (str): Variable name from md.obs.
         y (str of list of str): Name of variables to show.
         hue (str): Variable name from md.obs.
@@ -64,14 +64,14 @@ def violin(md, x, y, hue=None, jitter=False, **kwargs):
     """
     # store y variables as vectors
     y_data = []
-    sub_arr = md[:, y].X.copy()
+    sub_arr = adata[:, y].X.copy()
     for column in sub_arr.T:
         y_data.append(column.flatten())
 
     # get unique hue
     legend_len = 0
     if hue is not None:
-        legend_len = len(md.obs[hue].unique())
+        legend_len = len(adata.obs[hue].unique())
 
     # create figure
     inner = 'box'
@@ -86,9 +86,9 @@ def violin(md, x, y, hue=None, jitter=False, **kwargs):
 
     # plot
     if len(y_data) == 1:
-        sns.violinplot(x=x, y=y_data[0], hue=hue, data=md.obs, ax=axs, inner=inner, **kwargs)
+        sns.violinplot(x=x, y=y_data[0], hue=hue, data=adata.obs, ax=axs, inner=inner, **kwargs)
         if jitter:
-            sns.stripplot(x=x, y=y_data[0], hue=hue, data=md.obs, ax=axs, jitter=jitter,
+            sns.stripplot(x=x, y=y_data[0], hue=hue, data=adata.obs, ax=axs, jitter=jitter,
                           color='gray', edgecolor='gray', size=1)
         axs.set_ylabel(y)
         if hue is not None:
@@ -96,9 +96,9 @@ def violin(md, x, y, hue=None, jitter=False, **kwargs):
             axs.legend(loc='upper right', handles=handles[:legend_len], labels=labels[:legend_len])
     else:
         for ix in range(len(y_data)):
-            sns.violinplot(x=x, y=y_data[ix], hue=hue, data=md.obs, ax=axs[ix], inner=inner, **kwargs)
+            sns.violinplot(x=x, y=y_data[ix], hue=hue, data=adata.obs, ax=axs[ix], inner=inner, **kwargs)
             if jitter:
-                sns.stripplot(x=x, y=y_data[ix], hue=hue, data=md.obs, ax=axs[ix], jitter=jitter,
+                sns.stripplot(x=x, y=y_data[ix], hue=hue, data=adata.obs, ax=axs[ix], jitter=jitter,
                               color='gray', edgecolor='gray', size=1)
             axs[ix].set_ylabel(y[ix])
             if hue is not None:

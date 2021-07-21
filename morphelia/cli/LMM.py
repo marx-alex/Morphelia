@@ -2,8 +2,7 @@ import argparse
 import yaml
 import os
 import anndata as ad
-from morphelia.preprocessing.pp import *
-from morphelia.preprocessing.feature_agglo import feature_agglo
+from morphelia.stats import lmm_feat_select
 
 
 def run(inp):
@@ -12,20 +11,22 @@ def run(inp):
     figdir = os.path.join(inp['output'], './figures/')
 
     # load data
-    inp_data = os.path.join(inp['output'], inp[inp['agglo_inp']])
+    inp_data = os.path.join(inp['output'], inp[inp['lmm_inp']])
     if not os.path.exists(inp_data):
         raise OSError(f"File with subsample data does not exist: {inp_data}")
     adata = ad.read_h5ad(inp_data)
 
     # feature agglomeration
-    print("Feature agglomeration.")
-    cluster_range = (inp['cluster_min'], inp['cluster_max'])
-    adata = feature_agglo(adata, show=True, save=figdir, group_by=inp['treat_var'],
-                          k=inp['k'], cluster_range=cluster_range)
+    print("Feature selection with LMM.")
+    adata = lmm_feat_select(adata, time_series=inp['time_series'], show=True, save=figdir)
+
+    # filter
+    if inp['drop_low_sign']:
+        adata = adata[:, adata.var['wald_p'] < 0.05]
 
     # write file
     print(f"Write file to {inp['output']}")
-    adata.write(os.path.join(inp['output'], inp['agglo_name']))
+    adata.write(os.path.join(inp['output'], inp['lmm_name']))
 
 
 def main(args=None):

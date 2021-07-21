@@ -15,7 +15,9 @@ setup(
         'StoreAD = morphelia.cli.StoreAD:main',
         'Preprocess = morphelia.cli.Preprocess:main',
         'Pseudostitch = morphelia.cli.Pseudostitch:main',
-        'FeatureAgglo = morphelia.cli.FeatureAgglo:main'
+        'FeatureAgglo = morphelia.cli.FeatureAgglo:main',
+        'LMM = morphelia.cli.LMM:main',
+        'Embedding = morphelia.cli.Embedding:main'
     ]}
 
 )

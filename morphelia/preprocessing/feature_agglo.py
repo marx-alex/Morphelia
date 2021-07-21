@@ -1,19 +1,20 @@
 # external libraries
 from sklearn.cluster import FeatureAgglomeration
+from sklearn.metrics import silhouette_score
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
-import scipy.stats as st
 import anndata as ad
 import pandas as pd
+from tqdm import tqdm
 
 # internal libraries
 import os
 import warnings
 
 
-def feature_agglo(md, k='estimate', cluster_range=(2, 100), cutoff_mad=0.25,
+def feature_agglo(adata, k='estimate', cluster_range=(2, 100),
                   subsample=1000, seed=0, group_by=None,
                   show=False, save=None, **kwargs):
     """Wrapper for scikits FeatureAgglomeration.
@@ -21,11 +22,10 @@ def feature_agglo(md, k='estimate', cluster_range=(2, 100), cutoff_mad=0.25,
     Expects z-tranformed data.
 
     Args:
-        md (anndata.AnnData): Multidimensional morphological data.
+        adata (anndata.AnnData): Multidimensional morphological data.
         k ('estimate' or int): Number of clusters to compute. If 'estimate'
             estimates ideal number of k with subset of data.
         cluster_range (list): Minimum and maximum numbers of clusters to compute.
-        cutoff_mad (int): Maximum sum of intra-cluster median absolute deviation.
         subsample (int): If given, retrieves subsample of all cell data for speed.
         seed (int): Seed for subsample calculation.
         group_by (pd.Series): Color groups of cells.
@@ -44,30 +44,49 @@ def feature_agglo(md, k='estimate', cluster_range=(2, 100), cutoff_mad=0.25,
     if not len(cluster_range) == 2:
         raise ValueError("cluster_range should be a tuple or list of length 2, "
                          f"instead got: {cluster_range}")
-    if cluster_range[1] > md.shape[1]:
+    if cluster_range[1] > adata.shape[1]:
         warnings.warn("Maximal expected k is larger than number of features", UserWarning)
-        cluster_range[1] = md.shape[1]
+        cluster_range[1] = adata.shape[1]
+    if cluster_range[0] < 2:
+        warnings.warn(f"Minimum k is 2, changes {cluster_range[0]} to 2", UserWarning)
+        cluster_range[0] = 2
+
+    # check for z-transformed data
+    norm_mean = np.nanmean(adata.X)
+    if norm_mean > 0.1 or norm_mean < -0.1:
+        warnings.warn("Array does not seem to be a normal distribution.", UserWarning)
+
+    # check for nan values
+    if np.isnan(adata.X).any():
+        warnings.warn("Array contains NaN.", UserWarning)
 
     # initiate subsample
     X_ss = None
 
     # get subsample
-    if k == 'estimate':
+    if subsample is not None:
         assert isinstance(subsample, int), f"Define a subsample size (int) if k is 'estimate': {subsample}"
         # get samples
         np.random.seed(seed)
-        X_len = md.shape[0]
+        X_len = adata.shape[0]
+        if subsample > X_len:
+            subsample = X_len
         sample_ix = np.random.randint(X_len, size=subsample)
         try:
-            X_ss = md.X.copy()[sample_ix]
-            obs_ss = md.obs.copy().iloc[sample_ix]
+            X_ss = adata.X.copy()[sample_ix]
+            obs_ss = adata.obs.copy().iloc[sample_ix]
         except:
-            X_ss = md.X.copy()
-            obs_ss = md.obs.copy()
+            X_ss = adata.X.copy()
+            obs_ss = adata.obs.copy()
 
         # estimate k
-        k = _estimate_k(X_ss, obs_ss, cluster_range=cluster_range, group_by=group_by,
-                        show=show, save=save, cutoff=cutoff_mad, **kwargs)
+        if k == 'estimate':
+            k = _estimate_k(X_ss, obs_ss, cluster_range=cluster_range, group_by=group_by,
+                            show=show, save=save, **kwargs)
+
+    elif k == 'estimate':
+        k = _estimate_k(adata.X.copy(), adata.obs.copy(), cluster_range=cluster_range, group_by=group_by,
+                        show=show, save=save, **kwargs)
 
     # calculate feature agglomeration
     if isinstance(k, int):
@@ -76,40 +95,47 @@ def feature_agglo(md, k='estimate', cluster_range=(2, 100), cutoff_mad=0.25,
         if X_ss is not None:
             agglo = model.fit(X_ss)
         else:
-            agglo = model.fit(md.X)
+            agglo = model.fit(adata.X)
 
-        X_red = model.transform(md.X)
+        X_red = model.transform(adata.X)
     else:
         raise TypeError(f"k should be an integer, instead got {type(k)}")
 
     # add unstructured data:
     # dict of labels from new features with old features as values
-    feat_lst = list(zip(agglo.labels_, md.var_names))
+    feat_lst = list(zip(agglo.labels_, adata.var_names))
     agglo_feats = {}
     for pair in feat_lst:
         agglo_feats.setdefault(f"agglo_{pair[0]}", []).append(pair[1])
 
     # create new anndata object
     var = pd.DataFrame(index=[f"agglo_{i}" for i in set(agglo.labels_)])
-    md = ad.AnnData(X=X_red, obs=md.obs, var=var)
-    md.uns['agglo_feats'] = agglo_feats
+    adata = ad.AnnData(X=X_red, obs=adata.obs, var=var)
+    adata.uns['agglo_feats'] = agglo_feats
 
-    return md
+    return adata
 
 
-def _estimate_k(X_ss, obs_ss, cluster_range, group_by,
-                show=False, save=None, cutoff=None, **kwargs):
-    """Estimates k clusters with low mean intra-cluster median
-    absolute deviation on subset of data for better perfomance.
+def _estimate_k(X, obs, cluster_range, group_by,
+                show=False, save=None, **kwargs):
+    """Estimates k clusters with highest silhouette coefficient
+     on subset of data for better performance.
+
+     The silhouette coefficient is defined as:
+
+     s = (b - a) / max(a, b)
+
+     with:
+        a: The mean distance between a sample and all other points in the same class.
+        b: The mean distance between a sample and all other points in the next nearest cluster.
 
     Args:
-        X_ss (np.ndarray): cells x features.
-        obs_ss (pd.DataFrame): Subset of observations.
+        X (np.ndarray): cells x features.
+        obs (pd.DataFrame): Subset of observations.
         cluster_range (list): Minimum and maximum numbers of clusters to compute.
         group_by (np.array): Color groups of cells.
         show (bool): Plots MAD score and number of clusters.
         save (str): Path where to save figure.
-        cutoff (int): Cutoff for MAD score.
 
     Returns:
         k (int): Number of clusters.
@@ -117,48 +143,36 @@ def _estimate_k(X_ss, obs_ss, cluster_range, group_by,
     min_cluster, max_cluster = cluster_range
 
     # cache dispersion index sums
-    mad_means = []
+    sil_coeffs = []
     ks = []
 
-    # calculate intra-cluster dispersion factor for all ks
-    for k in range(min_cluster, max_cluster):
+    # calculate silhouette scores for all ks
+    iterator = range(min_cluster, max_cluster)
+    for k in tqdm(iterator, desc=f"Testing {min_cluster} to {max_cluster} ks"):
 
         model = FeatureAgglomeration(n_clusters=k, **kwargs)
-        agglo = model.fit(X_ss)
-        # X_red = model.transform(X_ss)
+        agglo = model.fit(X)
 
-        # get mean of intra-cluster MADs
-        mads = []
-        for k_ix in range(k):
-            mask = agglo.labels_ == k_ix
-            cluster_merge = X_ss[:, mask]
-            mad = np.mean(st.median_abs_deviation(cluster_merge, axis=1))
-            mads.append(mad)
-        mad_mean = np.mean(mads)
-        mad_means.append(mad_mean)
+        # get silhouette score
+        label = agglo.labels_
+        sil_coeff = silhouette_score(X.T, label, metric='euclidean')
+        sil_coeffs.append(sil_coeff)
         ks.append(k)
 
-    # get k with minimum MAD
-    min_ix = None
-    if cutoff is not None:
-        min_ix = next((ix for ix, mad in enumerate(mad_means) if mad < cutoff), None)
-    if min_ix is None:
-        warnings.warn("MAD cutoff not reached, global minimum taken", UserWarning)
-        min_ix = np.argmin(mad_means)
-    min_k = ks[min_ix]
+    # get k maximum silhouette coefficient
+    max_ix = np.argmax(sil_coeffs)
+    max_k = ks[max_ix]
 
     # show
     if show:
         # lineplot
         sns.set_theme()
         plt.figure(1)
-        p = sns.lineplot(x=ks, y=mad_means)
-        plt.xlabel('Clusters')
-        plt.ylabel('Mean intra-cluster MAD')
-        plt.axvline(min_k, color='k', linestyle='dotted', label=f'Min k: {min_k}')
-        if cutoff is not None:
-            plt.axhline(cutoff, color='r', linestyle='dotted', label=f'Cutoff: {cutoff}')
-        plt.title(f"Estimation of k on subsample of {X_ss.shape[0]} cells")
+        p = sns.lineplot(x=ks, y=sil_coeffs)
+        plt.xlabel('k (Number of clusters)')
+        plt.ylabel('Silhouette Coefficient')
+        plt.axvline(max_k, color='firebrick', linestyle='dotted', label=f'Est. k: {max_k}')
+        plt.title(f"Estimation of k on subsample of {X.shape[0]} cells")
         plt.legend()
 
         # save
@@ -174,7 +188,7 @@ def _estimate_k(X_ss, obs_ss, cluster_range, group_by,
         handles = None
         if group_by is not None:
             try:
-                group_by = obs_ss[group_by].tolist()
+                group_by = obs[group_by].tolist()
             except KeyError:
                 print(f"{group_by} not in anndata.AnnData.obs")
             unique_groups = set(group_by)
@@ -185,7 +199,7 @@ def _estimate_k(X_ss, obs_ss, cluster_range, group_by,
 
         plt.figure(2)
         cmap = sns.diverging_palette(220, 20, as_cmap=True)
-        g = sns.clustermap(X_ss, row_cluster=True,
+        g = sns.clustermap(X, row_cluster=True,
                            row_colors=row_colors,
                            metric='euclidean', method='ward',
                            cmap=cmap, vmin=-3, vmax=3)
@@ -202,9 +216,77 @@ def _estimate_k(X_ss, obs_ss, cluster_range, group_by,
         # save
         if save is not None:
             try:
-                plt.savefig(os.path.join(save, "heatmap_feat_agglo.png"),
-                            bbox_extra_artists=[lgd], bbox_inches='tight')
+                if handles is not None:
+                    plt.savefig(os.path.join(save, "heatmap_feat_agglo.png"),
+                                bbox_extra_artists=[lgd], bbox_inches='tight')
+                else:
+                    plt.savefig(os.path.join(save, "heatmap_feat_agglo.png"))
             except OSError:
                 print(f'Can not save figure to {save}.')
 
-    return min_k
+    return max_k
+
+
+def estimate_k(adata, cluster_range=(2, 100), group_by=None, subsample=1000,
+               seed=0, show=False, save=None, **kwargs):
+    """Estimates k clusters with highest silhouette score
+     on subset of data for better performance.
+
+    Args:
+        adata (anndata.AnnData): Multidimensional morphological data.
+        cluster_range (list): Minimum and maximum numbers of clusters to compute.
+        group_by (np.array): Color groups of cells.
+        subsample (int): If given, retrieves subsample of all cell data for speed.
+        seed (int): Seed for subsample calculation.
+        show (bool): Plots MAD score and number of clusters.
+        save (str): Path where to save figure.
+
+    Returns:
+        k (int): Number of clusters.
+    """
+    # check cluster_range
+    try:
+        cluster_range = list(cluster_range)
+    except TypeError:
+        print("list or tuple expected for cluster_range "
+              f"instead got: {type(cluster_range)}")
+    if not len(cluster_range) == 2:
+        raise ValueError("cluster_range should be a tuple or list of length 2, "
+                         f"instead got: {cluster_range}")
+    if cluster_range[1] > adata.shape[1]:
+        warnings.warn("Maximal expected k is larger than number of features", UserWarning)
+        cluster_range[1] = adata.shape[1]
+    if cluster_range[0] < 2:
+        warnings.warn(f"Minimum k is 2, changes {cluster_range[0]} to 2", UserWarning)
+        cluster_range[0] = 2
+
+    # check for z-transformed data
+    norm_mean = np.mean(adata.X)
+    if norm_mean > 0.1 or norm_mean < -0.1:
+        warnings.warn("Array does not seem to be a normal distribution.", UserWarning)
+
+    # initiate subsample
+    X_ss = None
+
+    if subsample is not None:
+        # get subsample
+        assert isinstance(subsample, int), f"Define a subsample size (int) if k is 'estimate': {subsample}"
+        # get samples
+        np.random.seed(seed)
+        X_len = adata.shape[0]
+        sample_ix = np.random.randint(X_len, size=subsample)
+        try:
+            X_ss = adata.X.copy()[sample_ix]
+            obs_ss = adata.obs.copy().iloc[sample_ix]
+        except:
+            X_ss = adata.X.copy()
+            obs_ss = adata.obs.copy()
+
+        # estimate k
+        k = _estimate_k(X_ss, obs_ss, cluster_range=cluster_range, group_by=group_by,
+                        show=show, save=save, **kwargs)
+    else:
+        k = _estimate_k(adata.X.copy(), adata.obs.copy(), cluster_range=cluster_range, group_by=group_by,
+                        show=show, save=save, **kwargs)
+
+    return k

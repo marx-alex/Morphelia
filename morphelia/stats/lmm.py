@@ -1,15 +1,20 @@
 # internal libraries
 import warnings
 from morphelia.preprocessing.pp import drop_nan
+import os
 
 # external libraries
 from statsmodels.formula.api import mixedlm
 from tqdm import tqdm
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 def lmm_feat_select(adata, fixed_var='Metadata_Treatment', group_var='BatchNumber',
-                    time_var='Metadata_Time', time_series=False):
+                    time_var='Metadata_Time', time_series=False,
+                    subsample=1000, seed=0,
+                    show=False, save=False):
     """Calculates a linear mixed effect model with a single variable as
     dependent, batch as grouping and treatments as indipendent variables.
     The null hypothesis is then tested, if all treatments trends are the same.
@@ -23,6 +28,10 @@ def lmm_feat_select(adata, fixed_var='Metadata_Treatment', group_var='BatchNumbe
             random effects.
         time_var (str): Variable in adata.obs to add as effect.
         time_series (bool): Includes time_var in model if True.
+        subsample (int): If given, retrieves subsample of all cell data for speed.
+        seed (int): Seed for subsample calculation.
+        show (bool): True to get figure.
+        save (str): Path where to save figure.
     """
     # check that variables in by are in anndata
     if time_series:
@@ -33,24 +42,44 @@ def lmm_feat_select(adata, fixed_var='Metadata_Treatment', group_var='BatchNumbe
         raise KeyError(f"One or all variables not in anndata object: {all_vars}")
 
     # check if any columns of adata.X contain nan values
-    if np.isnan:
+    if np.isnan(adata.X).any():
         warnings.warn("NaN values detected in anndata object. "
                       "Tries to drop NaN-containing columns.")
         adata = drop_nan(adata)
 
-    # cache p-values from wald tests of joint hypothesis
+    # get subsample
+    if subsample is not None:
+        assert isinstance(subsample, int), f"expected type for subsample is int, instead got {type(subsample)}"
+        # get samples
+        np.random.seed(seed)
+        X_len = adata.shape[0]
+        if subsample > X_len:
+            subsample = X_len
+        sample_ix = np.random.randint(X_len, size=subsample)
+        try:
+            adata_ss = adata[sample_ix, :]
+        except:
+            adata_ss = adata.X.copy()
+    else:
+        adata_ss = adata.X.copy()
+
+    # check that fixed vars have more than one category
+    if len(adata.obs[fixed_var].unique()) == 1:
+        raise ValueError(f"Only one category in fixed variables: {adata.obs[fixed_var].unique()}.")
+
+    # cache p-values from wald tests of joint hypothesis testing
     wald_ps = []
 
     # cache data to create formula
-    data = {'fixed': adata.obs[fixed_var].astype('category'),
-            'group': adata.obs[group_var].astype('category')}
+    data = {'fixed': adata_ss.obs[fixed_var].astype('category'),
+            'group': adata_ss.obs[group_var].astype('category')}
     if time_series:
-        data['time'] = adata.obs[time_var]
+        data['time'] = adata_ss.obs[time_var]
 
     # iterate over all variables in adata.var
     var_list = adata.var_names
     for var in tqdm(var_list, desc=f"Fitting LMMs for {len(var_list)} features."):
-        data['var'] = adata[:, var].X
+        data['var'] = adata_ss[:, var].X
 
         # create linear mixed effect model
         with warnings.catch_warnings():
@@ -71,5 +100,30 @@ def lmm_feat_select(adata, fixed_var='Metadata_Treatment', group_var='BatchNumbe
 
     # add p-value from wald test to variables
     adata.var['wald_p'] = wald_ps
+
+    # plotting
+    if show:
+        sns.set_theme()
+        feat_ixs = list(range(adata.shape[1]))
+        legend = ['Treatment effect' if elem < 0.05 else 'No treatment effect' for elem in wald_ps]
+        
+        plt.figure(figsize=(8, 6))
+        pl = sns.scatterplot(x=feat_ixs, y=wald_ps, hue=legend, palette=sns.color_palette('husl', 2)[::-1],
+                             alpha=0.6, edgecolors=None)
+        plt.yscale('log')
+        plt.gca().invert_yaxis()
+        pl.set_xlabel('Feature')
+        pl.set_ylabel('p-value (Wald test)')
+        plt.title(f'LMM Feature Selection on subsample of {subsample} cells')
+        plt.axhline(0.05, linestyle='dotted', color='black', label=f'Significance level: {0.05}')
+        lgd = plt.legend(bbox_to_anchor=(1, 1), loc='upper left', frameon=False)
+
+        # save
+        if save:
+            try:
+                plt.savefig(os.path.join(save, "feature_correlation.png"),
+                            bbox_extra_artists=[lgd], bbox_inches='tight')
+            except OSError:
+                print(f'Can not save figure to {save}.')
 
     return adata
