@@ -39,14 +39,19 @@ def run(inp):
                                                              inp['area_thresh'], inp['intens_thresh'])):
 
         sc.pl.violin(adata, area,
-                     jitter=0.4, save=f'_raw_{area}.png')
+                     stripplot=False, save=f'_raw_{area}.png')
         sc.pl.violin(adata, intens,
-                     jitter=0.4, save=f'_filtered_{intens}.png')
+                     stripplot=False, save=f'_raw_{intens}.png')
 
         sc.pl.scatter(adata, x=area, y=intens, save=f'_raw_{area}_{intens}.png')
 
         adata = filter_thresh(adata, area, area_thresh)
         adata = filter_thresh(adata, intens, intens_thresh)
+
+        sc.pl.violin(adata, area,
+                     stripplot=False, save=f'_filtered_{area}.png')
+        sc.pl.violin(adata, intens,
+                     stripplot=False, save=f'_filtered_{intens}.png')
 
         sc.pl.scatter(adata, x=area, y=intens, save=f'_filtered_{area}_{intens}.png')
 

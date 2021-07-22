@@ -4,11 +4,12 @@ from morphelia.preprocessing.pp import drop_nan
 import os
 
 # external libraries
-from statsmodels.formula.api import mixedlm
+import statsmodels.api as sm
 from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pandas as pd
 
 
 def lmm_feat_select(adata, fixed_var='Metadata_Treatment', group_var='BatchNumber',
@@ -64,15 +65,17 @@ def lmm_feat_select(adata, fixed_var='Metadata_Treatment', group_var='BatchNumbe
         adata_ss = adata.X.copy()
 
     # check that fixed vars have more than one category
-    if len(adata.obs[fixed_var].unique()) == 1:
+    if len(adata_ss.obs[fixed_var].unique()) == 1:
         raise ValueError(f"Only one category in fixed variables: {adata.obs[fixed_var].unique()}.")
 
     # cache p-values from wald tests of joint hypothesis testing
     wald_ps = []
 
     # cache data to create formula
-    data = {'fixed': adata_ss.obs[fixed_var].astype('category'),
-            'group': adata_ss.obs[group_var].astype('category')}
+    data = pd.DataFrame({'fixed': adata_ss.obs[fixed_var],
+                         'group': adata_ss.obs[group_var]})
+    # data = {'fixed': adata_ss.obs[fixed_var].astype('category'),
+    #         'group': adata_ss.obs[group_var].astype('category')}
     if time_series:
         data['time'] = adata_ss.obs[time_var]
 
@@ -85,9 +88,9 @@ def lmm_feat_select(adata, fixed_var='Metadata_Treatment', group_var='BatchNumbe
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore')
             if time_series:
-                lmm = mixedlm('var ~ fixed : time', data, groups='group')
+                lmm = sm.MixedLM.from_formula('var ~ fixed : time', data=data, groups='group')
             else:
-                lmm = mixedlm('var ~ fixed', data, groups='group')
+                lmm = sm.MixedLM.from_formula('var ~ fixed', data=data, groups='group')
             results = lmm.fit(method='lbfgs')
 
         first_treat = lmm.exog_names[1]

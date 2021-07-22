@@ -35,14 +35,14 @@ area_filter:
   - 'Cells_AreaShape_Area'
 #  - 'Primarieswithoutborder_AreaShape_Area'
 area_thresh:
-  - 10000
-# -?
+  - 20000
+# - 5000
 intens_filter:
   - 'Cells_Intensity_MedianIntensity_CalceinAM'
 #  - 'Primarieswithoutborder_Intensity_IntegratedIntensity_DNA'
 intens_thresh:
-  - 0.8
-#  - 0.8
+  - 0.9
+#  - 0.9
 treat_var: 'Metadata_Treatment' # Metadata_[variable from Treatment.csv]
 filter_debris: False # Cell und Nuclei size needed
 
