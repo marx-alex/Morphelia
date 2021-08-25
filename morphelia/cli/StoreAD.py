@@ -6,7 +6,7 @@ import re
 import anndata as ad
 
 from morphelia.tools.morphome import MorphData
-from morphelia.preprocessing.pp import aggregate, subsample
+from morphelia.preprocessing import aggregate, subsample
 
 
 def run(inp, agg_name, ss_name, files, treatment, out, store):

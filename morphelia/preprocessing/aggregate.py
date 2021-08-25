@@ -8,13 +8,14 @@ import anndata as ad
 
 
 def aggregate(adata, by=("BatchNumber", "PlateNumber", "Metadata_Well"),
-              obs_ids='Metadata', min_cells=300, verbose=False):
+              obs_ids=None, qc=False, min_cells=300, verbose=False):
     """Aggregate multidimensional morphological data by populations.
 
     Args:
         adata (anndata.AnnData): Annotated data object.
         by (list of str): Variables to use for aggregation.
         obs_ids (list of str): Identifiers for observations to keep.
+        qc (bool): True for quality control.
         min_cells (int): Minimum number of cells per population.
             Population is deleted from data if below threshold.
         verbose (bool)
@@ -53,7 +54,7 @@ def aggregate(adata, by=("BatchNumber", "PlateNumber", "Metadata_Well"),
         for key, val in sub_df.iloc[0, :].to_dict().items():
             obs_agg[key].append(val)
         # add object number to observations
-        obs_agg['Metadata_CellNumber'].append(len(sub_df))
+        obs_agg['Metadata_Cellnumber'].append(len(sub_df))
 
         # cache indices of group
         group_ix = sub_df.index
@@ -70,10 +71,11 @@ def aggregate(adata, by=("BatchNumber", "PlateNumber", "Metadata_Well"),
     adata = ad.AnnData(X=X_agg, obs=obs_agg, var=adata.var)
 
     # quality control
-    if min_cells is not None:
-        if verbose:
-            dropped_pops = adata[adata.obs['Metadata_CellNumber'] < min_cells, :].obs[by].values.tolist()
-            print(f"Dropped populations: {dropped_pops}")
-        adata = adata[adata.obs['Metadata_CellNumber'] >= min_cells, :]
+    if qc:
+        if min_cells is not None:
+            if verbose:
+                dropped_pops = adata[adata.obs['Metadata_Cellnumber'] < min_cells, :].obs[by].values.tolist()
+                print(f"Dropped populations: {dropped_pops}")
+            adata = adata[adata.obs['Metadata_Cellnumber'] >= min_cells, :]
 
     return adata

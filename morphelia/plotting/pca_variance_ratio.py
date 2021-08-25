@@ -7,7 +7,7 @@ import seaborn as sns
 import numpy as np
 
 
-def pca_variance_ratio(adata, n_pcas=30, save=False, **kwargs):
+def pca_variance_ratio(adata, n_pcas=100, save=False, **kwargs):
     """Plots cumulative percentage variance explained by each principal component.
 
     Args:
@@ -33,7 +33,7 @@ def pca_variance_ratio(adata, n_pcas=30, save=False, **kwargs):
 
     # plot
     kwargs.setdefault('color', '#D66853')
-    kwargs.setdefault('marker', 'o')
+    # kwargs.setdefault('marker', 'o')
 
     sns.set_theme()
     plt.figure()

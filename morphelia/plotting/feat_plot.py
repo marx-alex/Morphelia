@@ -18,9 +18,14 @@ def boxplot(adata, x, y, hue=None, **kwargs):
     Returns:
         matplotlib.pyplot.figure
     """
-    # store y variables as vectors
     y_data = []
-    sub_arr = adata[:, y].X
+    if y in adata.obs.columns:
+        sub_arr = adata.obs[y].to_numpy().reshape(-1, 1)
+    elif y in adata.var_names:
+        sub_arr = adata[:, y].X
+    else:
+        raise KeyError(f"Variable for time not in AnnData object: f{y}")
+    # store y variables as vectors
     for column in sub_arr.T:
         y_data.append(column.flatten())
 
@@ -64,7 +69,13 @@ def violin(adata, x, y, hue=None, jitter=False, **kwargs):
     """
     # store y variables as vectors
     y_data = []
-    sub_arr = adata[:, y].X.copy()
+    if y in adata.obs.columns:
+        sub_arr = adata.obs[y].to_numpy().reshape(-1, 1)
+    elif y in adata.var_names:
+        sub_arr = adata[:, y].X
+    else:
+        raise KeyError(f"Variable for time not in AnnData object: f{y}")
+    # store y variables as vectors
     for column in sub_arr.T:
         y_data.append(column.flatten())
 
