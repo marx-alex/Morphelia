@@ -5,7 +5,7 @@ import os
 import anndata as ad
 from morphelia.preprocessing import *
 from morphelia.extern.pl import highly_variable_genes
-from morphelia.stats import lmm_feat_select
+from morphelia.features import lmm_feat_select
 
 
 def run(inp):

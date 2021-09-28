@@ -1,6 +1,6 @@
 # internal libraries
 import warnings
-from morphelia.preprocessing.pp import drop_nan
+from morphelia.preprocessing.basic import drop_nan
 import os
 
 # external libraries

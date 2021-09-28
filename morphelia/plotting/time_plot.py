@@ -110,6 +110,7 @@ def time_heatmap(adata,
                  feats=None,
                  conc_var=None,
                  aggregate_data=True,
+                 share_cbar=True,
                  show=True,
                  save=False,
                  **kwargs):
@@ -124,6 +125,7 @@ def time_heatmap(adata,
         feats (list): List of features to show.
         conc_var (str): Concentration variable.
         aggregate_data (bool): True if data has to be aggreagated over time.
+        share_cbar (bool): True to share color bar among all subplots.
         show (bool)
         save (str): Path to save figure.
         kwargs (dict): Keyword arguments passed to seaborn.heatmap.
@@ -182,14 +184,17 @@ def time_heatmap(adata,
 
     fig, axs = plt.subplots(h, w, figsize=(w_size, h_size), squeeze=False,
                             sharex=True, sharey=True)
-    cbar_ax = fig.add_axes([.91, .3, .03, .4])
+    cbar_ax = None
+    if share_cbar:
+        cbar_ax = fig.add_axes([.91, .3, .03, .4])
+
     i, j = 0, 0
 
     for ix, feat in enumerate(feats):
         feat_time = adata_df.pivot(df_ix, time_var, feat)
 
         sns.heatmap(feat_time, ax=axs[i][j],
-                    cbar=ix == 0,
+                    cbar=ix == 0 if share_cbar else True,
                     cbar_ax=None if ix else cbar_ax,
                     **kwargs)
         axs[i][j].set_title(feat)

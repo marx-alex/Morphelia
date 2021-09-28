@@ -9,8 +9,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import anndata as ad
 
-__all__ = ["temporal_reduction", "show_time_series"]
-
 
 def temporal_reduction(md, trace_var="Metadata_Trace_Parent", time_var="Metadata_Time",
                        show=None, vmin=0, vmax=50, save=None,
@@ -71,7 +69,7 @@ def temporal_reduction(md, trace_var="Metadata_Trace_Parent", time_var="Metadata
 
     # show chart with variables of a single object
     if show is not None:
-        fig, axes = show_time_series(T[show, :, vmin:vmax], tp, show_info, var_names=list(
+        fig, axes = _show_time_series(T[show, :, vmin:vmax], tp, show_info, var_names=list(
             md.var.index)[vmin:vmax])
 
         # save if save is not None
@@ -97,7 +95,7 @@ def temporal_reduction(md, trace_var="Metadata_Trace_Parent", time_var="Metadata
     return new_ad
 
 
-def show_time_series(X, time_points, show_info, var_names):
+def _show_time_series(X, time_points, show_info, var_names):
     """Returns figures for time series variables of a object.
 
     Args:

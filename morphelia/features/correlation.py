@@ -1,19 +1,13 @@
-# import internal libraries
-import os
-import warnings
-
-# import external libraries
-import seaborn as sns
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Patch
+from morphelia.plotting import plot_corr_matrix
 
 
 def drop_highly_correlated(adata, thresh=0.95, show=False, save=False,
                            subsample=1000, seed=0, verbose=False,
-                           neg_corr=False, **kwargs):
+                           neg_corr=True, **kwargs):
     """Drops features that have a Pearson correlation coefficient
     with another feature above a certain threshold.
+    Only one feature in a highly correlated group is kept.
 
     Args:
         adata (anndata.AnnData): Multidimensional morphological data.
@@ -78,7 +72,7 @@ def drop_highly_correlated(adata, thresh=0.95, show=False, save=False,
         drop_vars = all_vars[drop_ix]
 
         if verbose:
-            print(f"Dropped features: {drop_vars}")
+            print(f"Dropped {len(drop_vars)} features: {drop_vars}")
         keep_vars = [var for var in all_vars if var not in drop_vars]
         adata = adata[:, keep_vars]
 
@@ -92,48 +86,16 @@ def drop_highly_correlated(adata, thresh=0.95, show=False, save=False,
         adata = adata[:, non_nan_feats]
 
     if show:
-        # do not show features with only nan
-        corr_matrix = np.nan_to_num(corr_matrix)
-
-        kwargs.setdefault('cmap', 'viridis')
-        kwargs.setdefault('method', 'ward')
-        kwargs.setdefault('vmin', -1)
-        kwargs.setdefault('vmax', 1)
-
-        # get group labels
-        row_colors = None
-        handles = None
         if drop_ix is not None:
             groups = ['other features' if var in keep_vars else 'higly correlated features' for var in all_vars]
             if len(nan_feats) > 0:
-                groups = ['uniform features' if var in nan_feats else label for label, var in zip(groups, all_vars)]
-            unique_groups = set(groups)
-            colors = sns.color_palette("Set2", len(unique_groups))
-            col_map = dict(zip(unique_groups, colors))
-            row_colors = list(map(col_map.get, groups))
-            handles = [Patch(facecolor=col_map[name]) for name in col_map]
+                groups = ['invariant features' if var in nan_feats else label for label, var in zip(groups, all_vars)]
+        else:
+            groups = None
 
-        sns.set_theme()
-        plt.figure()
-        cm = sns.clustermap(corr_matrix, row_colors=row_colors, **kwargs)
-        plt.suptitle('Correlation between features', y=1.05, fontsize=16)
-        cm.ax_row_dendrogram.set_visible(False)
-        ax = cm.ax_heatmap
-        ax.get_yaxis().set_visible(False)
-        if adata.shape[1] > 50:
-            warnings.warn("Labels are hidden with more than 50 features", UserWarning)
-            ax.get_xaxis().set_visible(False)
-        if handles is not None:
-            lgd = plt.legend(handles, col_map, bbox_to_anchor=(1, 1),
-                             bbox_transform=plt.gcf().transFigure, loc='upper left',
-                             frameon=False)
-
-        # save
-        if save:
-            try:
-                plt.savefig(os.path.join(save, "feature_correlation.png"),
-                            bbox_extra_artists=[lgd], bbox_inches='tight')
-            except OSError:
-                print(f'Can not save figure to {save}.')
+        # plot
+        plot_corr_matrix(corr_matrix, groups, save=save, **kwargs)
 
     return adata
+
+

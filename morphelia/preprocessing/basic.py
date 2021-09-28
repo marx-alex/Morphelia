@@ -1,6 +1,5 @@
 # import external libraries
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
 
 
 def drop_nan(adata, drop_inf=True, drop_dtype_max=True, verbose=False):
@@ -23,27 +22,15 @@ def drop_nan(adata, drop_inf=True, drop_dtype_max=True, verbose=False):
         masked_vars = adata.var[mask].index.tolist()
 
         if verbose:
-            print(f"Dropped NaN containing variables: {adata.var[~mask].index.tolist()}")
+            print(f"Dropped {adata.shape[1] - len(masked_vars)} features with missing values:"
+                  f" {adata.var[~mask].index.tolist()}")
 
         adata = adata[:, masked_vars]
 
     return adata
 
 
-def min_max_scaler(adata, min=0, max=1):
-    """Wraper for sklearns MinMaxScaler.
-
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        min, max (int): Desired range of transformed data.
-    """
-    scaler = MinMaxScaler(feature_range=(min, max))
-    adata.X = scaler.fit_transform(adata.X)
-
-    return adata
-
-
-def filter_quant(adata, var, std_thresh=1.96, side='both'):
+def filter_std(adata, var, std_thresh=3, side='both'):
     """Filter cells by identifying outliers from a distribution
     of a single value.
 
@@ -110,7 +97,8 @@ def drop_duplicates(adata, verbose=False):
     _, index = np.unique(adata.X, axis=1, return_index=True)
 
     if verbose:
-        print(f"Dropped duplicated features: {adata.var.index[[ix for ix in range(adata.X.shape[1]) if ix not in index]]}")
+        print(f"Dropped {adata.shape[1] - len(index)} duplicated features:"
+              f" {adata.var.index[[ix for ix in range(adata.X.shape[1]) if ix not in index]]}")
 
     # apply filter
     adata = adata[:, index]
@@ -118,49 +106,7 @@ def drop_duplicates(adata, verbose=False):
     return adata
 
 
-def z_transform(adata, by=("BatchNumber", "PlateNumber"), robust=False,
-                clip=None, **kwargs):
-    """Wrapper for sklearns StandardScaler to scale morphological data
-    to unit variance by groups.
-
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        by (iterable, str or None): Groups to apply function to.
-            If None, apply to whole anndata.AnnData object.
-        robust (bool): If true, use sklearn.preprocessing.RobustScaler
-        clip (int): Clip (truncate) to this value after scaling. If None, do not clip.
-        ** kwargs: Arguments passed to scaler.
-    """
-    # check that variables in by are in anndata
-    if not all(var in adata.obs.columns for var in by):
-        raise KeyError(f"Variables defined in 'by' are not in annotations: {by}")
-
-    if isinstance(by, str):
-        by = [by]
-    elif isinstance(by, tuple):
-        by = list(by)
-
-    if robust:
-        scaler = RobustScaler(unit_variance=True, **kwargs)
-    else:
-        scaler = StandardScaler(**kwargs)
-
-    # iterate over md with grouping variables
-    for groups, sub_df in adata.obs.groupby(by):
-        # cache indices of group
-        group_ix = sub_df.index
-        # transform group with scaler
-        adata[group_ix, :].X = scaler.fit_transform(adata[group_ix, :].X)
-
-    if clip is not None:
-        assert (clip > 0), f'Value for clip should be above 0, instead got {clip}'
-        adata.X[adata.X > clip] = clip
-        adata.X[adata.X < -clip] = -clip
-
-    return adata
-
-
-def drop_all_equal(adata, axis=0, verbose=False):
+def drop_invariant(adata, axis=0, verbose=False):
     """Drops rows (cells) or columns (features)
     if all values are equal.
 
@@ -180,7 +126,7 @@ def drop_all_equal(adata, axis=0, verbose=False):
 
         if verbose:
             dropped = adata.var_names[mask]
-            print(f"Dropped uniform features: {dropped}")
+            print(f"Dropped {len(dropped)} uniform features: {dropped}")
 
         # apply mask
         adata = adata[:, ~mask]
@@ -190,7 +136,7 @@ def drop_all_equal(adata, axis=0, verbose=False):
 
         if verbose:
             dropped = adata.obs.index[mask]
-            print(f"Dropped cells: {dropped}")
+            print(f"Dropped {len(dropped)} cells: {dropped}")
 
         # apply mask
         adata = adata[~mask, :]
