@@ -126,7 +126,7 @@ def drop_invariant(adata, axis=0, verbose=False):
 
         if verbose:
             dropped = adata.var_names[mask]
-            print(f"Dropped {len(dropped)} uniform features: {dropped}")
+            print(f"Dropped {len(dropped)} invariant features: {dropped}")
 
         # apply mask
         adata = adata[:, ~mask]
@@ -136,7 +136,7 @@ def drop_invariant(adata, axis=0, verbose=False):
 
         if verbose:
             dropped = adata.obs.index[mask]
-            print(f"Dropped {len(dropped)} cells: {dropped}")
+            print(f"Dropped {len(dropped)} invariant cells: {dropped}")
 
         # apply mask
         adata = adata[~mask, :]

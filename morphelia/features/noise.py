@@ -2,39 +2,52 @@ import numpy as np
 
 
 def remove_noise(adata,
-                 treat_var='Metadata_Treatment',
+                 by='Metadata_Treatment',
                  mean_std_thresh=0.8,
                  drop=True,
                  verbose=False):
     """Removal of features with high mean of standard deviations within treatment groups.
     Features with mean standard deviation above mean_std_thresh will be removed.
+    Normally distributed data is expected.
 
     Args:
         adata (anndata.AnnData): Multidimensional morphological data.
-        treat_var (str): Variable in observations that contains perturbations.
+        by (str, tuple or list): Variable in observations that contains perturbations.
         mean_std_thresh (float): Threshold for high mean standard deviations.
         drop (bool): True to drop features directly.
         verbose (bool)
     """
     # check variables
-    assert treat_var in adata.obs.columns, f"treat_var is not in observations: {treat_var}"
+    if by is not None:
+        if isinstance(by, str):
+            by = [by]
+        elif isinstance(by, tuple):
+            by = list(by)
 
-    # store standard deviations
-    stds = []
+        if not all(var in adata.obs.columns for var in by):
+            raise KeyError(f"Variables defined in 'group_vars' are not in annotations: {by}")
 
-    # iterate over unique treatment groups
-    for group, sub_df in adata.obs.groupby(treat_var):
-        # cache indices of group
-        group_ix = sub_df.index
+    # iterate over group_vars groups
+    if by is not None:
+        # store standard deviations
+        stds = []
 
-        # calculate group std for every group
-        X_group = adata[group_ix, :].X
-        group_std = np.std(X_group, axis=0)
-        stds.append(group_std)
+        for group, sub_df in adata.obs.groupby(by):
+            # cache indices of group
+            group_ix = sub_df.index
 
-    # calculate mean of group stds
-    stds = np.stack(stds, axis=0)
-    mean_stds = np.mean(stds, axis=0)
+            # calculate group std for every group
+            X_group = adata[group_ix, :].X
+            group_std = np.std(X_group, axis=0)
+            stds.append(group_std)
+
+        # calculate mean of group stds
+        stds = np.stack(stds, axis=0)
+        mean_stds = np.mean(stds, axis=0)
+
+    else:
+        # calculate std over whole X
+        mean_stds = np.std(adata.X, axis=0)
 
     # get features to drop
     mask = mean_stds > mean_std_thresh

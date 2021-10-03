@@ -7,8 +7,8 @@ import os
 
 def similarity_matrix(adata,
                       method='pearson',
-                      treat_var='Metadata_Treatment',
-                      dose_var=None,
+                      group_var='Metadata_Treatment',
+                      other_group_vars=None,
                       show=False,
                       save=None):
     """Computes a similarity or distance matrix between different treatments and doses if given.
@@ -17,8 +17,8 @@ def similarity_matrix(adata,
         adata (anndata.AnnData): Multidimensional morphological data.
         method (str): Method for similarity/ distance computation.
             Should be one of: pearson, spearman, kendall, euclidean, mahalanobis.
-        treat_var (str): Variable for treatment conditions.
-        dose_var (str): Variable for doses.
+        group_var (str): Find similarity between groups. Could be treatment conditions for example.
+        other_group_vars (list): Other variables that define groups that a similar.
         show (bool): Show plot.
         save (str): Save plot to a specified location.
 
@@ -26,9 +26,14 @@ def similarity_matrix(adata,
         numpy.array: similarity/ distance matrix
     """
     # check variables
-    assert treat_var in adata.obs.columns, f"treat_var not in observations: {treat_var}"
-    if dose_var is not None:
-        assert dose_var in adata.obs.columns, f"dose_var not in observations: {dose_var}"
+    assert group_var in adata.obs.columns, f"treat_var not in observations: {group_var}"
+    if other_group_vars is not None:
+        if isinstance(other_group_vars, str):
+            other_group_vars = [other_group_vars]
+        assert isinstance(other_group_vars, list), "Expected type for other_group_vars is string or list, " \
+                                                   f"instead got {type(other_group_vars)}"
+        assert all(var in adata.obs.columns for var in other_group_vars), f"other_group_vars not in " \
+                                                                          f"observations: {other_group_vars}"
 
     # check method
     avail_methods = ['pearson', 'spearman', 'kendall', 'euclidean', 'mahalanobis']
@@ -37,11 +42,11 @@ def similarity_matrix(adata,
                                     f"instead got {method}"
 
     # load profiles to dataframe and transpose
-    if dose_var is not None:
-        profiles_df = pd.DataFrame(adata.X, columns=adata.var_names, index=[adata.obs[treat_var],
-                                                                            adata.obs[dose_var]]).T
+    if other_group_vars is not None:
+        group_vars = [group_var] + other_group_vars
+        profiles_df = pd.DataFrame(adata.X, columns=adata.var_names, index=[adata.obs[var] for var in group_vars]).T
     else:
-        profiles_df = pd.DataFrame(adata.X, columns=adata.var_names, index=adata.obs[treat_var]).T
+        profiles_df = pd.DataFrame(adata.X, columns=adata.var_names, index=adata.obs[group_var]).T
 
     # calculate similarity
     if method == 'pearson':
@@ -60,6 +65,10 @@ def similarity_matrix(adata,
     if method == 'mahalanobis':
         sim = squareform(pdist(profiles_df.T, metric='manhattan'))
         profiles_df = pd.DataFrame(sim, columns=profiles_df.columns, index=profiles_df.columns)
+        
+    # sort index
+    profiles_df.sort_index(axis=0, inplace=True)
+    profiles_df.sort_index(axis=1, inplace=True)
 
     if show:
         sns.set_theme()

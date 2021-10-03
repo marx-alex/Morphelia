@@ -1,8 +1,9 @@
 import numpy as np
 from tqdm import tqdm
+from scipy.stats import median_abs_deviation as mad
 
 
-def drop_low_variance(
+def drop_near_zero_variance(
         adata,
         freq_thresh=0.05,
         unique_thresh=0.01,
@@ -45,7 +46,7 @@ def drop_low_variance(
 
     # test first and second rule
     # iterate over features
-    for feat in tqdm(adata.var_names, desc="Iterating of features"):
+    for feat in tqdm(adata.var_names, desc="Iterating over features"):
         # get unique features and their counts
         unique, counts = np.unique(adata[:, feat].X, return_counts=True)
         counts = np.sort(counts)
@@ -81,6 +82,180 @@ def drop_low_variance(
     return adata
 
 
+def drop_low_cv(adata,
+                by=("BatchNumber", "PlateNumber"),
+                method='std',
+                cutoff=0.5,
+                verbose=False):
+    """Find features with low coefficients of variance which is interpreted as a low content of biological
+    information.
+    Depending on the method the normalized standard deviation or mean absolute deviation for every feature
+    is calculated. If 'by' is given, the mean deviation of groups (batches or plates) is calculated.
+    Features below a given threshold are dropped from the data.
+    By default a coefficient of variance below 1 is considered to indicate low variance.
 
+    The coefficients of variance are:
+        std_norm = std / abs(mean)
+        mad_norm = mad / abs(median)
+
+    adata (anndata.AnnData): Multidimensional morphological data.
+    by (iterable, str or None): Groups to apply function to.
+            If None, apply to whole anndata.AnnData object.
+    method (str): Standard deviation ('std') or mean absolute deviation ('mad').
+    cutoff (float): Drop features with deviation below cutoff.
+    verbose (bool)
+    """
+    # check variables
+    if by is not None:
+        if isinstance(by, str):
+            by = [by]
+        elif isinstance(by, tuple):
+            by = list(by)
+
+        if not all(var in adata.obs.columns for var in by):
+            raise KeyError(f"Variables defined in 'by' are not in annotations: {by}")
+
+    # check method
+    method = method.lower()
+    avail_methods = ['std', 'mad']
+    assert method in avail_methods, f"Method not in {avail_methods}, " \
+                                    f"instead got {method}"
+
+    assert isinstance(cutoff, (int, float)), f"cutoff is expected to be type(float), " \
+                                             f"instead got {type(cutoff)}"
+
+    with np.errstate(divide='ignore', invalid='ignore'):
+        if by is not None:
+            # store deviations
+            norm_devs = []
+            for groups, sub_df in adata.obs.groupby(by):
+                # cache indices of group
+                group_ix = sub_df.index
+
+                if method == 'std':
+                    deviation = np.nanstd(adata[group_ix, :].X, axis=0)
+                    norm_dev = deviation / np.abs(np.nanmean(adata[group_ix, :].X, axis=0))
+                elif method == 'mad':
+                    deviation = mad(adata[group_ix, :].X, scale='normal', nan_policy='omit')
+                    norm_dev = deviation / np.abs(np.nanmedian(adata[group_ix, :].X, axis=0))
+
+                norm_devs.append(norm_dev)
+
+            norm_devs = np.stack(norm_devs)
+            norm_dev = np.nanmean(norm_devs, axis=0)
+
+        else:
+            if method == 'std':
+                deviation = np.nanstd(adata.X, axis=0)
+                norm_dev = deviation / np.abs(np.nanmean(adata.X, axis=0))
+            elif method == 'mad':
+                deviation = mad(adata.X, scale='normal', nan_policy='omit')
+                norm_dev = deviation / np.abs(np.nanmedian(adata.X, axis=0))
+
+    # mask by cutoff
+    mask = np.logical_and((norm_dev > cutoff), (norm_dev != np.nan))
+
+    if verbose:
+        print(f"Drop {len(adata.var_names[~mask])} features with low "
+              f"coefficient of variance: {adata.var_names[~mask]}")
+
+    # drop
+    adata = adata[:, mask]
+
+    return adata
+
+
+def drop_low_variance(adata,
+                      by=("BatchNumber", "PlateNumber"),
+                      cutoff=0.5,
+                      verbose=False):
+    """Find features with low variance. This approach tries to account for the mean-variance
+    relationship by applying a variance-stabilizing transformation before ranking variance of features.
+    The implementation was described by Stuart et al., 2019:
+    Stuart et al. (2019), Comprehensive integration of single-cell data. Cell.
+
+    Different to Stuart et al. a polynomial fit with one degree (linear regression) is calculated to
+    predict the variance of each feature as a function of its mean.
+    Since negative mean values are possible in morphological data, the absolute values for means are taken.
+
+    adata (anndata.AnnData): Multidimensional morphological data.
+    by (iterable, str or None): Groups to apply function to.
+            If None, apply to whole anndata.AnnData object.
+    cutoff (float): Drop features with deviation below cutoff.
+    verbose (bool)
+    """
+    # check variables
+    if by is not None:
+        if isinstance(by, str):
+            by = [by]
+        elif isinstance(by, tuple):
+            by = list(by)
+
+        if not all(var in adata.obs.columns for var in by):
+            raise KeyError(f"Variables defined in 'by' are not in annotations: {by}")
+
+    assert isinstance(cutoff, (int, float)), f"cutoff is expected to be type(float), " \
+                                             f"instead got {type(cutoff)}"
+
+    if by is not None:
+        # store standardized variances
+        stand_vars = []
+        for groups, sub_df in adata.obs.groupby(by):
+            # cache indices of group
+            group_ix = sub_df.index
+            X = adata[group_ix, :].X.copy()
+
+            # get standardized variances
+            stand_var = _stand_variance(X)
+            stand_vars.append(stand_var)
+
+        stand_vars = np.stack(stand_vars)
+        stand_var = np.nanmean(stand_vars, axis=0)
+
+    else:
+        stand_var = _stand_variance(adata.X.copy())
+
+    # apply cutoff
+    mask = np.logical_and((stand_var > cutoff), (stand_var != np.nan))
+
+    if verbose:
+        print(f"Drop {len(adata.var_names[~mask])} features with low "
+              f"coefficient of variance: {adata.var_names[~mask]}")
+
+    # drop
+    adata = adata[:, mask]
+
+    return adata
+
+
+def _stand_variance(X):
+    """Calculate the standardized variances as described in
+    Stuart et al. 2019.
+
+    Args:
+        adata (numpy.array): Multidimensional morphological data.
+    """
+    # calculate variance and mean
+    variance = np.nanvar(X, axis=0)
+    mean = np.nanmean(X, axis=0)
+
+    # log10 transform variance and mean
+    variance = np.log10(variance)
+    mean = np.log10(np.abs(mean))
+
+    # fit linear regression
+    lr = np.polyfit(mean, variance, 1)
+    p = np.poly1d(lr)
+
+    # transform data
+    X_trans = (X - mean) / np.sqrt(10 ** p(mean))
+    # clip values above sqrt(N) with N number of cells
+    X_trans[X_trans > np.sqrt(X_trans.shape[0])] = np.sqrt(X_trans.shape[0])
+
+    # calculate variance of standardized values
+    # stand_var = np.nanvar(X_trans, axis=0)
+    stand_var = mad(X, nan_policy='omit', scale='normal')
+
+    return stand_var
 
 

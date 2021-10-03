@@ -1,13 +1,17 @@
+import numpy as np
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
 from morphelia.tools import RobustMAD
+from morphelia.preprocessing import drop_nan as drop_nan_feats
 
 
 def normalize(adata,
               by=("BatchNumber", "PlateNumber"),
               method="standard",
               pop_var="Metadata_Treatment",
-              norm_pop=False,
-              clip=False,
+              norm_pop=None,
+              clip=None,
+              drop_nan=True,
+              verbose=False,
               **kwargs):
     """
     Normalizes features of an experiment with one ore more batches and
@@ -22,14 +26,16 @@ def normalize(adata,
         by (iterable, str or None): Groups to apply function to.
             If None, apply to whole anndata.AnnData object.
         method (str): One of the following method to use for scaling:
-            standard: removing the meand and scaling to unit variance.
+            standard: removing the mean and scaling to unit variance.
             robust: removing the median and scaling according to the IQR (interquartile range).
             mad_robust: removing the median and scaling to MAD (meand absolute deviation).
             min_max: scaling features to given range (typically 0 to 1).
         pop_var (str): Variable that denotes populations.
         norm_pop (str): Population to use for calculation of statistics.
-            This is not used if norm_pop is False.
-        clip (int): Clip (truncate) to this value after scaling. If False, do not clip.
+            This is not used if norm_pop is None.
+        drop_nan (bool): Drop feature containing nan values after transformation.
+        clip (int): Clip (truncate) to this value after scaling. If None, do not clip.
+        verbose (bool)
         ** kwargs: Arguments passed to scaler.
     """
     # check that variables in by are in anndata
@@ -42,8 +48,8 @@ def normalize(adata,
         if not all(var in adata.obs.columns for var in by):
             raise KeyError(f"Variables defined in 'by' are not in annotations: {by}")
 
-    if norm_pop:
-        if pop_var not in adata.obs.column:
+    if norm_pop is not None:
+        if pop_var not in adata.obs.columns:
             raise KeyError(f"Population variable not found in annotations: {pop_var}")
 
     # define scaler
@@ -63,12 +69,12 @@ def normalize(adata,
         scaler = MinMaxScaler(**kwargs)
 
     # iterate over adata with grouping variables
-    if by:
+    if by is not None:
         for groups, sub_df in adata.obs.groupby(by):
             # cache indices of group
             group_ix = sub_df.index
             # transform group with scaler
-            if norm_pop:
+            if norm_pop is not None:
                 norm_ix = sub_df[sub_df[pop_var] == norm_pop].index
                 scaler.fit(adata[norm_ix, :].X)
             else:
@@ -77,11 +83,15 @@ def normalize(adata,
             adata[group_ix, :].X = scaler.transform(adata[group_ix, :].X)
 
     else:
-        adata.X = scaler.fit_transform(adata.X)
+        scaler.fit(adata.X)
+        adata.X = scaler.transform(adata.X)
 
-    if clip:
+    if clip is not None:
         assert (clip > 0), f'Value for clip should be above 0, instead got {clip}'
         adata.X[adata.X > clip] = clip
-        adata.X[adata.X < -clip] = -clip
+        adata.X[adata.X < -clip] = clip
+
+    if drop_nan:
+        adata = drop_nan_feats(adata, verbose=verbose)
 
     return adata

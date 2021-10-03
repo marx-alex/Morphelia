@@ -1,16 +1,19 @@
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
-from scipy.stats import median_absolute_deviation as mad
+from scipy.stats import median_abs_deviation as mad
 
 
 class RobustMAD(BaseEstimator, TransformerMixin):
     """
     Class to perform a "Robust" normalization with respect to median and mad
         scaled = (x - median) / mad
+
+    Class is adopted from pycytominer:
+    https://github.com/cytomining/pycytominer/blob/master/pycytominer/operations/transform.py
     """
 
-    def __init__(self, epsilon=1e-18):
-        self.epsilon = epsilon
+    def __init__(self, scale='normal'):
+        self.scale = scale
 
     def fit(self, X):
         """
@@ -20,8 +23,8 @@ class RobustMAD(BaseEstimator, TransformerMixin):
         X (numpy.ndarray): Array to fit with transform by RobustMAD
         """
         # Get the mean of the features (columns) and center if specified
-        self.median = np.median(X, axis=0)
-        self.mad = mad(X, axis=0, nan_policy="omit")
+        self.median = np.nanmedian(X, axis=0)
+        self.mad = mad(X, axis=0, nan_policy="omit", scale=self.scale)
         return self
 
     def transform(self, X):
@@ -31,7 +34,8 @@ class RobustMAD(BaseEstimator, TransformerMixin):
         Args:
         X (numpy.ndarray): Array to apply RobustMAD scaling.
         """
-        return (X - self.median) / (self.mad + self.epsilon)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            return (X - self.median) / self.mad
 
 
 class MedianPolish:
