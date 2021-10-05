@@ -4,7 +4,7 @@ from morphelia.plotting import plot_corr_matrix
 
 def drop_highly_correlated(adata, thresh=0.95, show=False, save=False,
                            subsample=1000, seed=0, verbose=False,
-                           neg_corr=True, **kwargs):
+                           neg_corr=True, drop=True, **kwargs):
     """Drops features that have a Pearson correlation coefficient
     with another feature above a certain threshold.
     Only one feature in a highly correlated group is kept.
@@ -19,10 +19,17 @@ def drop_highly_correlated(adata, thresh=0.95, show=False, save=False,
         seed (int): Seed for subsample calculation.
         verbose (bool)
         neg_corr (bool): Include negative correlated features.
+        drop (bool): Drop features. If false add information to .var.
         **kwargs: Keyword arguments for sns.clustermap
 
     Returns:
-        (anndata.Anndata)
+        anndata.Anndata
+        .uns['highly_correlated']: Highly correlated features.
+        .uns['nan_feats']: Features with nan values.
+        .var['highly_correlated']: True for highly correlated features.
+            Only if drop is False.
+        .var['contains_nan']: True for features that contain nan values.
+            Only if drop is Fals.
     """
 
     # get subsample
@@ -74,7 +81,20 @@ def drop_highly_correlated(adata, thresh=0.95, show=False, save=False,
         if verbose:
             print(f"Dropped {len(drop_vars)} features: {drop_vars}")
         keep_vars = [var for var in all_vars if var not in drop_vars]
-        adata = adata[:, keep_vars]
+
+        if drop:
+            adata = adata[:, keep_vars].copy()
+            # store info in .uns
+            adata.uns['highly_correlated'] = drop_vars
+        else:
+            mask = [True if var in drop_vars else False for var in all_vars]
+            adata.var['highly_correlated'] = mask
+    else:
+        if drop:
+            adata.uns['highly_correlated'] = []
+        else:
+            mask = [False for var in adata.var_names]
+            adata.var['highly_correlated'] = mask
 
     # drop nan features
     if len(nan_feats) > 0:
@@ -83,7 +103,21 @@ def drop_highly_correlated(adata, thresh=0.95, show=False, save=False,
         if verbose:
             print(f"Dropped uniform features: {nan_feats}")
 
-        adata = adata[:, non_nan_feats]
+        if drop:
+            adata = adata[:, non_nan_feats].copy()
+
+            if 'nan_feats' not in adata.uns:
+                adata.uns['nan_feats'] = nan_feats
+            else:
+                adata.uns[nan_feats].append(nan_feats)
+
+        else:
+            mask = [True if feat in nan_feats else False for feat in adata.var_names]
+            adata.var['contains_nan'] = mask
+    else:
+        if not drop:
+            mask = [False for var in adata.var_names]
+            adata.var['contains_nan'] = mask
 
     if show:
         if drop_ix is not None:

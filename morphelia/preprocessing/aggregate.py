@@ -6,8 +6,6 @@ import numpy as np
 import pandas as pd
 import anndata as ad
 
-# TODO: aggregate observations like cellcount
-
 
 def aggregate(adata,
               by=("BatchNumber", "PlateNumber", "Metadata_Well"),
@@ -74,9 +72,14 @@ def aggregate(adata,
 
     # iterate over adata with grouping variables
     for groups, sub_df in adata.obs.groupby(list(by)):
-        # cache annotations
+        # cache annotations from first element
         for key, val in sub_df.iloc[0, :].to_dict().items():
-            obs_agg[key].append(val)
+            if key != cn_var:
+                obs_agg[key].append(val)
+            else:
+                # sum counts from preaggregated data
+                sum_count = sub_df[cn_var].sum()
+                obs_agg[key].append(sum_count)
         # add object number to observations
         if count:
             obs_agg[cn_var].append(len(sub_df))

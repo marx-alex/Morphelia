@@ -12,13 +12,20 @@ import seaborn as sns
 import pandas as pd
 
 
-def lmm_feat_select(adata, fixed_var='Metadata_Treatment', group_var='BatchNumber',
-                    time_var='Metadata_Time', time_series=False,
-                    subsample=1000, seed=0,
-                    show=False, save=False):
+def lmm_feat_select(adata,
+                    fixed_var='Metadata_Treatment',
+                    group_var='BatchNumber',
+                    time_var='Metadata_Time',
+                    time_series=False,
+                    subsample=1000,
+                    seed=0,
+                    drop=False,
+                    p_thresh=0.05,
+                    show=False,
+                    save=False):
     """Calculates a linear mixed effect model with a single variable as
     dependent, batch as grouping and treatments as indipendent variables.
-    The null hypothesis is then tested, if all treatments trends are the same.
+    The null hypothesis is then tested, if all treatment trends are the same.
     The alternative is that at least one trend is different than the others.
     This is done by wald test using a F-distribution.
 
@@ -31,8 +38,16 @@ def lmm_feat_select(adata, fixed_var='Metadata_Treatment', group_var='BatchNumbe
         time_series (bool): Includes time_var in model if True.
         subsample (int): If given, retrieves subsample of all cell data for speed.
         seed (int): Seed for subsample calculation.
+        drop (bool): Drop features with p-value above threshold.
+        p_thresh (float): Value to use as threshold if drop is True.
         show (bool): True to get figure.
         save (str): Path where to save figure.
+
+    Returns:
+        anndata.AnnData
+        .var['lmm_wald_p']: p-values from wald test for every feature.
+        .uns['lmm_dropped']: Features that have been dropped due to a p_value above p_thresh.
+            Only if drop is True.
     """
     # check that variables in by are in anndata
     if time_series:
@@ -74,8 +89,7 @@ def lmm_feat_select(adata, fixed_var='Metadata_Treatment', group_var='BatchNumbe
     # cache data to create formula
     data = pd.DataFrame({'fixed': adata_ss.obs[fixed_var],
                          'group': adata_ss.obs[group_var]})
-    # data = {'fixed': adata_ss.obs[fixed_var].astype('category'),
-    #         'group': adata_ss.obs[group_var].astype('category')}
+
     if time_series:
         data['time'] = adata_ss.obs[time_var]
 
@@ -102,7 +116,13 @@ def lmm_feat_select(adata, fixed_var='Metadata_Treatment', group_var='BatchNumbe
         wald_ps.append(wald_p)
 
     # add p-value from wald test to variables
-    adata.var['wald_p'] = wald_ps
+    adata.var['lmm_wald_p'] = wald_ps
+    if drop:
+        assert 0 <= p_thresh <= 1, 'p_thresh expected to be a value between 0 and 1, ' \
+                                  f'instead got {p_thresh}'
+        drop_feats = [feat for feat, p in zip(adata.var_names, wald_ps) if p > p_thresh]
+        adata = adata[:, adata.var['lmm_wald_p'] < p_thresh].copy()
+        adata.uns['lmm_dropped'] = drop_feats
 
     # plotting
     if show:

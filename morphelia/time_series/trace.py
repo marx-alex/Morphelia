@@ -5,9 +5,8 @@ from scipy.spatial import cKDTree
 def trace(adata,
           time_var="Metadata_Time",
           group_vars=("Metadata_Well", "Metadata_Field"),
-          x_loc_id="Location_Center_X",
-          y_loc_id="Location_Center_Y",
-          loc_obj="Cells",
+          x_loc="Cells_Location_Center_X",
+          y_loc="Cells_Location_Center_Y",
           trace_var="Metadata_Trace_Parent",
           tree_id="Metadata_Trace_Tree"):
     """Traces objects of a dataframe over time.
@@ -21,11 +20,10 @@ def trace(adata,
         time_var (str): Variable name for time point in annotations.
         group_vars (iterable): Variables in annotations.
             Should point to specific wells/ or fields on plates that can be compared over time.
-        x_loc_id (str): Identifier for x location in annotations.
-        y_loc_id (str): Identifier for y location in annotations.
-        loc_obj (str): Identifier for object for location identification in column variables.
-        trace_var (str): Variable name used to store a trace identifier.
-        tree_id (str): Variable name used to store branch number.
+        x_loc (str): Identifier for x location in annotations.
+        y_loc (str): Identifier for y location in annotations.
+        trace_var (str): Variable name used to store index of trace parent.
+        tree_id (str): Variable name used to store unique branch number for a certain field.
 
     Returns:
         adata (anndata.AnnData)
@@ -36,14 +34,8 @@ def trace(adata,
         raise KeyError(f"Check that variables for time and grouping are also in morphome annotations:"
                        f"Time variable: {time_var}, grouping variables: {group_vars}")
 
-    # get location variables for x and y locations
-    loc_x = [var for var in adata.obs.columns if (x_loc_id in var) and (loc_obj in var)]
-    loc_y = [var for var in adata.obs.columns if (y_loc_id in var) and (loc_obj in var)]
-    if len(loc_x) != 1 and len(loc_y) != 1:
-        raise KeyError(f"No or more than one location variable found for object {loc_obj}."
-                       f"Check the object or the identifiers for x and y locations: {x_loc_id}, {y_loc_id}.")
-    loc_x = loc_x[0]
-    loc_y = loc_y[0]
+    assert x_loc in adata.obs.columns, f"x_loc not in annotations: {x_loc}"
+    assert y_loc in adata.obs.columns, f"y_loc not in annotations: {y_loc}"
 
     # create new column to store index of parent object
     adata.obs[trace_var] = np.nan
@@ -66,8 +58,8 @@ def trace(adata,
             # find closest object in lagged objects
             if lagged is not None:
                 # get locations of objects and lagged objects
-                t_loc = t_df[[loc_x, loc_y]].to_numpy()
-                t_loc_lagged = lagged[[loc_x, loc_y]].to_numpy()
+                t_loc = t_df[[x_loc, y_loc]].to_numpy()
+                t_loc_lagged = lagged[[x_loc, y_loc]].to_numpy()
 
                 # get nearest object in lagged objects for every object
                 tree = cKDTree(t_loc_lagged)
@@ -79,6 +71,6 @@ def trace(adata,
                 adata.obs.loc[t_df.index, trace_var] = lagged.iloc[parent_ix].index
 
             # cache field_df
-            lagged = adata.obs.loc[t_df.index, [loc_x, loc_y, tree_id]]
+            lagged = adata.obs.loc[t_df.index, [x_loc, y_loc, tree_id]]
 
     return adata

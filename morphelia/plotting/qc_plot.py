@@ -9,16 +9,21 @@ from matplotlib import font_manager
 from matplotlib.lines import Line2D
 import matplotlib
 import numpy as np
+import seaborn as sns
+
+from morphelia.eval import similarity_matrix
+
+sns.set_theme()
 
 
-def qc_plot(adata,
-            well_var="Metadata_Well",
-            color=None,
-            size=None,
-            select=None,
-            wells=96,
-            save=None,
-            **kwargs):
+def plot_plate(adata,
+               well_var="Metadata_Well",
+               color=None,
+               size=None,
+               select=None,
+               wells=96,
+               save=None,
+               **kwargs):
     """Plot data of a 96-well or 384-well plate into a well-shaped plot.
     
     Can be used for quality control after (microscopy) experiments with
@@ -168,6 +173,73 @@ def qc_plot(adata,
 
     for label in ax.get_yticklabels():
         label.set_fontproperties(ticks_font)
+
+    # save
+    if save is not None:
+        try:
+            plt.savefig(os.path.join(save, "qc_plot.png"))
+        except OSError:
+            print(f'Can not save figure to {save}.')
+
+    return fig, ax
+
+
+def plot_batch_effect(adata,
+                      batch_var='BatchNumber',
+                      plate_var='PlateNumber',
+                      control_var='Metadata_Treatment',
+                      control_id='ctrl',
+                      method='pearson',
+                      save=None,
+                      **kwargs):
+    """
+    Plot batch effect using the correlation of control wells along different plates and batches.
+
+    Args:
+        adata (anndata.AnnData): Multidimensional morphological data.
+        batch_var (str): Name of annotation that holds information about batch number.
+        plate_var (str): Name of annotation that holds information about plate number.
+            If None, show only effect between batches.
+        control_var (str): Name of annotation that holds information about conditions.
+        control_id (str): Name of control wells in control_var.
+        method (str): Method for similarity/ distance computation.
+                Should be one of: pearson, spearman, kendall, euclidean, mahalanobis.
+        save (str): Path where to save figure.
+        **kwargs: Keyword arguments passed to seaborn.heatmap
+
+    Returns:
+        matplotlib.pyplot.figure
+    """
+    # check variables
+    assert batch_var in adata.obs.columns, f"batch_var not in annotations: {batch_var}"
+    if plate_var is not None:
+        assert plate_var in adata.obs.columns, f"plate_var not in annotations: {plate_var}"
+    assert control_var in adata.obs.columns, f"control_var not in annotations: {control_var}"
+
+    assert control_id in adata.obs[control_var].tolist(), f"control_id not in {control_var}: {control_id}"
+
+    # check method
+    avail_methods = ['pearson', 'spearman', 'kendall', 'euclidean', 'mahalanobis']
+    method = method.lower()
+    assert method in avail_methods, f"method should be in {avail_methods}, " \
+                                    f"instead got {method}"
+
+    # select control conditions
+    adata = adata[adata.obs[control_var] == control_id, :]
+
+    # compute similarity matrix
+    sim_df = similarity_matrix(adata,
+                               method=method,
+                               group_var=batch_var,
+                               other_group_vars=plate_var,
+                               show=False)
+
+    # plot
+    cmap = matplotlib.cm.plasma
+    kwargs['cmap'] = cmap
+
+    fig = plt.figure(figsize=(9, 7))
+    ax = sns.heatmap(sim_df, **kwargs)
 
     # save
     if save is not None:

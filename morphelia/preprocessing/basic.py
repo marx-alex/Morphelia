@@ -2,7 +2,10 @@
 import numpy as np
 
 
-def drop_nan(adata, drop_inf=True, drop_dtype_max=True, verbose=False):
+def drop_nan(adata,
+             drop_inf=True,
+             drop_dtype_max=True,
+             verbose=False):
     """Drop variables that contain invalid variables.
 
     Args:
@@ -10,6 +13,10 @@ def drop_nan(adata, drop_inf=True, drop_dtype_max=True, verbose=False):
         drop_inf (bool): Drop also infinity values.
         drop_dtype_max (bool): Drop values to large for dtype.
         verbose (bool)
+
+    Returns:
+        anndata.AnnData
+        .uns['nan_feats']: Dropped features that contain nan values.
     """
     if np.isnan(adata.X).any():
         if drop_inf:
@@ -18,20 +25,24 @@ def drop_nan(adata, drop_inf=True, drop_dtype_max=True, verbose=False):
         if drop_dtype_max:
             adata.X[adata.X > np.finfo(adata.X.dtype).max] = np.nan
 
-        mask = ~np.isnan(adata.X).any(axis=0)
-        masked_vars = adata.var[mask].index.tolist()
+        mask = np.isnan(adata.X).any(axis=0)
+        drop_feats = adata.var_names[mask]
 
         if verbose:
-            print(f"Dropped {adata.shape[1] - len(masked_vars)} features with missing values:"
-                  f" {adata.var[~mask].index.tolist()}")
+            print(f"Dropped {len(drop_feats)} features with missing values:"
+                  f" {drop_feats}")
 
-        adata = adata[:, masked_vars]
+        adata = adata[:, ~mask].copy()
+        if 'nan_feats' in adata.uns:
+            adata.uns['nan_feats'].append(drop_feats)
+        else:
+            adata.uns['nan_feats'] = drop_feats
 
     return adata
 
 
 def filter_std(adata, var, std_thresh=3, side='both'):
-    """Filter cells by identifying outliers from a distribution
+    """Filter cells by identifying outliers in a distribution
     of a single value.
 
     Args:
@@ -40,6 +51,9 @@ def filter_std(adata, var, std_thresh=3, side='both'):
         std_thresh (int): Threshold to use for outlier identification.
             x-fold of standard deviation in both or one directions.
         side (str): 'left', 'right' or 'both'
+
+    Returns:
+        anndata.AnnData
     """
     # get standard deviation and mean
     std = np.nanstd(adata[:, var].X)
@@ -66,6 +80,9 @@ def filter_thresh(adata, var, thresh, side='right'):
         side (str):
             'right': Cap values above threshold.
             'left': Cap values under threshold.
+
+    Returns:
+        anndata.AnnData
     """
     sides = ['right', 'left']
     assert side in sides, f"expected side to be either 'right' or 'left', instead got {side}"
@@ -93,15 +110,21 @@ def drop_duplicates(adata, verbose=False):
     Args:
         adata (anndata.AnnData): Multidimensional morphological data.
         verbose (bool)
+
+    Returns:
+        anndata.AnnData
+        .uns['duplicated_feats']: Dropped duplicated features.
     """
     _, index = np.unique(adata.X, axis=1, return_index=True)
+    drop_feats = adata.var_names[[ix for ix in range(len(adata.var_names)) if ix not in index]]
 
     if verbose:
-        print(f"Dropped {adata.shape[1] - len(index)} duplicated features:"
-              f" {adata.var.index[[ix for ix in range(adata.X.shape[1]) if ix not in index]]}")
+        print(f"Dropped {len(drop_feats)} duplicated features:"
+              f" {drop_feats}")
 
     # apply filter
-    adata = adata[:, index]
+    adata = adata[:, index].copy()
+    adata.uns['duplicated_feats'] = drop_feats
 
     return adata
 
@@ -114,6 +137,10 @@ def drop_invariant(adata, axis=0, verbose=False):
         adata (anndata.AnnData): Multidimensional morphological data.
         axis (int): 0 for columns, 1 for rows.
         verbose (bool)
+
+    Returns:
+        anndata.AnnData
+        .uns['invariant_feats']: Dropped invarianct features.
     """
     # check if axis exists
     if axis >= adata.X.ndim:
@@ -129,7 +156,7 @@ def drop_invariant(adata, axis=0, verbose=False):
             print(f"Dropped {len(dropped)} invariant features: {dropped}")
 
         # apply mask
-        adata = adata[:, ~mask]
+        adata = adata[:, ~mask].copy()
 
     elif axis == 1:
         mask = np.all(adata.X == adata.X[:, 0], axis=axis)
@@ -139,9 +166,11 @@ def drop_invariant(adata, axis=0, verbose=False):
             print(f"Dropped {len(dropped)} invariant cells: {dropped}")
 
         # apply mask
-        adata = adata[~mask, :]
+        adata = adata[~mask, :].copy()
     else:
         raise ValueError(f"axis should be 0 for columns and 1 for rows, "
                          f"instead got {axis}")
+
+    adata.uns['invariant_feats'] = dropped
 
     return adata

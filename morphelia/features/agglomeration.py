@@ -34,6 +34,7 @@ def feature_agglo(adata, k='estimate', cluster_range=(2, 100),
 
     Returns:
         anndata.AnnData
+        .uns['agglo_feats']: Agglomerated features and their original features.
     """
     # check cluster_range
     try:
@@ -110,7 +111,7 @@ def feature_agglo(adata, k='estimate', cluster_range=(2, 100),
 
     # create new anndata object
     var = pd.DataFrame(index=[f"agglo_{i}" for i in set(agglo.labels_)])
-    adata = ad.AnnData(X=X_red, obs=adata.obs, var=var)
+    adata = ad.AnnData(X=X_red, obs=adata.obs, var=var, uns=adata.uns)
     adata.uns['agglo_feats'] = agglo_feats
 
     return adata

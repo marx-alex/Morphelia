@@ -3,13 +3,11 @@ from tqdm import tqdm
 from scipy.stats import median_abs_deviation as mad
 
 
-def drop_near_zero_variance(
-        adata,
-        freq_thresh=0.05,
-        unique_thresh=0.01,
-        drop=True,
-        verbose=False
-):
+def drop_near_zero_variance(adata,
+                            freq_thresh=0.05,
+                            unique_thresh=0.01,
+                            drop=True,
+                            verbose=False):
     """Drop features that have low variance and therefore low information content.
     Low variance is assumed if single values appear more than one time in a feature vector.
     The rules is as following:
@@ -32,6 +30,12 @@ def drop_near_zero_variance(
         unique_thresh (float): Threshold for uniqueness.
         drop (bool): Drop features with low variance directly.
         verbose (bool)
+
+    Returns:
+        anndata.AnnData
+        .uns['near_zero_variance_feats']: Dropped features with near zero variance.
+        .var['near_zero_variance_feats']: True if feature has near zero variance.
+            Only if drop is False.
     """
     # check variables
     assert 0 <= freq_thresh <= 1, f"freq_thresh must be between 0 and 1, " \
@@ -75,9 +79,11 @@ def drop_near_zero_variance(
         print(f"Drop {len(drop_feats)} features with low variance: {drop_feats}")
 
     if drop:
-        adata = adata[:, mask]
+        adata = adata[:, mask].copy()
+        adata.uns['near_zero_variance_feats'] = drop_feats
     else:
-        adata.var["high_var"] = mask
+        mask = [True if var in drop_feats else False for var in adata.var_names]
+        adata.var["near_zero_variance_feats"] = mask
 
     return adata
 
@@ -86,6 +92,7 @@ def drop_low_cv(adata,
                 by=("BatchNumber", "PlateNumber"),
                 method='std',
                 cutoff=0.5,
+                drop=True,
                 verbose=False):
     """Find features with low coefficients of variance which is interpreted as a low content of biological
     information.
@@ -98,12 +105,20 @@ def drop_low_cv(adata,
         std_norm = std / abs(mean)
         mad_norm = mad / abs(median)
 
-    adata (anndata.AnnData): Multidimensional morphological data.
-    by (iterable, str or None): Groups to apply function to.
-            If None, apply to whole anndata.AnnData object.
-    method (str): Standard deviation ('std') or mean absolute deviation ('mad').
-    cutoff (float): Drop features with deviation below cutoff.
-    verbose (bool)
+    Args:
+        adata (anndata.AnnData): Multidimensional morphological data.
+        by (iterable, str or None): Groups to apply function to.
+                If None, apply to whole anndata.AnnData object.
+        method (str): Standard deviation ('std') or mean absolute deviation ('mad').
+        cutoff (float): Drop features with deviation below cutoff.
+        drop (bool): Drop features with low variance directly.
+        verbose (bool)
+
+    Returns:
+        anndata.AnnData
+        .uns['low_cv_feats']: Dropped features with low coefficients of variance.
+        .var['low_cv_feats']: True for features with low coefficients of variance.
+            Only if drop is False.
     """
     # check variables
     if by is not None:
@@ -154,13 +169,17 @@ def drop_low_cv(adata,
 
     # mask by cutoff
     mask = np.logical_and((norm_dev > cutoff), (norm_dev != np.nan))
-
+    drop_feats = adata.var_names[~mask]
     if verbose:
-        print(f"Drop {len(adata.var_names[~mask])} features with low "
-              f"coefficient of variance: {adata.var_names[~mask]}")
+        print(f"Drop {len(drop_feats)} features with low "
+              f"coefficient of variance: {drop_feats}")
 
     # drop
-    adata = adata[:, mask]
+    if drop:
+        adata = adata[:, mask].copy()
+        adata.uns['low_cv_feats'] = drop_feats
+    else:
+        adata.var['low_cv_feats'] = ~mask
 
     return adata
 
@@ -168,6 +187,7 @@ def drop_low_cv(adata,
 def drop_low_variance(adata,
                       by=("BatchNumber", "PlateNumber"),
                       cutoff=0.5,
+                      drop=True,
                       verbose=False):
     """Find features with low variance. This approach tries to account for the mean-variance
     relationship by applying a variance-stabilizing transformation before ranking variance of features.
@@ -178,11 +198,19 @@ def drop_low_variance(adata,
     predict the variance of each feature as a function of its mean.
     Since negative mean values are possible in morphological data, the absolute values for means are taken.
 
-    adata (anndata.AnnData): Multidimensional morphological data.
-    by (iterable, str or None): Groups to apply function to.
-            If None, apply to whole anndata.AnnData object.
-    cutoff (float): Drop features with deviation below cutoff.
-    verbose (bool)
+    Args:
+        adata (anndata.AnnData): Multidimensional morphological data.
+        by (iterable, str or None): Groups to apply function to.
+                If None, apply to whole anndata.AnnData object.
+        cutoff (float): Drop features with deviation below cutoff.
+        drop (bool): Drop features with low variance directly.
+        verbose (bool)
+
+    Returns:
+        anndata.AnnData
+        .uns['low_variance_feats']: Dropped features with low variance.
+        .var['low_varinace_feats']: True for features with low varinace.
+            Only if drop is False.
     """
     # check variables
     if by is not None:
@@ -217,13 +245,18 @@ def drop_low_variance(adata,
 
     # apply cutoff
     mask = np.logical_and((stand_var > cutoff), (stand_var != np.nan))
+    drop_feats = adata.var_names[~mask]
 
     if verbose:
-        print(f"Drop {len(adata.var_names[~mask])} features with low "
-              f"coefficient of variance: {adata.var_names[~mask]}")
+        print(f"Drop {len(drop_feats)} features with low "
+              f"coefficient of variance: {drop_feats}")
 
     # drop
-    adata = adata[:, mask]
+    if drop:
+        adata = adata[:, mask].copy()
+        adata.uns['low_variance_feats'] = drop_feats
+    else:
+        adata.var['low_variance_feats'] = ~mask
 
     return adata
 

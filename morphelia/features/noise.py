@@ -1,11 +1,11 @@
 import numpy as np
 
 
-def remove_noise(adata,
-                 by='Metadata_Treatment',
-                 mean_std_thresh=0.8,
-                 drop=True,
-                 verbose=False):
+def drop_noise(adata,
+               by='Metadata_Treatment',
+               mean_std_thresh=0.8,
+               drop=True,
+               verbose=False):
     """Removal of features with high mean of standard deviations within treatment groups.
     Features with mean standard deviation above mean_std_thresh will be removed.
     Normally distributed data is expected.
@@ -16,6 +16,12 @@ def remove_noise(adata,
         mean_std_thresh (float): Threshold for high mean standard deviations.
         drop (bool): True to drop features directly.
         verbose (bool)
+
+    Returns:
+        adata.AnnData
+        adata.uns['noisy_feats'] = Dropped features with noise.
+        adata.var['noisy_feats'] = True if feature contains noise.
+             Only if drop is False.
     """
     # check variables
     if by is not None:
@@ -57,8 +63,10 @@ def remove_noise(adata,
         print(f"Drop {len(drop_feats)} noisy features: {drop_feats}")
 
     if drop:
-        adata = adata[:, ~mask]
+        adata = adata[:, ~mask].copy()
+
+        adata.uns['noisy_feats'] = drop_feats
     else:
-        adata.var['noisy'] = mask
+        adata.var['noisy_feats'] = mask
 
     return adata
