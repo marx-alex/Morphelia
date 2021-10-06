@@ -2,6 +2,7 @@ import pandas as pd
 from scipy.spatial.distance import pdist, squareform
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib
 import os
 
 from morphelia.tools._utils import _choose_representation
@@ -85,8 +86,10 @@ def similarity_matrix(adata,
 
     if show:
         sns.set_theme()
-        plt.figure()
-        cm = sns.heatmap(profiles_df)
+        cmap = matplotlib.cm.plasma
+
+        fig = plt.figure(figsize=(7, 5))
+        ax = sns.heatmap(profiles_df, cmap=cmap)
         plt.suptitle(f'distance/ similarity: {method}', fontsize=16)
 
         if save:

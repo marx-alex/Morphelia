@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 
 def drop_outlier(adata,
@@ -6,6 +7,8 @@ def drop_outlier(adata,
                  drop=True,
                  verbose=False):
     """Drop all features with a min or max absolute value that is greater than a threshold.
+
+    Expects normally distributed data.
 
     Args:
         adata (anndata.AnnData): Multidimensional morphological data.
@@ -19,6 +22,12 @@ def drop_outlier(adata,
         .var['outlier_feats']: True for features that contain outliers.
             Only if drop is False.
     """
+    # brief check for normal distribution
+    means = np.nanmean(adata.X, axis=0)
+    if not all(np.logical_and(means > -2, means < 2)):
+        warnings.warn("Data does not seem to be normally distributed, "
+                      "use normalize() with 'standard', 'mad_robust' or 'robust' beforehand.")
+
     max_feature_values = np.abs(np.max(adata.X, axis=0))
     min_feature_values = np.abs(np.min(adata.X, axis=0))
 

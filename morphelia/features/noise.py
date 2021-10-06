@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 
 def drop_noise(adata,
@@ -8,11 +9,14 @@ def drop_noise(adata,
                verbose=False):
     """Removal of features with high mean of standard deviations within treatment groups.
     Features with mean standard deviation above mean_std_thresh will be removed.
+
     Normally distributed data is expected.
 
     Args:
         adata (anndata.AnnData): Multidimensional morphological data.
         by (str, tuple or list): Variable in observations that contains perturbations.
+            Should group data into groups with low expected standard deviation.
+            I.g. same treatment and concentration.
         mean_std_thresh (float): Threshold for high mean standard deviations.
         drop (bool): True to drop features directly.
         verbose (bool)
@@ -32,6 +36,12 @@ def drop_noise(adata,
 
         if not all(var in adata.obs.columns for var in by):
             raise KeyError(f"Variables defined in 'group_vars' are not in annotations: {by}")
+
+    # brief check for normal distribution
+    means = np.nanmean(adata.X, axis=0)
+    if not all(np.logical_and(means > -2, means < 2)):
+        warnings.warn("Data does not seem to be normally distributed, "
+                      "use normalize() with 'standard', 'mad_robust' or 'robust' beforehand.")
 
     # iterate over group_vars groups
     if by is not None:

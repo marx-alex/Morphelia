@@ -57,14 +57,16 @@ def repro_effect(adata,
                                group_var=group_var,
                                other_group_vars=other_group_vars,
                                method=method,
-                               sim_matrix=corr_df)
+                               sim_matrix=corr_df,
+                               return_scores=True)
 
     effect_df = effect(adata,
                        group_var=group_var,
                        other_group_vars=other_group_vars,
                        method=method,
                        control_id=control_id,
-                       sim_matrix=corr_df)
+                       sim_matrix=corr_df,
+                       return_scores=True)
 
     if return_scores:
         return repro_df, effect_df

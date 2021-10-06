@@ -1,5 +1,6 @@
 import warnings
 import scanpy as sc
+import numpy as np
 
 
 def _choose_representation(adata,
@@ -55,3 +56,35 @@ def _choose_representation(adata,
             raise ValueError(f"Did not find rep in .obsm: {rep}")
 
     return X
+
+
+def _get_subsample(adata,
+                   sample_size=None,
+                   seed=0):
+    """Draws n (sample_size) random samples from adata.
+
+    Args:
+        adata (anndata.AnnData): Multidimensional morphological data.
+        sample_size (int): Number of samples.
+        seed (int): Seed for reproducibility of subsample.
+
+    Returns:
+        anndata.AnnData
+    """
+    if sample_size is None:
+        return adata
+    else:
+        assert isinstance(sample_size, int), f"expected type(int) for sample_size, " \
+                                             f"instead got {type(sample_size)}"
+        # get samples
+        np.random.seed(seed)
+        N = len(adata)
+        if sample_size >= N:
+            warnings.warn(f"sample_size exceeds available samples, draws all samples instead.")
+            return adata
+        else:
+            rng = np.random.default_rng()
+            sample_ixs = rng.choice(N, size=sample_size, replace=False)
+            adata_ss = adata[sample_ixs, :].copy()
+
+    return adata_ss

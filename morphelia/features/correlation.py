@@ -1,10 +1,19 @@
 import numpy as np
 from morphelia.plotting import plot_corr_matrix
+from morphelia.tools._utils import _get_subsample
 
 
-def drop_highly_correlated(adata, thresh=0.95, show=False, save=False,
-                           subsample=1000, seed=0, verbose=False,
-                           neg_corr=True, drop=True, **kwargs):
+def drop_highly_correlated(adata,
+                           thresh=0.95,
+                           show=False,
+                           save=False,
+                           subsample=False,
+                           sample_size=1000,
+                           seed=0,
+                           verbose=False,
+                           neg_corr=True,
+                           drop=True,
+                           **kwargs):
     """Drops features that have a Pearson correlation coefficient
     with another feature above a certain threshold.
     Only one feature in a highly correlated group is kept.
@@ -15,8 +24,11 @@ def drop_highly_correlated(adata, thresh=0.95, show=False, save=False,
             above threshold get dropped.
         show (bool): True to get figure.
         save (str): Path where to save figure.
-        subsample (int): If given, retrieves subsample of all cell data for speed.
+        subsample (bool): If True, fit models on subsample of data.
+        sample_size (int): Size of supsample.
+            Only if subsample is True.
         seed (int): Seed for subsample calculation.
+            Only if subsample is True.
         verbose (bool)
         neg_corr (bool): Include negative correlated features.
         drop (bool): Drop features. If false add information to .var.
@@ -33,20 +45,12 @@ def drop_highly_correlated(adata, thresh=0.95, show=False, save=False,
     """
 
     # get subsample
-    if subsample is not None:
-        assert isinstance(subsample, int), f"expected type for subsample is int, instead got {type(subsample)}"
-        # get samples
-        np.random.seed(seed)
-        X_len = adata.shape[0]
-        if subsample > X_len:
-            subsample = X_len
-        sample_ix = np.random.randint(X_len, size=subsample)
-        try:
-            adata_ss = adata[sample_ix, :]
-        except:
-            adata_ss = adata.X.copy()
+    if subsample:
+        adata_ss = _get_subsample(adata,
+                                  sample_size=sample_size,
+                                  seed=seed)
     else:
-        adata_ss = adata.X.copy()
+        adata_ss = adata.copy()
 
     # calculate correlation coefficients
     corr_matrix = np.corrcoef(adata_ss.X.T)

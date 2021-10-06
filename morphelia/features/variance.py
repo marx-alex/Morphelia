@@ -8,9 +8,9 @@ def drop_near_zero_variance(adata,
                             unique_thresh=0.01,
                             drop=True,
                             verbose=False):
-    """Drop features that have low variance and therefore low information content.
+    """Drop features that have low variance and therefore low expected information content.
     Low variance is assumed if single values appear more than one time in a feature vector.
-    The rules is as following:
+    The rules are as following:
     1. A feature vector is of low variance if second_max_count / max_count < freq_thresh
     2. A feature vector is of low variance if num_unique_values / n_samples < unique_thresh
     with:
