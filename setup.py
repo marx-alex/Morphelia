@@ -5,9 +5,9 @@ setup(
     name='morphelia',
     packages=find_packages(include=['morphelia', 'morphelia.*']),
     version='0.0.2',
-    description='Python library for analysis of multidimensional morphological data.',
+    description='Exploratory data analysis for image-based morphological profiling.',
     author='Alexander Marx',
-    license='MIT',
+    license='MIT Licence',
     install_requires=[
         line.strip() for line in Path('requirements.txt').read_text('utf-8').splitlines()
     ],

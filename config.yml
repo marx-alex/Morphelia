@@ -31,19 +31,12 @@ img_overlap: 0.2
 pp_name: 'morph_data_pp.h5ad'  # don not forget suffix
 pp_inp: 'stitched_name'
 batch_id: "BatchNumber"
-area_filter:
-  - 'Cells_AreaShape_Area'
-#  - 'Primarieswithoutborder_AreaShape_Area'
-area_thresh:
-  - 20000
-# - 5000
-intens_filter:
-  - 'Cells_Intensity_MedianIntensity_CalceinAM'
-#  - 'Primarieswithoutborder_Intensity_IntegratedIntensity_DNA'
-intens_thresh:
-  - 0.9
-#  - 0.9
+condition_group:
+  - "Metadata_Treatment"
+  - "Metadata_Concentration"
 treat_var: 'Metadata_Treatment' # Metadata_[variable from Treatment.csv]
+ctrl_name: 'ctrl' # name of control group in treat_var
+norm_method: 'mad_robust' # one of standard, robust, mad_robust, min_max
 filter_debris: False # Cell und Nuclei size needed
 
 ################################

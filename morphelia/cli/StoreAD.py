@@ -5,7 +5,7 @@ import re
 
 import anndata as ad
 
-from morphelia.tools.morphome import MorphData
+from morphelia.tools.load_project import MorphData
 from morphelia.preprocessing import aggregate, subsample
 
 

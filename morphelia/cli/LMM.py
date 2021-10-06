@@ -18,11 +18,7 @@ def run(inp):
 
     # feature agglomeration
     print("Feature selection with LMM.")
-    adata = lmm_feat_select(adata, time_series=inp['time_series'], show=True, save=figdir)
-
-    # filter
-    if inp['drop_low_sign']:
-        adata = adata[:, adata.var['wald_p'] < 0.05]
+    adata = lmm_feat_select(adata, time_series=inp['time_series'])
 
     # write file
     print(f"Write file to {inp['output']}")

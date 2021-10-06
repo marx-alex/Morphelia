@@ -14,7 +14,7 @@ from . import tools as tl
 from . import time_series as ts
 
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 __author__ = "Alexander Marx"
 __copyright__ = "Copyright 2021 Alexander Marx and others."
 __license__ = "MIT License"

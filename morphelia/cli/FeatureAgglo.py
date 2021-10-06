@@ -2,8 +2,7 @@ import argparse
 import yaml
 import os
 import anndata as ad
-from morphelia.preprocessing.basic import *
-from morphelia.preprocessing.feature_agglo import feature_agglo
+from morphelia.features import feature_agglo
 
 
 def run(inp):
