@@ -11,7 +11,7 @@ import matplotlib
 import numpy as np
 import seaborn as sns
 
-from morphelia.eval import similarity_matrix
+from morphelia.eval import dist_matrix
 
 sns.set_theme()
 
@@ -228,11 +228,11 @@ def plot_batch_effect(adata,
     adata = adata[adata.obs[control_var] == control_id, :]
 
     # compute similarity matrix
-    sim_df = similarity_matrix(adata,
-                               method=method,
-                               group_var=batch_var,
-                               other_group_vars=plate_var,
-                               show=False)
+    sim_df = dist_matrix(adata,
+                         method=method,
+                         group_var=batch_var,
+                         other_group_vars=plate_var,
+                         show=False)
 
     # plot
     cmap = matplotlib.cm.plasma

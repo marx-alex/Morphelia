@@ -6,8 +6,10 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 import networkx as nx
 from sklearn.decomposition import PCA
+
 
 def show_trace(adata,
                fields,
@@ -15,10 +17,8 @@ def show_trace(adata,
                time_var="Metadata_Time",
                time_unit="h",
                trace_var="Metadata_Trace_Parent",
-               tree_id="Metadata_Trace_Tree",
-               x_loc_id="Location_Center_X",
-               y_loc_id="Location_Center_Y",
-               loc_obj="Cells",
+               x_loc="Cells_Location_Center_X",
+               y_loc="Cells_Location_Center_Y",
                size=None, color=None, save=None,
                **kwargs):
     """Visualizes the trace of all objects in a specified field of view.
@@ -29,11 +29,10 @@ def show_trace(adata,
         dim (str): Plot traces in 2 or 3 dimensions.
         time_var (str): Variable name for time point in annotations.
         time_unit (str): Unit to use for time.
-        trace_var (str): Variable name used to store a trace identifier.
-        tree_id (str): Variable name used to store branch number.
-        x_loc_id (str): Identifier for x location in annotations.
-        y_loc_id (str): Identifier for y location in annotations.
-        loc_obj (str): Object name to use for location identification.
+            Only used for axis annotation for plotting.
+        trace_var (str): Variable name used to store index of parent cell.
+        x_loc (str): Identifier for x location in annotations.
+        y_loc (str): Identifier for y location in annotations.
         size (str): Variable to use for size of edges in 2d representation of traces.
         color (str): Variable to use for color of edges in 2d representation of traces.
         save (str): If path is given, store figures.
@@ -48,19 +47,9 @@ def show_trace(adata,
     # check that values of fields have same length:
     if any(len(val) != len(list(fields.values())[0]) for val in fields.values()):
         raise ValueError("Values in show have different length.")
-    # check that time_var, trace_var and branch_var are in morphome variables
-    if not all(var in adata.obs.columns for var in [time_var, trace_var, tree_id]):
-        raise KeyError(f"Assert that variables for time, trace ids and trace branches are also in"
-                       f" anndata annotation: {time_var}, {trace_var}, {tree_id}")
 
-    # get location variables for x and y locations
-    loc_x = [var for var in adata.obs.columns if (x_loc_id in var) and (loc_obj in var)]
-    loc_y = [var for var in adata.obs.columns if (y_loc_id in var) and (loc_obj in var)]
-    if len(loc_x) != 1 and len(loc_y) != 1:
-        raise KeyError(f"No or more than one location variable found for object {loc_obj}."
-                       f"Check the object or the identifiers for x and y locations: {x_loc_id}, {y_loc_id}.")
-    loc_x = loc_x[0]
-    loc_y = loc_y[0]
+    assert x_loc in adata.obs.columns, f"x_loc not in annotations: {x_loc}"
+    assert y_loc in adata.obs.columns, f"y_loc not in annotations: {y_loc}"
 
     # check dimensions
     dim = dim.lower()
@@ -83,7 +72,12 @@ def show_trace(adata,
         adata_field = adata[adata.obs.query(query_term).index, :].copy()
 
         # create graph from annotations
-        G, pos = _create_graph(adata_field.obs, dim, trace_var, loc_x, loc_y, time_var)
+        G, pos = create_graph(adata_field,
+                              dim,
+                              trace_var,
+                              x_loc,
+                              y_loc,
+                              time_var)
 
         # Extract node and edge positions from the layout
         node_xyz = np.array([pos[v] for v in sorted(G)])
@@ -124,6 +118,7 @@ def show_trace(adata,
         kwargs.setdefault('alpha', 0.6)
 
         # create figure
+        sns.set_theme(style='white')
         fig = plt.figure(figsize=(7, 7))
         if dim == '3d':
             ax = fig.add_subplot(111, projection="3d")
@@ -160,7 +155,6 @@ def show_trace(adata,
             plt.axis("on")
             ax.tick_params(left=False, bottom=True, labelleft=False, labelbottom=True)
             ax.set_xlabel(f"time ({time_unit})")
-            # plot colorbar
 
         if color is not None:
             sm = plt.cm.ScalarMappable(cmap=plt.get_cmap(kwargs['cmap']), norm=plt.Normalize(vmin=vmin, vmax=vmax))
@@ -180,22 +174,35 @@ def show_trace(adata,
     return None
 
 
-def _create_graph(objects, dim, trace_var, loc_x, loc_y, time_var):
-    """Creates directed graph for all given objects.
+def create_graph(adata,
+                 dim='2d',
+                 trace_var='Metadata_Trace_Parent',
+                 x_loc="Cells_Location_Center_X",
+                 y_loc="Cells_Location_Center_X",
+                 time_var='Metadata_Time'):
+    """Creates directed graph with connection from parent cells to their children.
 
     Args:
-        objects (pandas.DataFrame): Stores objects with variables for location, and parent objects.
+        adata (anndata.AnnData): Multidimensional morphological data.
         dim (str): Plot traces in 2 or 3 dimensions.
-        trace_var (str): Variable name used to store a trace identifier.
-        loc_x, loc_y (str): Variable name used to store object locations.
-        time_var (str): Column names in morphome indicating time point.
+            '2d' or '3d'
+        trace_var (str): Variable name used to store a index o parent cell.
+        x_loc (str): Variable name used to store x locations.
+        y_loc (str): Variable name used to store y locations.
+        time_var (str): Column names in .obs indicating time point.
 
     Returns:
         tuple: networkx directed Graph and positions
     """
+    # check variables
+    assert trace_var in adata.obs.columns, f"trace_var not in .obs: {trace_var}"
+    assert time_var in adata.obs.columns, f"time_var not in .obs: {time_var}"
+    assert x_loc in adata.obs.columns, f"x_loc not in .obs: {x_loc}"
+    assert y_loc in adata.obs.columns, f"y_loc not in .obs: {y_loc}"
+
     # create edges from indices and trace
-    indices = list(pd.to_numeric(objects.index, errors='coerce'))
-    parents = pd.to_numeric(objects[trace_var], errors='coerce').tolist()
+    indices = list(pd.to_numeric(adata.obs.index, errors='coerce'))
+    parents = pd.to_numeric(adata.obs[trace_var], errors='coerce').tolist()
     edges = list(zip(parents, indices))
 
     # delete tuples with np.nan
@@ -208,17 +215,17 @@ def _create_graph(objects, dim, trace_var, loc_x, loc_y, time_var):
 
     # get node positions
     if dim == '2d':
-        locs = objects[[loc_x, loc_y]].to_numpy()
+        locs = adata.obs[[x_loc, y_loc]].to_numpy()
         y = PCA(n_components=1).fit_transform(locs)
-        x = objects[time_var].to_list()
+        x = adata.obs[time_var].to_list()
         xy = list(zip(x, y.flatten()))
-        pos = dict(zip(pd.to_numeric(objects.index, errors='coerce'), xy))
+        pos = dict(zip(pd.to_numeric(adata.obs.index, errors='coerce'), xy))
     elif dim == '3d':
-        x = objects[loc_x].to_list()
-        y = objects[loc_y].to_list()
-        z = objects[time_var].to_list()
+        x = adata.obs[x_loc].to_list()
+        y = adata.obs[y_loc].to_list()
+        z = adata.obs[time_var].to_list()
         xyz = list(zip(x, y, z))
-        pos = dict(zip(pd.to_numeric(objects.index, errors='coerce'), xyz))
+        pos = dict(zip(pd.to_numeric(adata.obs.index, errors='coerce'), xyz))
     else:
         raise ValueError(f"dim neither '2d' nor '3d', instead got {dim}")
 

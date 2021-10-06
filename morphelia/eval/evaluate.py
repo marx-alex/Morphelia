@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from morphelia.eval import similarity_matrix
+from morphelia.eval import dist_matrix
 from scipy.stats import norm
 
 
@@ -44,13 +44,13 @@ def repro_effect(adata,
                                     f"instead got {method}"
 
     # calculate correlation matrix
-    corr_df = similarity_matrix(adata,
-                                method=method,
-                                group_var=group_var,
-                                other_group_vars=other_group_vars,
-                                use_rep=use_rep,
-                                n_pcs=n_pcs,
-                                show=False)
+    corr_df = dist_matrix(adata,
+                          method=method,
+                          group_var=group_var,
+                          other_group_vars=other_group_vars,
+                          use_rep=use_rep,
+                          n_pcs=n_pcs,
+                          show=False)
 
     # calculate reproducibility and effect
     repro_df = reproducibility(adata,
@@ -139,13 +139,13 @@ def reproducibility(adata,
 
     # calculate correlation matrix
     if sim_matrix is None:
-        corr_df = similarity_matrix(adata,
-                                    method=method,
-                                    group_var=group_var,
-                                    other_group_vars=other_group_vars,
-                                    use_rep=use_rep,
-                                    n_pcs=n_pcs,
-                                    show=False)
+        corr_df = dist_matrix(adata,
+                              method=method,
+                              group_var=group_var,
+                              other_group_vars=other_group_vars,
+                              use_rep=use_rep,
+                              n_pcs=n_pcs,
+                              show=False)
     else:
         assert isinstance(sim_matrix, pd.DataFrame), f"sim_matrix expected to be type(pandas.DataFrame), " \
                                                      f"instead got {type(sim_matrix)}"
@@ -243,13 +243,13 @@ def effect(adata,
 
     # calculate correlation matrix
     if sim_matrix is None:
-        corr_df = similarity_matrix(adata,
-                                    method=method,
-                                    group_var=group_var,
-                                    other_group_vars=other_group_vars,
-                                    use_rep=use_rep,
-                                    n_pcs=n_pcs,
-                                    show=False)
+        corr_df = dist_matrix(adata,
+                              method=method,
+                              group_var=group_var,
+                              other_group_vars=other_group_vars,
+                              use_rep=use_rep,
+                              n_pcs=n_pcs,
+                              show=False)
     else:
         assert isinstance(sim_matrix, pd.DataFrame), f"sim_matrix expected to be type(pandas.DataFrame), " \
                                                      f"instead got {type(sim_matrix)}"
