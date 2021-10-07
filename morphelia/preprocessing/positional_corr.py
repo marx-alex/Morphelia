@@ -4,12 +4,12 @@ from scipy.stats import median_absolute_deviation as mad
 from morphelia.tools import MedianPolish
 
 
-def correct_positional_eff(adata,
-                           row_var="Metadata_Row",
-                           col_var="Metadata_Col",
-                           by=("BatchNumber", "PlateNumber"),
-                           max_iterations=10,
-                           method='median'):
+def correct_plate_eff(adata,
+                      row_var="Metadata_Row",
+                      col_var="Metadata_Col",
+                      by=("BatchNumber", "PlateNumber"),
+                      max_iterations=10,
+                      method='median'):
     """
     Implements Tukey's two-way median polish algorithm for additive models to
     correct positional effects in morphological data analysis.

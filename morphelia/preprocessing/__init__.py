@@ -5,4 +5,4 @@ from .normalize import normalize
 from .pseudostitch import pseudostitch
 from .aggregate import aggregate
 from .subsample import subsample
-from .positional_corr import correct_positional_eff
+from .positional_corr import correct_plate_eff
