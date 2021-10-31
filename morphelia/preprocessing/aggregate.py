@@ -125,7 +125,7 @@ def modz(adata,
 
     Args:
         adata (anndata.AnnData): Multidimensional morphological data.
-        method (str): Correlation method. One of pearson, spearman or kenall.
+        method (str): Correlation method. One of pearson, spearman or kendall.
         min_weight (float): Minimum correlation to clip all non-negative values lower to.
         precision (int): Number of digits to round weights to.
 

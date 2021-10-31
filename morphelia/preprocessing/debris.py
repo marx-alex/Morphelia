@@ -5,7 +5,7 @@ from skimage.filters import threshold_minimum
 import os
 
 
-def filter_debris(md,
+def filter_debris(adata,
                   nucl_area='Primarieswithoutborder_AreaShape_Area',
                   cell_area='Cells_AreaShape_Area', max_quot=20,
                   n=5000, show=False, save=None, seed=0, thresh_bound=[1, 5],
@@ -17,7 +17,7 @@ def filter_debris(md,
     The minimum in between is the threshold value.
 
     Args:
-        md (anndata.AnnData): Multidimensional morphological data.
+        adata (anndata.AnnData): Multidimensional morphological data.
         nucl_area (str): Variable with information about nuclear area
         cell_area (str): Varibale with information about cell area
         max_quot (int): Maximum value for quotient. (Not used for filtering)
@@ -31,14 +31,14 @@ def filter_debris(md,
     """
     # get samples
     np.random.seed(seed)
-    unfiltered_len = md.shape[0]
+    unfiltered_len = adata.shape[0]
     sample_ix = np.random.randint(unfiltered_len, size=n)
     try:
-        na = md[:, nucl_area].X.copy()[sample_ix]
-        ca = md[:, cell_area].X.copy()[sample_ix]
+        na = adata[:, nucl_area].X.copy()[sample_ix]
+        ca = adata[:, cell_area].X.copy()[sample_ix]
     except:
-        na = md[:, nucl_area].X.copy()
-        ca = md[:, cell_area].X.copy()
+        na = adata[:, nucl_area].X.copy()
+        ca = adata[:, cell_area].X.copy()
 
     # get sample distribution
     X = ca / na
@@ -51,12 +51,12 @@ def filter_debris(md,
     if len(thresh_bound) != 2:
         raise ValueError(f"Minimum and maximum for threshold value should be given: {thresh_bound}")
     if (thresh_min > thresh_bound[0]) and (thresh_min < thresh_bound[1]):
-        md = md[(md[:, cell_area].X / md[:, nucl_area].X) > thresh_min, :]
+        adata = adata[(adata[:, cell_area].X / adata[:, nucl_area].X) > thresh_min, :]
     else:
         print("No threshold could be found that meets the criteria.")
 
     if verbose:
-        filtered_len = md.shape[0]
+        filtered_len = adata.shape[0]
         print(f"{unfiltered_len - filtered_len} cells filtered")
 
     # plot
@@ -80,4 +80,4 @@ def filter_debris(md,
             except OSError:
                 print(f'Can not save figure to {save}.')
 
-    return md
+    return adata

@@ -6,7 +6,6 @@ MulticoreTSNE
 networkx
 numba
 numpy~=1.20.2
-opencv-contrib-python
 pandas
 python-igraph
 PyYAML==5.4.1

@@ -163,15 +163,19 @@ def reproducibility(adata,
         df[columns] = np.nan
         return df
 
-    null_dist_df = corr_tri_df.groupby(groups).apply(lambda x: _erase_vals(x, x.name))
-
-    # get statistics from null distribution
-    null_std = np.nanstd(null_dist_df, ddof=1)
-    null_mean = np.nanmean(null_dist_df)
-
     # get mean similarity for every group
     repro_df = corr_tri_df.groupby(groups).apply(lambda x: np.nanmean(x[x.name]))
     repro_df.rename('reproducibility', inplace=True)
+
+    null_dist_df = corr_tri_df.groupby(groups).apply(lambda x: _erase_vals(x, x.name))
+
+    # get statistics from null distribution
+    null_dist = null_dist_df.to_numpy().flatten()
+    null_dist = null_dist[~np.isnan(null_dist)]
+    n = len(repro_df)
+    null_choice = np.random.choice(null_dist, n)
+    null_std = np.nanstd(null_choice, ddof=1)
+    null_mean = np.nanmean(null_choice)
 
     # calculate z_scores
     repro_df = (repro_df - null_mean) / null_std
@@ -258,6 +262,14 @@ def effect(adata,
     # get upper triangular matrix
     corr_tri_df = corr_df.where(~np.tril(np.ones(corr_df.shape)).astype(np.bool))
 
+    # get mean similarity for every group
+    groups = group_var
+    if other_group_vars:
+        groups = [group_var] + other_group_vars
+
+    effect_df = corr_tri_df.groupby(groups).apply(lambda x: np.nanmean(x[control_id]))
+    effect_df.rename('effect', inplace=True)
+
     # get null distribution
     null_dist_df = corr_tri_df.loc[control_id, control_id]
 
@@ -274,16 +286,12 @@ def effect(adata,
         null_mean = np.mean(null_means)
     else:
         # get statistics from null distribution
-        null_std = np.nanstd(null_dist_df, ddof=1)
-        null_mean = np.nanmean(null_dist_df)
-
-    # get mean similarity for every group
-    groups = group_var
-    if other_group_vars:
-        groups = [group_var] + other_group_vars
-
-    effect_df = corr_tri_df.groupby(groups).apply(lambda x: np.nanmean(x[control_id]))
-    effect_df.rename('effect', inplace=True)
+        null_dist = null_dist_df.to_numpy().flatten()
+        null_dist = null_dist[~np.isnan(null_dist)]
+        n = len(effect_df)
+        null_choice = np.random.choice(null_dist, n)
+        null_std = np.nanstd(null_choice, ddof=1)
+        null_mean = np.nanmean(null_choice)
 
     # calculate z_scores
     effect_df = (effect_df - null_mean) / null_std

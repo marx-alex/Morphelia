@@ -76,15 +76,15 @@ def normalize(adata,
             # transform group with scaler
             if norm_pop is not None:
                 norm_ix = sub_df[sub_df[pop_var] == norm_pop].index
-                scaler.fit(adata[norm_ix, :].X)
+                scaler.fit(adata[norm_ix, :].X.copy())
             else:
-                scaler.fit(adata[group_ix, :].X)
+                scaler.fit(adata[group_ix, :].X.copy())
             # transform
-            adata[group_ix, :].X = scaler.transform(adata[group_ix, :].X)
+            adata[group_ix, :].X = scaler.transform(adata[group_ix, :].X.copy())
 
     else:
-        scaler.fit(adata.X)
-        adata.X = scaler.transform(adata.X)
+        scaler.fit(adata.X.copy())
+        adata.X = scaler.transform(adata.X.copy())
 
     if clip is not None:
         assert (clip > 0), f'Value for clip should be above 0, instead got {clip}'

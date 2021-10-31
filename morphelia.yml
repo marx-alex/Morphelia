@@ -1,6 +1,5 @@
 name: morphelia
 channels:
-  - pytorch
   - bioconda
   - defaults
   - conda-forge
@@ -31,3 +30,6 @@ dependencies:
     - scanpy
     - fastcluster
     - dtaidistance
+    - torch
+    - torchvision
+    - torchaudio

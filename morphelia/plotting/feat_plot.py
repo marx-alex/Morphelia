@@ -2,7 +2,7 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-__all__ = ["boxplot", "violin"]
+__all__ = ["boxplot", "violin", "barplot"]
 
 
 def boxplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
@@ -58,6 +58,77 @@ def boxplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
     else:
         for ix in range(len(y_data)):
             sns.boxplot(x=x, y=y_data[ix], hue=hue, data=adata.obs, ax=axs[ix], flierprops=flierprops, **kwargs)
+
+            # set y label
+            if y_label is not None:
+                axs.set_ylabel(y_label[ix])
+            else:
+                axs[ix].set_ylabel(ys[ix])
+
+            if hue is not None:
+                axs[ix].legend()
+            if ix < (len(y_data)-1):
+                axs[ix].set_xlabel('')
+            elif x_label is not None:
+                axs[ix].set_xlabel(x_label)
+
+    plt.tight_layout()
+
+    return fig, axs
+
+
+def barplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
+    """Plot one or more variables of single or
+    aggregated cells for different time points.
+
+    Args:
+        adata (anndata.AnnData): Annotated data matrix with multiple measurements for single objects over time.
+        x (str): Variable name from md.obs.
+        y (str or list of str): Name of variables to show.
+        hue (str): Variable name from md.obs.
+        y_label (str or list of str): Labels for y axis.
+        x_label (str): Label for x axis.
+
+    Returns:
+        matplotlib.pyplot.figure
+    """
+    y_data = []
+    if not isinstance(y, list):
+        ys = []
+        ys.append(y)
+    else:
+        ys = y
+    if all(y in adata.obs.columns for y in ys):
+        sub_arr = adata.obs[ys].to_numpy().reshape(-1, 1)
+    elif all(y in adata.var_names for y in ys):
+        sub_arr = adata[:, ys].X
+    else:
+        raise KeyError(f"Variable for time not in AnnData object: f{ys}")
+    # store y variables as vectors
+    for column in sub_arr.T:
+        y_data.append(column.flatten())
+
+    # create figure
+    sns.set_theme(style="whitegrid")
+    fig_height = int(4 * len(y_data))
+    fig, axs = plt.subplots(len(y_data), sharex=True, figsize=(10, fig_height))
+
+    # plot
+    if len(y_data) == 1:
+        sns.barplot(x=x, y=y_data[0], hue=hue, data=adata.obs, ax=axs, capsize=.2, **kwargs)
+
+        # set y label
+        if y_label is not None:
+            axs.set_ylabel(y_label)
+        else:
+            axs.set_ylabel(ys[0])
+        axs.set_xlabel(x_label)
+
+        if hue is not None:
+            axs.legend()
+    else:
+        for ix in range(len(y_data)):
+            sns.barplot(x=x, y=y_data[ix], hue=hue, data=adata.obs, ax=axs[ix], capsize=.2, **kwargs)
 
             # set y label
             if y_label is not None:

@@ -1,3 +1,3 @@
-from .distance import dist_matrix, dist_matrix_ts
+from .distance import dist_matrix, dtw_dist_matrix, hmm_sim_matrix
 from .evaluate import reproducibility, effect, repro_effect
 

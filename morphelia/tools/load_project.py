@@ -37,13 +37,14 @@ class MorphData(object):
         obj_delimiter (str): Delimiter for for object .csv files
         treat_delimiter (str): Delimiter for treatment .csv file
         datadict (dict): Dictionary with input files.
+        obs_ids (list): List with strings that identify observational features.
 
     """
 
     def __init__(self, morphome=None, tile_grid=(5, 5), tile_reading="horizontal",
                  tile_var="Metadata_Field", add_tile_pos=True,
                  trow_var="Metadata_TileRow", tcol_var="Metadata_TileCol",
-                 obj_delimiter=",", treat_delimiter=",", datadict=None):
+                 obj_delimiter=",", treat_delimiter=",", datadict=None, obs_ids=None):
         """
         Args:
             morphome (pandas.DataFrame): Cellprofiler output
@@ -63,8 +64,11 @@ class MorphData(object):
             self.morphome = morphome
 
         # store identifiers for annotation columns
-        self.obs_ids = ['Number', 'Center', 'Box', 'Parent', 'Child',
-                        'Euler', 'Count', 'Metadata', 'Location']
+        if obs_ids is None:
+            self.obs_ids = ['Number', 'Center', 'Box', 'Parent', 'Child',
+                            'Euler', 'Count', 'Metadata', 'Location']
+        else:
+            self.obs_ids = obs_ids
 
         # dictionary of data files
         self.datadict = datadict
@@ -295,7 +299,6 @@ class MorphData(object):
 
             if to_disk != 'plate':
                 batch_df = pd.concat(batchdata_list, ignore_index=True)
-
                 if to_disk != 'batch':
                     morphome_list.append(batch_df)
                 else:
@@ -369,7 +372,9 @@ class MorphData(object):
         """
         # append observation identifiers if given
         if obs_ids is not None:
-            self.obs_ids.append(list(obs_ids))
+            if isinstance(obs_ids, str):
+                obs_ids = [obs_ids]
+            self.obs_ids = self.obs_ids + obs_ids
 
         # take data from class if md is None
         if md is None:
