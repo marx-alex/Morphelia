@@ -297,7 +297,7 @@ def hmm_sim_matrix(adata,
         groups.append(group)
 
     # compute distance matrix
-    hmm = HMMSimilarity(comp_range=comp_range)
+    hmm = HMMSimilarity(state_range=comp_range)
     hmm.fit(s)
     sim = hmm.similarity()
 

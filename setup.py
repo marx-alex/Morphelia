@@ -8,9 +8,9 @@ setup(
     description='Exploratory data analysis for image-based morphological profiling.',
     author='Alexander Marx',
     license='MIT Licence',
-    install_requires=[
-        line.strip() for line in Path('requirements.txt').read_text('utf-8').splitlines()
-    ],
+    # install_requires=[
+    #     line.strip() for line in Path('requirements.txt').read_text('utf-8').splitlines()
+    # ],
     entry_points={'console_scripts': [
         'StoreAD = morphelia.cli.StoreAD:main',
         'Preprocess = morphelia.cli.Preprocess:main',

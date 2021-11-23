@@ -11,7 +11,7 @@ def drop_highly_correlated(adata,
                            sample_size=1000,
                            seed=0,
                            verbose=False,
-                           neg_corr=True,
+                           neg_corr=False,
                            drop=True,
                            **kwargs):
     """Drops features that have a Pearson correlation coefficient
@@ -30,7 +30,7 @@ def drop_highly_correlated(adata,
         seed (int): Seed for subsample calculation.
             Only if subsample is True.
         verbose (bool)
-        neg_corr (bool): Include negative correlated features.
+        neg_corr (bool): Drop negative correlated features.
         drop (bool): Drop features. If false add information to .var.
         **kwargs: Keyword arguments for sns.clustermap
 

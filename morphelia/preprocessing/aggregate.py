@@ -7,6 +7,8 @@ import pandas as pd
 import anndata as ad
 
 
+# TODO: Aggregate representations
+
 def aggregate(adata,
               by=("BatchNumber", "PlateNumber", "Metadata_Well"),
               method='median',

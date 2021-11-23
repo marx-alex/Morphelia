@@ -25,7 +25,7 @@ def svm_rfe(adata,
     """
     Support-vector-machine-based recursive-feature elimination.
 
-    Recursively Remove features with low weights from classification if SVM.
+    Recursively Remove features with low weights from classification with SVM.
     Features are trained to classify treat_var (i.g. treatment condition in .obs).
 
     Args:

@@ -1,10 +1,10 @@
 name: morphelia
 channels:
-  - bioconda
   - defaults
   - conda-forge
+  - bioconda
 dependencies:
-  - python=3.8
+  - python>=3.8
   - anndata
   - matplotlib
   - networkx
@@ -23,6 +23,8 @@ dependencies:
   - fa2
   - statsmodels
   - tqdm
+  - trackpy
+  - hmmlearn
   - pip
   - pip:
     - umap-learn==0.5.1

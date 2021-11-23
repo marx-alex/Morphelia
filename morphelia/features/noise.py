@@ -48,7 +48,7 @@ def drop_noise(adata,
         # store standard deviations
         stds = []
 
-        for group, sub_df in adata.obs.groupby(by):
+        for _, sub_df in adata.obs.groupby(by):
             # cache indices of group
             group_ix = sub_df.index
 
