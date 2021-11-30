@@ -5,15 +5,15 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 import anndata as ad
+from tqdm import tqdm
 
-
-# TODO: Aggregate representations
 
 def aggregate(adata,
               by=("BatchNumber", "PlateNumber", "Metadata_Well"),
               method='median',
               keep_obs=None,
               count=True,
+              aggregate_reps=True,
               qc=False,
               min_cells=300,
               verbose=False,
@@ -28,6 +28,7 @@ def aggregate(adata,
         keep_obs (list of str): Identifiers for observations to keep.
             Keep all if None.
         count (bool): Add population count to observations if True.
+        aggregate_reps (bool): Aggregate representations similar to adata.X
         qc (bool): True for quality control.
         min_cells (int): Minimum number of cells per population.
             Population is deleted from data if below threshold.
@@ -71,6 +72,7 @@ def aggregate(adata,
     # store aggregated data
     X_agg = []
     obs_agg = defaultdict(list)
+    X_reps = defaultdict(list)
 
     # iterate over adata with grouping variables
     for groups, sub_df in adata.obs.groupby(list(by)):
@@ -89,13 +91,24 @@ def aggregate(adata,
         # cache indices of group
         group_ix = sub_df.index
 
-        # aggregate group
         if method == 'mean':
             agg = np.nanmean(adata[group_ix, :].X.copy(), axis=0, **kwargs).reshape(1, -1)
+            if aggregate_reps:
+                for rep in adata.obsm.keys():
+                    agg_rep = np.nanmean(adata[group_ix, :].obsm[rep].copy(), axis=0, **kwargs).reshape(1, -1)
+                    X_reps[rep].append(agg_rep)
         elif method == 'median':
             agg = np.nanmedian(adata[group_ix, :].X.copy(), axis=0, **kwargs).reshape(1, -1)
-        elif method =='modz':
-            agg = modz(adata[group_ix, :], **kwargs).reshape(1, -1)
+            if aggregate_reps:
+                for rep in adata.obsm.keys():
+                    agg_rep = np.nanmedian(adata[group_ix, :].obsm[rep].copy(), axis=0, **kwargs).reshape(1, -1)
+                    X_reps[rep].append(agg_rep)
+        elif method == 'modz':
+            agg = modz(adata[group_ix, :].X.copy(), **kwargs).reshape(1, -1)
+            if aggregate_reps:
+                for rep in adata.obsm.keys():
+                    agg_rep = modz(adata[group_ix, :].obsm[rep].copy(), **kwargs).reshape(1, -1)
+                    X_reps[rep].append(agg_rep)
 
         # concatenate aggregated groups
         X_agg.append(agg)
@@ -104,7 +117,18 @@ def aggregate(adata,
     X_agg = np.concatenate(X_agg, axis=0)
     obs_agg = pd.DataFrame(obs_agg)
 
-    adata = ad.AnnData(X=X_agg, obs=obs_agg, var=adata.var)
+    # concatenate chunks of representations
+    if len(list(X_reps.keys())) > 0:
+        for _key, _val in X_reps.items():
+            if len(_val) > 1:
+                _val = np.vstack(_val)
+            else:
+                _val = _val[0]
+            X_reps[_key] = _val
+
+        adata = ad.AnnData(X=X_agg, obs=obs_agg, var=adata.var, obsm=X_reps)
+    else:
+        adata = ad.AnnData(X=X_agg, obs=obs_agg, var=adata.var)
 
     # quality control
     if qc:
@@ -117,7 +141,7 @@ def aggregate(adata,
     return adata
 
 
-def modz(adata,
+def modz(arr,
          method='spearman',
          min_weight=0.01,
          precision=4):
@@ -126,7 +150,7 @@ def modz(adata,
     https://github.com/cytomining/pycytominer/blob/master/pycytominer/cyto_utils/modz.py
 
     Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
+        arr (np.array): Representation of data.
         method (str): Correlation method. One of pearson, spearman or kendall.
         min_weight (float): Minimum correlation to clip all non-negative values lower to.
         precision (int): Number of digits to round weights to.
@@ -135,7 +159,7 @@ def modz(adata,
         numpy.array: Modz transformed aggregated data.
     """
     # check variables
-    assert adata.shape[0] > 0, "AnnData object must include at least one sample"
+    assert arr.shape[0] > 0, "array object must include at least one sample"
 
     avail_methods = ["pearson", "spearman", "kendall"]
     method = method.lower()
@@ -143,12 +167,12 @@ def modz(adata,
                                     f"instead got {method}"
 
     # adata to pandas dataframe
-    adata = adata.to_df()
+    arr = pd.DataFrame(data=arr)
 
     # Step 1: Extract pairwise correlations of samples
     # Transpose so samples are columns
-    adata = adata.transpose()
-    corr_df = adata.corr(method=method)
+    arr = arr.transpose()
+    corr_df = arr.corr(method=method)
 
     # Step 2: Identify sample weights
     # Fill diagonal of correlation_matrix with np.nan
@@ -168,14 +192,90 @@ def modz(adata,
     weights = weights.round(precision)
 
     # Step 3: Normalize
-    if adata.shape[1] == 1:
+    if arr.shape[1] == 1:
         # There is only one sample (note that columns are now samples)
-        modz_df = adata.sum(axis=1)
+        modz_df = arr.sum(axis=1)
     else:
-        modz_df = adata * weights
+        modz_df = arr * weights
         modz_df = modz_df.sum(axis=1)
 
     # convert series back to array
     modz = modz_df.to_numpy()
 
     return modz
+
+
+def aggregate_chunks(adata,
+                     by=("BatchNumber", "PlateNumber", "Metadata_Well"),
+                     chunk_size=25,
+                     with_replacement=False,
+                     n_chunks=500,
+                     method='median',
+                     keep_obs=None,
+                     count=False,
+                     aggregate_reps=False,
+                     seed=0,
+                     **kwargs):
+    """Aggregate data into random chunks within the same condition defined with 'by'.
+
+    Args:
+        adata (anndata.AnnData): Annotated data object.
+        by (list of str): Variables to use for aggregation.
+        chunk_size (int): Size of chunks.
+        with_replacement (bool): Draw random chunks with replacement.
+        n_chunks (int): If with_replacement is True, this many chunks are aggregated per condition.
+        method (str): Method of aggregation.
+            Should be one of: Mean, median, modz.
+        keep_obs (list of str): Identifiers for observations to keep.
+            Keep all if None.
+        count (bool): Add population count to observations if True.
+        aggregate_reps (bool): Aggregate representations similar to adata.X
+        seed (int): Seed random data selection.
+        **kwargs: Keyword arguments passed to methods.
+
+    Returns:
+        anndata.AnnData
+    """
+    # check that variables in by are in anndata
+    if isinstance(by, str):
+        by = [by]
+    else:
+        by = list(by)
+    if not all(var in adata.obs.columns for var in by):
+        raise KeyError(f"Variables defined in 'by' are not in annotations: {by}")
+
+    np.random.seed(seed)
+
+    adata_agg = []
+
+    for groups, sub_df in tqdm(adata.obs.groupby(list(by)), desc="Aggregating chunks.."):
+
+        group_ix = sub_df.index
+        avail_ix = list(group_ix)
+        stop = True
+        counter = 0
+
+        while (len(avail_ix) >= chunk_size) and stop:
+            choice = np.random.choice(avail_ix, chunk_size, replace=False)
+            if not with_replacement:
+                avail_ix = [ix for ix in avail_ix if ix not in choice]
+            choice_adata = adata[choice, :].copy()
+            choice_adata = aggregate(choice_adata,
+                                     by=by,
+                                     method=method,
+                                     keep_obs=keep_obs,
+                                     count=count,
+                                     aggregate_reps=aggregate_reps,
+                                     qc=False,
+                                     verbose=False,
+                                     **kwargs
+                                     )
+            adata_agg.append(choice_adata)
+            if (counter >= n_chunks) and with_replacement:
+                stop = False
+            counter += 1
+
+    adata_agg = adata_agg[0].concatenate(*adata_agg[1:])
+
+    return adata_agg
+

@@ -15,7 +15,7 @@ def plot_eval(adata,
               save=False,
               return_fig=False):
     """Plot reproducibility and effect if calculated before.
-    The lines show the interquantile range for both measures, the intersections show medians.
+    The lines show the interquartile range for both measures, the intersections show medians.
 
     Args:
         adata (anndata.AnnData): Multidimensional morphological data.
@@ -30,7 +30,7 @@ def plot_eval(adata,
         return_fig (bool)
 
     Returns:
-        fig (matplotlib.pyplot.figure) if return_fig is True
+        fig, axs if return_fig is True
     """
     out = 'Reproducibility and effect no yet calculated. Use morphelia.eval.repro_effect'
     assert 'eval' in adata.uns, out
@@ -48,7 +48,7 @@ def plot_eval(adata,
     effect_q3 = np.quantile(effect, 0.75)
 
     # points
-    fig = plt.figure(figsize=(10, 10))
+    fig, axs = plt.subplots(figsize=(7, 7))
     plt.plot([repro_q1, repro_q3], [effect_q2, effect_q2], color=c_repro, linewidth=linewidth)
     plt.plot([repro_q2, repro_q2], [effect_q1, effect_q3], color=c_effect, linewidth=linewidth)
     # plot whisker
@@ -83,4 +83,4 @@ def plot_eval(adata,
             print(f'Can not save figure to {save}.')
 
     if return_fig:
-        return fig
+        return fig, axs

@@ -121,7 +121,7 @@ def plot_plate(adata,
         kwargs['s'] = points
 
     # nan colors
-    cmap = matplotlib.cm.plasma
+    cmap = matplotlib.cm.plasma.copy()
     cmap.set_bad("lightgrey")
     kwargs['cmap'] = cmap
 

@@ -197,6 +197,8 @@ def dtw_dist_matrix(adata,
 
     # annotation to dataframe
     groups = np.array(groups)
+    if len(groups.shape) == 1:
+        groups = groups[:, None]
     annotations = [pd.Series(groups[:, ix], name=group_var) for ix, group_var in enumerate(group_vars)]
 
     # distance matrix to dataframe

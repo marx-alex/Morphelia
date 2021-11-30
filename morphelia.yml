@@ -23,7 +23,6 @@ dependencies:
   - fa2
   - statsmodels
   - tqdm
-  - trackpy
   - hmmlearn
   - pip
   - pip:
@@ -35,3 +34,4 @@ dependencies:
     - torch
     - torchvision
     - torchaudio
+    - btrack

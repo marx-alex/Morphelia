@@ -9,8 +9,8 @@ but can also be used for other multivariate analyses.
 
 In order to integrate with other commonly used single-cell pipelines and to provide a high level
 of documentation, Morphelia uses AnnData as underlying data format. This allows annotations to
-be clearly separated from learnable features and the use of Scanpy functions for single
-cell analysis. AnnData and Scanpy were developed by the Theis Lab (see References).
+be clearly separated from learnable features and to use Scanpy functions for single
+cell analysis. AnnData and Scanpy were developed by Theis Lab (see References).
 
 ![Pipeline](data/pipeline.png)
 

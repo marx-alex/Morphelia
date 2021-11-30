@@ -64,7 +64,7 @@ def normalize(adata,
     elif method == "robust":
         scaler = RobustScaler(**kwargs)
     elif method == "mad_robust":
-        scaler = RobustMAD()
+        scaler = RobustMAD(**kwargs)
     elif method == "min_max":
         scaler = MinMaxScaler(**kwargs)
 

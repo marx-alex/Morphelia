@@ -123,7 +123,7 @@ def reproducibility(adata,
 
     # every treatment/dose pair should have at least one biological replicate
     if other_group_vars is None:
-        assert len(adata.obs[group_var]) != len(adata.obs[group_var].unique), "Found no biological " \
+        assert len(adata.obs[group_var]) != len(adata.obs[group_var].unique()), "Found no biological " \
                                                                               f"replicates for {group_var}"
     else:
         other_group_vars_lst = adata.obs[other_group_vars].values.tolist()
@@ -170,12 +170,28 @@ def reproducibility(adata,
     null_dist_df = corr_tri_df.groupby(groups).apply(lambda x: _erase_vals(x, x.name))
 
     # get statistics from null distribution
-    null_dist = null_dist_df.to_numpy().flatten()
-    null_dist = null_dist[~np.isnan(null_dist)]
-    n = len(repro_df)
-    null_choice = np.random.choice(null_dist, n)
-    null_std = np.nanstd(null_choice, ddof=1)
-    null_mean = np.nanmean(null_choice)
+    null_std = np.nanstd(null_dist_df, ddof=1)
+    null_mean = np.nanmean(null_dist_df)
+
+    ################
+    # DELETE
+    ################
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    n = null_dist_df.to_numpy().flatten()
+    n = n[~np.isnan(n)]
+    e = repro_df.to_numpy().flatten()
+    e = e[~np.isnan(e)]
+    n = np.random.choice(n, size=len(e), replace=False)
+    data = pd.DataFrame({'null dist': n, 'repro dist': e})
+    # bins = np.linspace(-1, 1, 50)
+    fig, axs = plt.subplots()
+    sns.histplot(data=data, ax=axs)
+    axs.set_xlabel("euclidean distance")
+    axs.set_title("Reproducibility")
+    # axs.hist([n, e], bins=30, alpha=0.5, label=['null dist', 'effect dist'], edgecolor=None)
+    # plt.legend()
+    # axs.hist(e, bins=100, alpha=0.5)
 
     # calculate z_scores
     repro_df = (repro_df - null_mean) / null_std
@@ -268,6 +284,7 @@ def effect(adata,
         groups = [group_var] + other_group_vars
 
     effect_df = corr_tri_df.groupby(groups).apply(lambda x: np.nanmean(x[control_id]))
+    effect_df = effect_df.drop(labels=control_id, axis=0)
     effect_df.rename('effect', inplace=True)
 
     # get null distribution
@@ -286,12 +303,28 @@ def effect(adata,
         null_mean = np.mean(null_means)
     else:
         # get statistics from null distribution
-        null_dist = null_dist_df.to_numpy().flatten()
-        null_dist = null_dist[~np.isnan(null_dist)]
-        n = len(effect_df)
-        null_choice = np.random.choice(null_dist, n)
-        null_std = np.nanstd(null_choice, ddof=1)
-        null_mean = np.nanmean(null_choice)
+        null_std = np.nanstd(null_dist_df, ddof=1)
+        null_mean = np.nanmean(null_dist_df)
+
+    ################
+    # DELETE
+    ################
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    n = null_dist_df.to_numpy().flatten()
+    n = n[~np.isnan(n)]
+    e = effect_df.to_numpy().flatten()
+    e = e[~np.isnan(e)]
+    n = np.random.choice(n, size=len(e), replace=False)
+    data = pd.DataFrame({'null dist': n, 'effect dist': e})
+    # bins = np.linspace(-1, 1, 50)
+    fig, axs = plt.subplots()
+    sns.histplot(data=data, ax=axs)
+    axs.set_xlabel("euclidean distance")
+    axs.set_title('Effect')
+    # axs.hist([n, e], bins=30, alpha=0.5, label=['null dist', 'effect dist'], edgecolor=None)
+    # plt.legend()
+    # axs.hist(e, bins=100, alpha=0.5)
 
     # calculate z_scores
     effect_df = (effect_df - null_mean) / null_std
@@ -307,3 +340,77 @@ def effect(adata,
     adata.uns['eval']['effect'] = {'percentiles': effect_df, 'method': method}
 
     return adata
+
+
+def select_concentration(adata,
+                         treat_var='Metadata_Treatment',
+                         conc_var='Metadata_Concentration',
+                         control_id='ctrl',
+                         method='pearson',
+                         use_rep=None,
+                         n_pcs=50,
+                         return_scores=False,
+                         select=True):
+    """Select concentration with best effect.
+
+    Args:
+            adata (anndata.AnnData): Multidimensional morphological data.
+            treat_var (str): Treatment variable in adata.obs.
+            conc_var (list): Concentration variable in adata.obs.
+            method (str): Method for similarity/ distance computation.
+                Should be one of: pearson, spearman, kendall, euclidean, mahalanobis.
+            use_rep (str): Calculate similarity/distance representation of X in .obsm.
+            n_pcs (int): Number principal components to use if use_pcs is 'X_pca'.
+            control_id (str): Name of control wells in group_var.
+            return_scores (bool): If True, no anndata.AnnData object is returned, but the scores directly.
+            select (bool): Return only selected concentrations.
+
+        Returns:
+        anndata.AnnData
+        .uns['eval']['concentration']: pandas.DataFrame with selected treatments and concentrations.
+    """
+    assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"
+    assert conc_var in adata.obs.columns, f"conc_var not in .obs: {conc_var}"
+    assert control_id in adata.obs[treat_var].tolist(), f"control_id not in .obs[{treat_var}]: {control_id}"
+
+    # check method
+    avail_methods = ['pearson', 'spearman', 'kendall', 'euclidean', 'mahalanobis']
+    method = method.lower()
+    assert method in avail_methods, f"method should be in {avail_methods}, " \
+                                    f"instead got {method}"
+
+    effect_df = effect(adata,
+                       group_var=treat_var,
+                       other_group_vars=[conc_var],
+                       control_id=control_id,
+                       method=method,
+                       use_rep=use_rep,
+                       n_pcs=n_pcs,
+                       return_scores=True)
+
+    # select concentrations with highest effect
+    effect_df = effect_df.reset_index()
+    max_conc = effect_df.groupby(treat_var).apply(lambda x: x.iloc[x['effect'].argmax(), :]).reset_index(drop=True)
+
+    # update unstructured data
+    if 'eval' not in adata.uns:
+        adata.uns['eval'] = {}
+    adata.uns['eval']['concentration'] = max_conc
+
+    if return_scores:
+        return max_conc
+
+    if select:
+        selected_adatas = []
+        for ix, row in max_conc.iterrows():
+            sel = adata[(adata.obs[treat_var] == row[treat_var]) & (adata.obs[conc_var] == row[conc_var]), :]
+            selected_adatas.append(sel)
+        ctrl_adata = adata[adata.obs[treat_var] == control_id, :]
+        selected_adatas.append(ctrl_adata)
+        adata = selected_adatas[0].concatenate(selected_adatas[1:])
+
+    return adata
+
+
+
+

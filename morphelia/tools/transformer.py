@@ -12,8 +12,9 @@ class RobustMAD(BaseEstimator, TransformerMixin):
     https://github.com/cytomining/pycytominer/blob/master/pycytominer/operations/transform.py
     """
 
-    def __init__(self, scale='normal'):
+    def __init__(self, scale='normal', eps=0):
         self.scale = scale
+        self.eps = eps
 
     def fit(self, X):
         """
@@ -35,7 +36,7 @@ class RobustMAD(BaseEstimator, TransformerMixin):
         X (numpy.ndarray): Array to apply RobustMAD scaling.
         """
         with np.errstate(divide='ignore', invalid='ignore'):
-            return (X - self.median) / self.mad
+            return (X - self.median) / (self.mad + self.eps)
 
 
 class MedianPolish:

@@ -1,17 +1,16 @@
 import argparse
 import os
 import logging
-logging.basicConfig(level=logging.INFO)
-logging.getLogger('numexpr').setLevel(logging.WARNING)
 import pickle
 
 import numpy as np
 
 from morphelia.tools import LoadPlate
-from morphelia.preprocessing import drop_nan, drop_duplicates, \
-    drop_invariant, normalize
-from morphelia.features import drop_noise, drop_near_zero_variance, drop_outlier, \
-    drop_highly_correlated, svm_rfe
+from morphelia.preprocessing import *
+from morphelia.features import *
+
+logging.basicConfig(level=logging.INFO)
+logging.getLogger('numexpr').setLevel(logging.WARNING)
 
 
 def main(src):

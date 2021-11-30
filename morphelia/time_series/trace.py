@@ -1,16 +1,332 @@
 import numpy as np
 from scipy.spatial import cKDTree
+from tqdm import tqdm
+import btrack
+from btrack.constants import BayesianUpdates
+import pandas as pd
+import logging
+
+logger = logging.getLogger()
+
+tracker_config = {
+    "TrackerConfig":
+        {
+            "MotionModel":
+                {
+                    "name": "cell_motion",
+                    "dt": 1.0,
+                    "measurements": 3,
+                    "states": 6,
+                    "accuracy": 7.5,
+                    "prob_not_assign": 0.001,
+                    "max_lost": 3,
+                    "A": {
+                        "matrix": [1, 0, 0, 1, 0, 0,
+                                   0, 1, 0, 0, 1, 0,
+                                   0, 0, 1, 0, 0, 1,
+                                   0, 0, 0, 1, 0, 0,
+                                   0, 0, 0, 0, 1, 0,
+                                   0, 0, 0, 0, 0, 1]
+                    },
+                    "H": {
+                        "matrix": [1, 0, 0, 0, 0, 0,
+                                   0, 1, 0, 0, 0, 0,
+                                   0, 0, 1, 0, 0, 0]
+                    },
+                    "P": {
+                        "sigma": 150.0,
+                        "matrix": [0.1, 0, 0, 0, 0, 0,
+                                   0, 0.1, 0, 0, 0, 0,
+                                   0, 0, 0.1, 0, 0, 0,
+                                   0, 0, 0, 1, 0, 0,
+                                   0, 0, 0, 0, 1, 0,
+                                   0, 0, 0, 0, 0, 1]
+                    },
+                    "G": {
+                        "sigma": 15.0,
+                        "matrix": [0.5, 0.5, 0.5, 1, 1, 1]
+
+                    },
+                    "R": {
+                        "sigma": 5.0,
+                        "matrix": [1, 0, 0,
+                                   0, 1, 0,
+                                   0, 0, 1]
+                    }
+                },
+            "ObjectModel":
+                {},
+            "HypothesisModel":
+                {
+                    "name": "cell_hypothesis",
+                    "hypotheses": ["P_FP", "P_init", "P_term", "P_link", "P_branch", "P_dead"],
+                    "lambda_time": 5.0,
+                    "lambda_dist": 3.0,
+                    "lambda_link": 10.0,
+                    "lambda_branch": 50.0,
+                    "eta": 1e-10,
+                    "theta_dist": 20.0,
+                    "theta_time": 5.0,
+                    "dist_thresh": 40,
+                    "time_thresh": 2,
+                    "apop_thresh": 5,
+                    "segmentation_miss_rate": 0.1,
+                    "apoptosis_rate": 0.001,
+                    "relax": True
+                }
+        }
+}
 
 
-def trace(adata,
+def track(adata,
           time_var="Metadata_Time",
           group_vars=("Metadata_Well", "Metadata_Field"),
           x_loc="Cells_Location_Center_X",
           y_loc="Cells_Location_Center_Y",
-          trace_var="Metadata_Trace_Parent",
+          parent_id="Metadata_Trace_Parent",
           tree_id="Metadata_Trace_Tree",
-          start_tp=0):
-    """Traces objects of a dataframe over time.
+          do_filter=True,
+          allowed_dummies=0,
+          min_track_len=10,
+          max_search_radius=100,
+          field_size=(2048, 2048),
+          approx=False
+          ):
+    """Wrapper for Bayesian Tracker.
+
+    Tracks objects per field of view defined by group_vars.
+    Objects can be filtered for trajectory length and dummy objects.
+
+    Reference:
+        Automated deep lineage tree analysis using a Bayesian single cell tracking approach
+        Ulicna K, Vallardi G, Charras G and Lowe AR.
+        bioRxiv (2020)
+
+    Args:
+        adata (anndata.AnnData): Morphological data from cells with different time stamps.
+        time_var (str): Variable name for time point in annotations.
+        group_vars (iterable): Variables in annotations.
+            Should point to specific wells/ or fields on plates that can be compared over time.
+        x_loc (str): Identifier for x location in annotations.
+        y_loc (str): Identifier for y location in annotations.
+        parent_id (str): Variable name used to store index of parent cell.
+        tree_id (str): Variable name used to store unique branch number for a certain field.
+        do_filter (bool): Filter tracks with dummies and minimum length if True.
+        allowed_dummies (int): Max allowed dummies in track.
+        min_track_len (int): Min track length.
+        max_search_radius (int): Local spatial search radius (pixels)
+        field_size (tuple of ints): height and width in of field.
+        approx (bool): Speed up processing on very large datasets.
+
+    Returns:
+        adata (anndata.AnnData)
+    """
+    # check variables
+    if isinstance(group_vars, str):
+        group_vars = [group_vars]
+    elif isinstance(group_vars, tuple):
+        group_vars = list(group_vars)
+
+    if isinstance(group_vars, list):
+        assert all(gv in adata.obs.columns for gv in group_vars), \
+            f"One or all group_vars not in .obs.columns: {group_vars}"
+    else:
+        raise KeyError(f"Expected type(list) or type(str) for group_vars, "
+                       f"instead got {type(group_vars)}")
+
+    assert time_var in adata.obs.columns, f"time_var not in .obs.columns: {time_var}"
+    assert x_loc in adata.obs.columns, f"x_loc not in .obs.columns: {x_loc}"
+    assert x_loc in adata.obs.columns, f"x_loc not in .obs.columns: {x_loc}"
+    assert y_loc in adata.obs.columns, f"y_loc not in .obs.columns: {y_loc}"
+    assert x_loc != y_loc, f"x_loc expected to be different from y_loc, " \
+                           f"x_loc: {x_loc}, y_loc: {y_loc}"
+
+    field_height, field_width = field_size
+
+    # create new column to store index of parent object
+    adata.obs[parent_id] = np.nan
+    # create new column and store id for every trace tree
+    adata.obs[tree_id] = np.nan
+
+    # load config settings
+    config = tracker_config['TrackerConfig']
+    t_config = {
+        "MotionModel": btrack.utils.read_motion_model(config),
+        "ObjectModel": btrack.utils.read_object_model(config),
+        "HypothesisModel": btrack.optimise.hypothesis.read_hypothesis_model(config),
+    }
+
+    tree_start_id = 0
+
+    # iterate over every field and get field at different times
+    total_its = np.prod([len(adata.obs[gv].unique()) for gv in group_vars])
+    for ix, (groups, field_df) in tqdm(enumerate(adata.obs.groupby(list(group_vars))),
+                                       desc='Tracking cells in every field',
+                                       total=int(total_its)):
+        # create objects for btracker
+        z = np.zeros((len(field_df),))
+        _id = field_df.index
+
+        objects_raw = {'x': field_df[x_loc].to_numpy(),
+                       'y': field_df[y_loc].to_numpy(),
+                       'z': z,
+                       't': field_df[time_var].to_numpy(),
+                       'id': _id}
+        objects = btrack.dataio.objects_from_dict(objects_raw)
+
+        # start tracker
+        logger.disabled = True
+        with btrack.BayesianTracker(verbose=False) as tracker:
+            tracker.configure(t_config)
+
+            tracker.max_search_radius = max_search_radius
+
+            if approx:
+                tracker.update_method = BayesianUpdates.APPROXIMATE
+
+            tracker.append(objects)
+
+            # set the volume (Z axis volume is set very large for 2D data)
+            tracker.volume = ((0, field_height), (0, field_width), (-1e5, 1e5))
+
+            # track them
+            tracker.track()
+
+            # generate hypotheses and run the global optimizer
+            tracker.optimize()
+
+            tracks = tracker.tracks
+
+        logger.disabled = False
+
+        if do_filter:
+            filtered_tracks = filter_tracks(tracks, track_len=min_track_len, allowed_dummies=allowed_dummies)
+        else:
+            filtered_tracks = tracks
+
+        t_header = ["ID", "t"] + ["z", "y", "x"][-2:]
+        p_header = ["t", "state", "generation", "root", "parent"]
+
+        # ensure lexicographic ordering of tracks
+        ordered = sorted(list(filtered_tracks), key=lambda t: t.ID)
+        header = t_header + p_header
+        dict_tracks = tracks_as_dict(ordered, header)
+
+        # add tree and parent information
+        dict_tracks = add_parent_id(dict_tracks)
+        dict_tracks = add_tree_id(dict_tracks, start_id=tree_start_id)
+        cat_tracks = cat_track_dicts(dict_tracks)
+        output = pd.DataFrame(cat_tracks)
+
+        tree_start_id += len(dict_tracks)
+
+        # update adata
+        if len(output) > 0:
+            adata.obs.loc[output['id'], [tree_id, parent_id]] = output[['tree_id', 'parent_id']].to_numpy()
+
+    return adata
+
+
+def add_parent_id(tracks):
+    new_tracks = []
+    for tr in tracks:
+        sort_ix = np.argsort(tr['t'])
+        parent_id = np.zeros(sort_ix.shape)
+        parent_id[0] = np.nan
+        parent_id[1:] = tr['id'][sort_ix[:-1]]
+        tr['parent_id'] = parent_id
+        new_tracks.append(tr)
+
+    return new_tracks
+
+
+def add_tree_id(tracks, start_id=None):
+    n_tracks = len(tracks)
+    if start_id is None:
+        start_id = 0
+
+    any_key = list(tracks[0].keys())[0] if len(tracks) > 0 else None
+    ids = list(range(start_id, start_id + n_tracks))
+    new_tracks = []
+    for _id, tr in zip(ids, tracks):
+        tr['tree_id'] = [_id] * len(tr[any_key])
+        new_tracks.append(tr)
+
+    return new_tracks
+
+
+def tracks_as_dict(tracks: list, properties: list):
+    dict_tracks = []
+
+    for ix, tr in enumerate(tracks):
+        trk = tr.to_dict(properties)
+
+        data = {}
+
+        for key in trk.keys():
+            prop = trk[key]
+            if not isinstance(prop, (list, np.ndarray)):
+                prop = [prop] * len(tr)
+
+            assert len(prop) == len(tr)
+            data[key] = prop
+
+        dict_tracks.append(data)
+
+    return dict_tracks
+
+
+def cat_track_dicts(tracks: list):
+    data = {}
+
+    for ix, trk in enumerate(tracks):
+
+        if not data:
+            data = {k: [] for k in trk.keys()}
+
+        for key in data.keys():
+            prop = trk[key]
+            assert (
+                isinstance(prop, (list, np.ndarray))
+            ), "all track properties must be lists"
+
+            data[key].append(prop)
+
+    for key in data.keys():
+        data[key] = np.concatenate(data[key])
+
+    return data
+
+
+def filter_tracks(tracks, allowed_dummies=0, track_len=10):
+    dummy_filtered = []
+    if allowed_dummies is not None:
+        for tr in tracks:
+            if np.sum(tr['dummy']) <= allowed_dummies:
+                dummy_filtered.append(tr)
+    else:
+        dummy_filtered = tracks
+
+    len_filtered = []
+    if track_len is not None:
+        for tr in dummy_filtered:
+            if len(tr) >= track_len:
+                len_filtered.append(tr)
+    else:
+        len_filtered = dummy_filtered
+
+    return len_filtered
+
+
+def track_nn(adata,
+             time_var="Metadata_Time",
+             group_vars=("Metadata_Well", "Metadata_Field"),
+             x_loc="Cells_Location_Center_X",
+             y_loc="Cells_Location_Center_Y",
+             parent_id="Metadata_Trace_Parent",
+             tree_id="Metadata_Trace_Tree",
+             start_tp=0):
+    """Neares neighbor tracking.
 
     Iterates over every well or field that can be traced over time.
     Fore every object and time point calculate the nearest neighbor from
@@ -23,7 +339,7 @@ def trace(adata,
             Should point to specific wells/ or fields on plates that can be compared over time.
         x_loc (str): Identifier for x location in annotations.
         y_loc (str): Identifier for y location in annotations.
-        trace_var (str): Variable name used to store index of parent cell.
+        parent_id (str): Variable name used to store index of parent cell.
         tree_id (str): Variable name used to store unique branch number for a certain field.
         start_tp (int): Start time point.
 
@@ -48,9 +364,11 @@ def trace(adata,
     assert x_loc in adata.obs.columns, f"x_loc not in .obs.columns: {x_loc}"
     assert x_loc in adata.obs.columns, f"x_loc not in .obs.columns: {x_loc}"
     assert y_loc in adata.obs.columns, f"y_loc not in .obs.columns: {y_loc}"
+    assert x_loc != y_loc, f"x_loc expected to be different from y_loc, " \
+                           f"x_loc: {x_loc}, y_loc: {y_loc}"
 
     # create new column to store index of parent object
-    adata.obs[trace_var] = np.nan
+    adata.obs[parent_id] = np.nan
     # create new column and store id for every trace tree
     adata.obs[tree_id] = np.nan
     n_start_tp = len(adata[adata.obs[time_var] == start_tp])
@@ -60,7 +378,10 @@ def trace(adata,
         raise ValueError(f"No observation with time_var {time_var} and start_tp {start_tp}")
 
     # iterate over every field and get field at different times
-    for ix, (groups, field_df) in enumerate(adata.obs.groupby(list(group_vars))):
+    total_its = np.prod([len(adata.obs[gv].unique()) for gv in group_vars])
+    for ix, (groups, field_df) in tqdm(enumerate(adata.obs.groupby(list(group_vars))),
+                                       desc='Tracking cells in every field',
+                                       total=int(total_its)):
 
         # cache lagged values
         lagged = None
@@ -81,7 +402,7 @@ def trace(adata,
                 # assign lagged trace ids to objects
                 adata.obs.loc[t_df.index, tree_id] = lagged.iloc[parent_ix][tree_id].tolist()
                 # assign trace parents to objects
-                adata.obs.loc[t_df.index, trace_var] = lagged.iloc[parent_ix].index
+                adata.obs.loc[t_df.index, parent_id] = lagged.iloc[parent_ix].index
 
             # cache field_df
             lagged = adata.obs.loc[t_df.index, [x_loc, y_loc, tree_id]]
