@@ -34,9 +34,12 @@ def correct_bleaching(adata,
             below a given value.
         verbose (bool)
     """
-    assert (
-        (adata.X >= 0).all()
-    ), "Negative values encountered in .X. Scale the data before using this function."
+    min_vals = None
+    if (adata.X < 0).any():
+        warnings.warn('Negative values encountered in .X. Attempting to correct .X anyway.')
+        min_vals = np.min(adata.X, axis=0)
+
+        adata.X = adata.X + min_vals[None, :]
 
     assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"
     assert time_var in adata.obs.columns, f"time_var not in .obs: {time_var}"
@@ -110,10 +113,13 @@ def correct_bleaching(adata,
         output = pd.DataFrame({'variable': adata.var_names, 'r_squared': r_squared})
         print(output.to_string())
 
-    if np.sum(r_squared < 0.9) > 0:
-        weak_mask = np.argwhere(r_squared < 0.9)
+    target = 0.8
+    if ignore_weak_fits is not None:
+        target = ignore_weak_fits
+    if np.sum(r_squared < target) > 0:
+        weak_mask = np.argwhere(r_squared < target)
         warnings.warn(
-            f"R-Squared is partially below 0.8, you may want to change to bi-exponential curve. Variables with low R-Squared: {adata.var_names[weak_mask.flatten()]}"
+            f"R-Squared is partially below {target}, you may want to change to bi-exponential curve. Variables with low R-Squared: {adata.var_names[weak_mask.flatten()]}"
         )
 
     if ignore_weak_fits is not None:
@@ -125,6 +131,10 @@ def correct_bleaching(adata,
 
     # calculate corrected values for F_
     F = adata.X.copy() / F_
+
+    if min_vals is not None:
+        F = F - min_vals[None, :]
+        adata.X = adata.X - min_vals[None, :]
 
     if correct_X:
         adata.var['R-squared'] = r_squared
