@@ -92,13 +92,17 @@ def correct_bleaching(adata,
     for ix, var in enumerate(adata.var_names):
         # only fit curves for intensity based variables
         if any(ch in var for ch in channels):
-            popt, _ = curve_fit(func, time_points, ctrl_df[var])
-            # get theoretical values
-            f_ = np.vectorize(func)(adata.obs[time_var], *popt)
-            F_[:, ix] = f_
-            # get theoretical values for aggregated controls
-            f_ctrl = np.vectorize(func)(time_points, *popt)
-            F_ctrl[:, ix] = f_ctrl
+            try:
+                popt, _ = curve_fit(func, time_points, ctrl_df[var])
+                # get theoretical values
+                f_ = np.vectorize(func)(adata.obs[time_var], *popt)
+                F_[:, ix] = f_
+                # get theoretical values for aggregated controls
+                f_ctrl = np.vectorize(func)(time_points, *popt)
+                F_ctrl[:, ix] = f_ctrl
+            except:
+                F_[:, ix] = 1
+                F_ctrl[:, ix] = ctrl_df.loc[:, var]
         else:
             F_[:, ix] = 1
             F_ctrl[:, ix] = ctrl_df.loc[:, var]
