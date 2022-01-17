@@ -4,6 +4,7 @@ import logging
 
 import numpy as np
 from morphelia.tools import LoadPlate
+from morphelia.preprocessing import *
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('numexpr').setLevel(logging.WARNING)
@@ -29,6 +30,11 @@ def main(src):
     plate = plate[~np.isnan(plate[:, not_nan].X).any(axis=1), :].copy()
     plate = plate[~np.isinf(plate[:, not_nan].X).any(axis=1), :].copy()
     logging.info(f"{len_before - len(plate)} cells with nan values dropped")
+
+    logging.info("Drop nan, duplicates and invariant features.")
+    plate = drop_nan(plate, verbose=True)
+    plate = drop_duplicates(plate, verbose=True)
+    plate = drop_invariant(plate, verbose=True)
 
     # store raw data
     raw_name = "plate1_raw.h5ad"
