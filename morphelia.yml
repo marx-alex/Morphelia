@@ -16,11 +16,11 @@ dependencies:
   - scipy
   - seaborn
   - leidenalg
-  - numba
   - jupyter
   - pytables
   - multicore-tsne
   - fa2
+  - pygam
   - statsmodels
   - tqdm
   - hmmlearn
@@ -35,3 +35,4 @@ dependencies:
     - torchvision
     - torchaudio
     - btrack
+    - pytorch-lightning

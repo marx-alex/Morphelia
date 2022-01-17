@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 
-from morphelia.tools._utils import _get_subsample
+from morphelia.tools.utils import get_subsample
 
 
 def assign_cc(adata, new_feat="Metadata_CellCycle",
@@ -57,9 +57,9 @@ def assign_cc(adata, new_feat="Metadata_CellCycle",
 
         # get subsample
         if subsample:
-            adata_samp = _get_subsample(adata[group_ix, :].copy(),
-                                        sample_size=sample_size,
-                                        seed=seed)
+            adata_samp = get_subsample(adata[group_ix, :].copy(),
+                                       sample_size=sample_size,
+                                       seed=seed)
         else:
             adata_samp = adata[group_ix, :].copy()
 

@@ -8,7 +8,7 @@ import os
 from dtaidistance import dtw_ndim, dtw
 
 from morphelia.time_series import HMMSimilarity
-from morphelia.tools._utils import _choose_representation
+from morphelia.tools.utils import choose_representation
 
 
 def dist_matrix(adata,
@@ -57,9 +57,9 @@ def dist_matrix(adata,
     # get representation of data
     if use_rep is None:
         use_rep = 'X'
-    X = _choose_representation(adata,
-                               rep=use_rep,
-                               n_pcs=n_pcs)
+    X = choose_representation(adata,
+                              rep=use_rep,
+                              n_pcs=n_pcs)
 
     # load profiles to dataframe and transpose
     if other_group_vars is not None:
@@ -173,9 +173,9 @@ def dtw_dist_matrix(adata,
 
         adata_sub = adata[group_ixs, :].copy()
         if use_rep is not None:
-            X = _choose_representation(adata_sub,
-                                       rep=use_rep,
-                                       n_pcs=n_pcs)
+            X = choose_representation(adata_sub,
+                                      rep=use_rep,
+                                      n_pcs=n_pcs)
         else:
             X = adata_sub.X
 
@@ -288,9 +288,9 @@ def hmm_sim_matrix(adata,
 
         adata_sub = adata[group_ixs, :].copy()
         if use_rep is not None:
-            X = _choose_representation(adata_sub,
-                                       rep=use_rep,
-                                       n_pcs=n_pcs)
+            X = choose_representation(adata_sub,
+                                      rep=use_rep,
+                                      n_pcs=n_pcs)
         else:
             X = adata_sub.X
 

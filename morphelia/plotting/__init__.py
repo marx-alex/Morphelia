@@ -6,3 +6,5 @@ from .time_plot import time_plot, time_heatmap
 from .corr_matrix import plot_corr_matrix
 from .trace import show_trace
 from .eval import plot_eval
+from .emb_traj import plot_trajectory
+from .palantir import plot_palantir_results, plot_branches, plot_branch_distribution, plot_trends

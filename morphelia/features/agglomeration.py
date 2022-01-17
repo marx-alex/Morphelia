@@ -13,7 +13,7 @@ from tqdm import tqdm
 import os
 import warnings
 
-from morphelia.tools._utils import _get_subsample
+from morphelia.tools.utils import get_subsample
 
 
 def feature_agglo(adata,
@@ -75,9 +75,9 @@ def feature_agglo(adata,
 
     # get subsample
     if subsample:
-        adata_ss = _get_subsample(adata,
-                                  sample_size=sample_size,
-                                  seed=seed)
+        adata_ss = get_subsample(adata,
+                                 sample_size=sample_size,
+                                 seed=seed)
     else:
         adata_ss = adata.copy()
 

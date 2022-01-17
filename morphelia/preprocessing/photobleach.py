@@ -1,0 +1,142 @@
+import warnings
+
+import numpy as np
+import pandas as pd
+from scipy.optimize import curve_fit
+
+
+def correct_bleaching(adata,
+                      channels,
+                      treat_var='Metadata_Treatment',
+                      time_var='Metadata_Time',
+                      exp_curve='mono',
+                      ctrl='ctrl',
+                      correct_X=True,
+                      ignore_weak_fits=None,
+                      verbose=False):
+    """
+    Correction of Photobleaching as described by Vicente et al 2007 J. Phys.: Conf. Ser. 90 012068.
+    Every intensity dependend feature is fit to a mono- or bi-exponential curve using
+    non-linear least squares. The bleaching curve is then normalized used
+    to divide each value by its corresponding value from the bleaching curve.
+
+    Args:
+        adata (anndata.AnnData): Multidimensional morphological data.
+        channels (list): List of channel names that are in variable names.
+        treat_var (str): Treatment variable.
+        time_var (str): Time variable.
+        exp_curve (str): Exponential curve to use for curve fitting. One of:
+            'bi': bi-exponential curve
+            'mono': mono-exponential curve
+        ctrl (str): Name for control condition in treat_var
+        correct_X (bool): Return anndata object with corrected .X
+        ignore_weak_fits (float): Don't correct features with fits that have a R-squared value
+            below a given value.
+        verbose (bool)
+    """
+    assert (
+        (adata.X >= 0).all()
+    ), "Negative values encountered in .X. Scale the data before using this function."
+
+    assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"
+    assert time_var in adata.obs.columns, f"time_var not in .obs: {time_var}"
+
+    # choose exponential curve
+    avail_exp_curves = ['mono', 'bi']
+    exp_curve = exp_curve.lower()
+    assert exp_curve in avail_exp_curves, f"exp_curve must be one of {avail_exp_curves}, " \
+                                          f"instead got {exp_curve}"
+    if exp_curve == 'mono':
+        func = mono_exp
+    elif exp_curve == 'bi':
+        func = bi_exp
+
+    if isinstance(channels, str):
+        channels = [channels]
+    else:
+        try:
+            channels = list(channels)
+        except:
+            raise ValueError(
+            f"channels must be of type str, list or tuple, instead got {type(channels)}")
+
+    assert (
+        len([var for var in adata.var_names if any((ch in var) for ch in channels)]) > 0
+    ), f"no variables found with given channels: {channels}"
+
+    # subset to control condition
+    ctrl_adata = adata[adata.obs[treat_var] == ctrl, :].copy()
+    assert (
+        len(ctrl_adata) > 0
+    ), f"no cells with control condition {ctrl} in treatment variable {treat_var}"
+
+    # get unique timepoints
+    time_points = list(np.sort(np.unique(adata.obs[time_var].to_numpy())))
+
+    # store aggregated control data
+    ctrl_df = np.zeros((len(time_points), len(adata.var_names)))
+    for tp in time_points:
+        tp_agg = np.nanmean(ctrl_adata[ctrl_adata.obs[time_var] == tp, :].X, axis=0)
+        ctrl_df[tp, :] = tp_agg
+
+    ctrl_df = pd.DataFrame(ctrl_df, index=time_points, columns=adata.var_names)
+
+    # store theoretical values
+    F_ = np.zeros(adata.X.shape)
+    F_ctrl = np.zeros(ctrl_df.shape)
+
+    # iterate through intensity variables and get theoretical values
+    for ix, var in enumerate(adata.var_names):
+        # only fit curves for intensity based variables
+        if any(ch in var for ch in channels):
+            popt, _ = curve_fit(func, time_points, ctrl_df[var])
+            # get theoretical values
+            f_ = np.vectorize(func)(adata.obs[time_var], *popt)
+            F_[:, ix] = f_
+            # get theoretical values for aggregated controls
+            f_ctrl = np.vectorize(func)(time_points, *popt)
+            F_ctrl[:, ix] = f_ctrl
+        else:
+            F_[:, ix] = 1
+            F_ctrl[:, ix] = ctrl_df.loc[:, var]
+
+    # calculate r squared
+    residuals = ctrl_df.to_numpy() - F_ctrl
+    ss_res = np.sum((residuals ** 2), axis=0)
+    ss_tot = np.sum((ctrl_df.to_numpy() - np.mean(ctrl_df.to_numpy(), axis=0)) ** 2, axis=0)
+    r_squared = 1 - (ss_res / ss_tot)
+
+    if verbose:
+        output = pd.DataFrame({'variable': adata.var_names, 'r_squared': r_squared})
+        print(output.to_string())
+
+    if np.sum(r_squared < 0.9) > 0:
+        weak_mask = np.argwhere(r_squared < 0.9)
+        warnings.warn(
+            f"R-Squared is partially below 0.8, you may want to change to bi-exponential curve. Variables with low R-Squared: {adata.var_names[weak_mask.flatten()]}"
+        )
+
+    if ignore_weak_fits is not None:
+        weak_mask = np.argwhere(r_squared < ignore_weak_fits).flatten()
+        F_[:, weak_mask] = 1
+
+    # normalize theoretical data
+    F_ = F_ / np.max(F_, axis=0)
+
+    # calculate corrected values for F_
+    F = adata.X.copy() / F_
+
+    if correct_X:
+        adata.var['R-squared'] = r_squared
+        adata.X = F
+        return adata
+
+    return F, ctrl_df
+
+
+def mono_exp(x, a, b):
+    return b * np.exp(-a * x)
+
+
+def bi_exp(x, a1, b1, a2, b2):
+    return (b1 * np.exp(-a1 * x)) + (b2 * np.exp(-a2 * x))

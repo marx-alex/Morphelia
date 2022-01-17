@@ -7,6 +7,7 @@ Exploratory data analysis for image-based morphological profiling.
 :copyright: Copyright 2021 Alexander Marx and others.
 :license: MIT License, see LICENSE for details.
 """
+from . import external as ext
 from . import preprocessing as pp
 from . import plotting as pl
 from . import features as ft

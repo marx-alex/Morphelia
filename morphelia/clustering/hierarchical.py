@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-from morphelia.tools._utils import _choose_representation
+from morphelia.tools.utils import choose_representation
 
 
 def linkage_tree(adata,
@@ -63,9 +63,9 @@ def linkage_tree(adata,
 
         adata_sub = adata[group_ixs, :].copy()
         if use_rep is not None:
-            X = _choose_representation(adata_sub,
-                                       rep=use_rep,
-                                       n_pcs=n_pcs)
+            X = choose_representation(adata_sub,
+                                      rep=use_rep,
+                                      n_pcs=n_pcs)
         else:
             X = adata_sub.X
 

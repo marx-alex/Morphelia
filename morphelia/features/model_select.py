@@ -9,7 +9,7 @@ import numpy as np
 from sklearn.feature_selection import RFE
 from sklearn.svm import SVC
 
-from morphelia.tools._utils import _get_subsample
+from morphelia.tools.utils import get_subsample
 
 
 def svm_rfe(adata,
@@ -50,9 +50,9 @@ def svm_rfe(adata,
     """
     # get subsample
     if subsample:
-        adata_ss = _get_subsample(adata,
-                                  sample_size=sample_size,
-                                  seed=seed)
+        adata_ss = get_subsample(adata,
+                                 sample_size=sample_size,
+                                 seed=seed)
 
     # check treat_var
     assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"

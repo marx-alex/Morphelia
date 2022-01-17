@@ -1,6 +1,6 @@
 import numpy as np
 from morphelia.plotting import plot_corr_matrix
-from morphelia.tools._utils import _get_subsample
+from morphelia.tools.utils import get_subsample
 
 
 def drop_highly_correlated(adata,
@@ -46,9 +46,9 @@ def drop_highly_correlated(adata,
 
     # get subsample
     if subsample:
-        adata_ss = _get_subsample(adata,
-                                  sample_size=sample_size,
-                                  seed=seed)
+        adata_ss = get_subsample(adata,
+                                 sample_size=sample_size,
+                                 seed=seed)
     else:
         adata_ss = adata.copy()
 
