@@ -17,8 +17,8 @@ def correct_bleaching(adata,
     """
     Correction of Photobleaching as described by Vicente et al 2007 J. Phys.: Conf. Ser. 90 012068.
     Every intensity dependend feature is fit to a mono- or bi-exponential curve using
-    non-linear least squares. The bleaching curve is then normalized used
-    to divide each value by its corresponding value from the bleaching curve.
+    non-linear least squares. The bleaching curve is then normalized.
+    Each measured value is then divided by its corresponding value from the bleaching curve.
 
     Args:
         adata (anndata.AnnData): Multidimensional morphological data.
@@ -146,6 +146,127 @@ def correct_bleaching(adata,
         return adata
 
     return F, ctrl_df
+
+
+def correct_bleached_var(adata,
+                         var_name,
+                         treat_var='Metadata_Treatment',
+                         time_var='Metadata_Time',
+                         exp_curve='mono',
+                         ctrl='ctrl',
+                         correct_adata=False,
+                         ignore_weak_fit=None,
+                         return_r_squared=False,
+                         verbose=False):
+    """
+    Correction of Photobleaching as described by Vicente et al 2007 J. Phys.: Conf. Ser. 90 012068.
+    A given variable is fit to a mono- or bi-exponential curve using
+    non-linear least squares. The bleaching curve is then normalized.
+    Each measured value is then divided by its corresponding value from the bleaching curve.
+
+    Args:
+        adata (anndata.AnnData): Multidimensional morphological data.
+        var_name (list): Name of variable to correct.
+        treat_var (str): Treatment variable.
+        time_var (str): Time variable.
+        exp_curve (str): Exponential curve to use for curve fitting. One of:
+            'bi': bi-exponential curve
+            'mono': mono-exponential curve
+        ctrl (str): Name for control condition in treat_var
+        correct_adata (bool): Return anndata object with corrected variable.
+        ignore_weak_fit (float): Don't correct features with fits that have a R-squared value
+            below a given value.
+        return_r_squared: Return corrected object and the R-squared value.
+        verbose (bool)
+    """
+    if var_name in adata.obs.columns:
+        x = adata.obs[var_name].to_numpy().flatten()
+    elif var_name in adata.var_names:
+        x = adata[:, var_name].X.flatten().copy()
+    else:
+        raise ValueError(f'var_name not in .obs or .var_names: {var_name}')
+
+    min_val = None
+    if (x < 0).any():
+        warnings.warn('Negative values encountered in x, attempting to correct .x anyway.')
+        min_val = np.min(x)
+
+        x = x + min_val
+
+    assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"
+    assert time_var in adata.obs.columns, f"time_var not in .obs: {time_var}"
+
+    # choose exponential curve
+    avail_exp_curves = ['mono', 'bi']
+    if exp_curve == 'mono':
+        func = mono_exp
+    elif exp_curve == 'bi':
+        func = bi_exp
+    else:
+        raise ValueError(f"exp_curve must be one of {avail_exp_curves}, instead got {exp_curve}")
+
+    # subset to control condition
+    ctrl_mask = adata.obs[treat_var] == ctrl
+    assert (
+            np.sum(ctrl_mask) > 0
+    ), f"no cells with control condition {ctrl} in treatment variable {treat_var}"
+
+    # get unique timepoints
+    x_time = adata.obs[time_var].to_numpy().flatten()
+    time_points = np.sort(np.unique(x_time))
+
+    # store aggregated control data
+    y_ctrl = []
+    for tp in time_points:
+        mask = np.logical_and(ctrl_mask, x_time == tp)
+        tp_agg = np.nanmean(x[mask])
+        y_ctrl.append(tp_agg)
+    y_ctrl = np.array(y_ctrl)
+
+    # only fit curves for intensity based variables
+    try:
+        popt, _ = curve_fit(func, time_points, y_ctrl)
+        # get theoretical values
+        f_ = np.vectorize(func)(x_time, *popt)
+        # get theoretical values for aggregated controls
+        f_ctrl = np.vectorize(func)(time_points, *popt)
+    except:
+        f_ = np.ones(x_time.shape)
+        f_ctrl = np.ones(time_points.shape)
+
+    # calculate r squared
+    residuals = y_ctrl - f_ctrl
+    ss_res = np.sum(residuals ** 2)
+    ss_tot = np.sum((y_ctrl - np.mean(y_ctrl)) ** 2)
+    r_squared = 1 - (ss_res / ss_tot)
+
+    if verbose:
+        print(f'R-Squared: {r_squared}')
+
+    if ignore_weak_fit is not None:
+        f_ = np.ones(f_.shape)
+
+    # normalize theoretical data
+    f_ = f_ / np.max(f_)
+
+    # calculate corrected values for F_
+    f = x / f_
+
+    if min_val is not None:
+        f = f - min_val
+
+    if correct_adata:
+        if var_name in adata.obs.columns:
+            adata.obs[var_name] = f
+        elif var_name in adata.var_names:
+            adata[:, var_name].X = f
+
+        if return_r_squared:
+            return adata, r_squared
+
+    if return_r_squared:
+        return f, r_squared
+    return f
 
 
 def mono_exp(x, a, b):

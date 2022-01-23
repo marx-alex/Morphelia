@@ -6,5 +6,5 @@ from .pseudostitch import pseudostitch
 from .aggregate import aggregate, aggregate_chunks
 from .subsample import subsample
 from .positional_corr import correct_plate_eff
-from .photobleach import correct_bleaching
+from .photobleach import correct_bleaching, correct_bleached_var
 

@@ -19,7 +19,7 @@ def choose_representation(adata,
     """
     # return .X if rep is None
     if rep is None and n_pcs == 0:
-        X = adata.X
+        X = adata.X.copy()
 
     # use X_pca by default
     if rep is None:
@@ -35,7 +35,7 @@ def choose_representation(adata,
                 n_pcs = adata.obsm['X_pca'].shape[1]
 
             # return pcs
-            X = adata.obsm['X_pca'][:, :n_pcs]
+            X = adata.obsm['X_pca'][:, :n_pcs].copy()
 
         else:
             raise ValueError("Did not found X_pca in .obsm")
@@ -43,15 +43,15 @@ def choose_representation(adata,
     else:
         if rep == 'X_pca':
             if n_pcs is not None:
-                X = adata.obsm[rep][:, :n_pcs]
+                X = adata.obsm[rep][:, :n_pcs].copy()
             else:
-                X = adata.obsm[rep]
+                X = adata.obsm[rep].copy()
 
         elif rep in adata.obsm.keys():
-            X = adata.obsm[rep]
+            X = adata.obsm[rep].copy()
 
         elif rep == 'X':
-            X = adata.X
+            X = adata.X.copy()
 
         else:
             raise ValueError(f"Did not find rep in .obsm: {rep}")

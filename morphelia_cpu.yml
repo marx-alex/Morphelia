@@ -16,7 +16,7 @@ dependencies:
   - scikit-learn-intelex
   - scikit-image
   - pytorch
-  - cudatoolkit
+  - cpuonly
   - pytorch-lightning
   - scipy
   - seaborn
