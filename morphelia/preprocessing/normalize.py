@@ -39,7 +39,7 @@ def normalize(adata,
         ** kwargs: Arguments passed to scaler.
     """
     # check that variables in by are in anndata
-    if by:
+    if by is not None:
         if isinstance(by, str):
             by = [by]
         elif isinstance(by, tuple):

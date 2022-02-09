@@ -31,6 +31,23 @@ zeileis_28 = [
     "#336600",
 ]
 
+wandb16 = ['#5387DD',
+           '#DA4C4C',
+           '#479A5F',
+           '#7D54B2',
+           '#E87B9F',
+           '#E57439',
+           '#87CEBF',
+           '#C565C7',
+           '#EDB732',
+           '#5BC5DB',
+           '#A0C75C',
+           '#A12864',
+           '#F0B899',
+           '#229487',
+           '#A46750',
+           '#A1A9AD']
+
 
 # theory - https://eleanormaclure.files.wordpress.com/2011/03/colour-coding.pdf (page 5)
 # kelly's colors - https://i.kinja-img.com/gawker-media/image/upload/1015680494325093012.JPG

@@ -244,7 +244,8 @@ def correct_bleached_var(adata,
         print(f'R-Squared: {r_squared}')
 
     if ignore_weak_fit is not None:
-        f_ = np.ones(f_.shape)
+        if ignore_weak_fit > r_squared:
+            f_ = np.ones(f_.shape)
 
     # normalize theoretical data
     f_ = f_ / np.max(f_)

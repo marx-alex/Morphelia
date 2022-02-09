@@ -227,7 +227,7 @@ def plot_branch_distribution(adata,
     sns.barplot(data=plt_df, x='Branch', y='val', hue='Treatment')
 
     ax.set_ylabel('')
-    title_style = 'Distribution'
+    title_style = 'Probability'
     if dist.name == 'count':
         title_style = 'Count'
     ax.set_title(f"Branch {title_style}")

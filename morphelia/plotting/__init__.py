@@ -8,3 +8,4 @@ from .trace import show_trace
 from .eval import plot_eval
 from .emb_traj import plot_trajectory
 from .palantir import plot_palantir_results, plot_branches, plot_branch_distribution, plot_trends
+from .velocity import get_quiver, get_streamline

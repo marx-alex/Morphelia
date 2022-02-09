@@ -1,1 +1,1 @@
-from .palantir import Palantir
+from .palantir import Palantir, waypoint_sampling

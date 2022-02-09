@@ -1,13 +1,10 @@
-import anndata
 import torch
 from torch import nn
-import torch.nn.functional as F
+import torchmetrics
 import pytorch_lightning as pl
 
-from typing import Optional
+from typing import Optional, Tuple
 import logging
-
-from morphelia.tools import choose_representation, DataModule
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -15,10 +12,10 @@ logger.setLevel(logging.INFO)
 
 class ClusterDistance(nn.Module):
     def __init__(
-        self,
-        n_classes: int,
-        enc_shape: int,
-        cluster_centers: Optional[torch.Tensor] = None,
+            self,
+            n_classes: int,
+            enc_shape: int,
+            cluster_centers: Optional[torch.Tensor] = None,
     ) -> None:
         """
 
@@ -45,25 +42,59 @@ class ClusterDistance(nn.Module):
         :param y: FloatTensor of [batch size,]
         :return: FloatTensor [batch size, number of clusters]
         """
-
         return torch.cdist(x, self.cluster_centers)
 
 
-class DeepMap(pl.LightningModule):
-    """Autoencoder.
-    Augmentation of DeepMap as described in Ren et al., 2021, bioRxiv
-    by an decoding layer to better represent original feature space.
+class ClusterFate(nn.Module):
+    def __init__(
+            self,
+            n_classes: int,
+            enc_shape: int,
+            term_states: Optional[torch.Tensor] = None,
+            start_state: Optional[torch.Tensor] = None
+    ) -> None:
+        """
 
-    Args:
-    in_shape (int): input shape
-    enc_shape (int): desired encoded shape
-    """
-
-    def __init__(self, in_shape, enc_shape, n_classes, lr=1e-3):
+        :param n_classes:
+        :param enc_shape:
+        :param term_states:
+        :param start_state:
+        """
         super().__init__()
-        self.lr = lr
         self.enc_shape = enc_shape
         self.n_classes = n_classes
+
+        if term_states is None:
+            initial_term_states = torch.zeros(
+                self.n_classes, self.enc_shape, dtype=torch.float
+            )
+            nn.init.xavier_uniform_(initial_term_states)
+        else:
+            initial_term_states = term_states
+        self.term_states = nn.Parameter(initial_term_states)
+
+        if start_state is None:
+            initial_start_state = torch.mean(self.cluster_centers, dim=0)
+        else:
+            initial_start_state = start_state
+        self.start_state = nn.Parameter(initial_start_state)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+
+        :param x: FloatTensor of [batch size, embedding dimension]
+        :return: FloatTensor [batch size, number of clusters]
+        """
+
+
+class Encoder(nn.Module):
+    def __init__(self,
+                 in_shape,
+                 out_shape):
+        super(Encoder, self).__init__()
+
+        self.in_shape = in_shape
+        self.out_shape = out_shape
 
         self.encode = nn.Sequential(
             nn.Linear(in_shape, 128),
@@ -78,170 +109,195 @@ class DeepMap(pl.LightningModule):
             nn.Linear(32, 16),
             nn.BatchNorm1d(16),
             nn.ReLU(True),
-            nn.Linear(16, self.enc_shape),
+            nn.Linear(16, self.out_shape),
         )
 
-        # self.decode = nn.Sequential(
-        #     nn.Linear(enc_shape, 16),
-        #     nn.BatchNorm1d(16),
-        #     nn.ReLU(True),
-        #     nn.Linear(16, 32),
-        #     nn.BatchNorm1d(32),
-        #     nn.ReLU(True),
-        #     nn.Linear(32, 64),
-        #     nn.BatchNorm1d(64),
-        #     nn.ReLU(True),
-        #     nn.Linear(64, 128),
-        #     nn.BatchNorm1d(128),
-        #     nn.ReLU(True),
-        #     nn.Linear(128, in_shape)
-        # )
+    def forward(self, x: torch.Tensor):
+        """
+        Args:
+            x (Tensor): B x F
+        """
+        return self.encode(x)  # (B,F) -> (B,enc_shape)
 
-        self.cluster = nn.Sequential(
-            ClusterDistance(self.n_classes, self.enc_shape),
-            nn.Tanhshrink(),
-            nn.Softmax(dim=1)
+
+class Decoder(nn.Module):
+    def __init__(self,
+                 in_shape,
+                 out_shape):
+        super(Decoder, self).__init__()
+
+        self.in_shape = in_shape
+        self.out_shape = out_shape
+
+        self.decode = nn.Sequential(
+            nn.Linear(self.out_shape, 32),
+            nn.BatchNorm1d(32),
+            nn.ReLU(True),
+            nn.Linear(32, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(True),
+            nn.Linear(64, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(True),
+            nn.Linear(128, self.in_shape)
         )
+
+    def forward(self, x: torch.Tensor):
+        """
+        Args:
+            x (Tensor): B x F
+        """
+        return self.decode(x)  # (B,enc_shape) -> (B,F)
+
+
+class DeepMap(pl.LightningModule):
+    """
+    DeepMap as described by Ren et al., 2021, bioRxiv
+
+    Args:
+        in_shape (int): input shape
+        enc_shape (int): desired encoded shape
+        n_classes (int): number of classes
+        lr (float): learning rate
+        betas (list): weights for Cross Entropy, MSE and Cluster Center Loss
+    """
+
+    def __init__(self, in_shape, enc_shape, n_classes, lr=1e-3, betas=None):
+        super().__init__()
+        self.lr = lr
+        self.in_shape = in_shape
+        self.enc_shape = enc_shape
+        self.n_classes = n_classes
+
+        if betas is not None:
+            assert len(betas) == 3, f'betas should have lenght 3, instead got lenght {len(betas)}'
+        else:
+            betas = [1, 1, 1]
+        self.betas = betas
+
+        self.encoder = Encoder(self.in_shape,
+                               self.enc_shape)
+
+        self.decoder = Decoder(self.in_shape,
+                               self.enc_shape)
+
+        self.clustering = ClusterDistance(self.n_classes, self.enc_shape)
+        self.tanhshrink = nn.Tanhshrink()
+        self.softmax = nn.Softmax(dim=1)
+
+        self.cross_entropy = nn.CrossEntropyLoss()
+        self.mse = nn.MSELoss()
+
+        metrics = torchmetrics.MetricCollection(
+            dict(
+                ACC=torchmetrics.Accuracy(num_classes=self.n_classes),
+                F1=torchmetrics.F1Score(num_classes=self.n_classes),
+            )
+        )
+
+        self.train_metric = metrics.clone("train/")
+        self.valid_metric = metrics.clone("valid/")
+        self.test_metric = metrics.clone("test/")
+
+    def cluster(self, x, return_logits=False):
+        z = self.encoder(x)
+        logits, cluster_loss = self.clustering(z)
+        logits = self.tanhshrink(logits)
+        pred = self.softmax(logits)
+        if return_logits:
+            return pred, logits
+        return pred
 
     def forward(self, x):
-        z = self.encode(x)
-        out = self.cluster(z)
-        # x_hat = self.decode(z)
-
-        return out
+        z = self.encoder(x)
+        logits, cluster_loss = self.clustering(z)
+        logits = self.tanhshrink(logits)
+        pred = self.softmax(logits)
+        x_hat = self.decoder(z)
+        return logits, pred, x_hat, cluster_loss
 
     def training_step(self, batch, batch_idx):
-        return self._common_step(batch, batch_idx, "train")
+        losses, pred, target = self._common_step(batch)
+        loss = sum([w * l for w, l in zip(self.betas, losses)])
+        return dict(loss=loss, pred=pred, target=target, losses=losses)
+
+    def training_step_end(self, outs):
+        loss = outs['loss']
+        self.log("train/loss", loss, on_step=True, on_epoch=True)
+        losses = {'CrossEntropy': outs['losses'][0], 'MSE': outs['losses'][1], 'ClusterDistance': outs['losses'][2]}
+        self.log('train/losses', losses, on_step=False, on_epoch=True)
+        self.train_metric(outs["pred"], outs["target"])
+        return dict(
+            loss=loss,
+            pred=outs["pred"].detach(),
+            target=outs["target"].detach(),
+        )
+
+    def training_epoch_end(self, outs) -> None:
+        self.log_dict(
+            self.train_metric.compute(), on_step=False, on_epoch=True
+        )
+        self.train_metric.reset()
 
     def validation_step(self, batch, batch_idx):
-        self._common_step(batch, batch_idx, "val")
+        losses, pred, target = self._common_step(batch)
+        loss = sum([w * l for w, l in zip(self.betas, losses)])
+        self.log("valid/loss", loss)
+        return dict(loss=loss, pred=pred, target=target, losses=losses)
+
+    def validation_step_end(self, outs):
+        loss = outs['loss']
+        self.log("valid/loss", loss, on_step=False, on_epoch=True)
+        losses = {'CrossEntropy': outs['losses'][0], 'MSE': outs['losses'][1], 'ClusterDistance': outs['losses'][2]}
+        self.log('valid/losses', losses, on_step=False, on_epoch=True)
+        self.valid_metric(outs["pred"], outs["target"])
+        return dict(
+            loss=loss,
+            pred=outs["pred"],
+            target=outs["target"]
+        )
+
+    def validation_epoch_end(self, outs) -> None:
+        self.log_dict(
+            self.valid_metric.compute(),
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
+        self.valid_metric.reset()
 
     def test_step(self, batch, batch_idx):
-        self._common_step(batch, batch_idx, "test")
+        losses, pred, target = self._common_step(batch)
+        loss = sum([w * l for w, l in zip(self.betas, losses)])
+        self.log("test/loss", loss)
+        return dict(loss=loss, pred=pred, target=target)
 
-    def predict_step(self, batch, batch_idx, dataloader_idx=None):
-        x, y = self._prepare_batch(batch)
-        return self(x)
+    def test_step_end(self, outs):
+        loss = outs['loss']
+        self.log("test/loss", loss, on_step=False, on_epoch=True)
+        self.test_metric(outs["pred"], outs["target"])
+        return dict(
+            loss=loss,
+            pred=outs["pred"],
+            target=outs["target"]
+        )
+
+    def test_epoch_end(self, outs) -> None:
+        self.log_dict(self.test_metric.compute(), on_step=False, on_epoch=True)
+        self.test_metric.reset()
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
 
-    def _prepare_batch(self, batch):
-        x, y = batch
-        return x.view(x.size(0), -1), y
+    @staticmethod
+    def _prepare_batch(batch):
+        x, y, _ = batch
+        return x, y
 
-    def _common_step(self, batch, batch_idx, stage: str):
+    def _common_step(self, batch):
         x, y = self._prepare_batch(batch)
-        out = self(x)
-        loss = F.cross_entropy(out, y)
-        # loss2 = F.mse_loss(x_hat, x)
-        # loss = loss1 + loss2
-
-        self.log(f"{stage}_loss", loss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-        return loss
-
-
-class DeepFate:
-    """Dimensionality reduction with deep embedding.
-    """
-
-    def __init__(self,
-                 n_epochs=500,
-                 enc_dims=2,
-                 lr=1e-3,
-                 num_workers=0,
-                 batch_size=32):
-        self.n_epochs = n_epochs
-        self.enc_dims = enc_dims
-        self.lr = lr
-        self.num_workers = num_workers
-        self.batch_size = batch_size
-        self.use_rep = None
-        self.n_pcs = None
-
-        self.model = DeepMap
-
-    def fit(self,
-            adata_train,
-            adata_val=None,
-            y_label='Metadata_Treatment_Enc',
-            use_rep='X',
-            n_pcs=50):
-        """
-        Fit model.
-
-        Args:
-            adata_train (anndata.AnnData): Multidimensional morphological data.
-            adata_val (anndata.AnnData): Multidimensional morphological data.
-            y_label (str): Variable name for labels in .obs.
-            use_rep (str): Make representation of data 3d
-            n_pcs (int): Number of PCs to use if use_rep is "X_pca"
-        """
-        # store parameters
-        self.use_rep = use_rep
-        self.n_pcs = n_pcs
-
-        assert y_label in adata_train.obs.columns, f"y_label not in .obs: {y_label}"
-        y_train = adata_train.obs[y_label].to_numpy().flatten().copy()
-        X_train = choose_representation(adata_train,
-                                        rep=self.use_rep,
-                                        n_pcs=self.n_pcs)
-
-        X_val = None
-        y_val = None
-        if adata_val is not None:
-            y_val = adata_val.obs[y_label].to_numpy().flatten().copy()
-            X_val = choose_representation(adata_val,
-                                          rep=self.use_rep,
-                                          n_pcs=self.n_pcs)
-
-        data = DataModule(X_train=X_train, y_train=y_train,
-                          X_val=X_val, y_val=y_val,
-                          num_workers=self.num_workers,
-                          batch_size=self.batch_size)
-
-        in_shape = data.in_shape
-        n_classes = data.n_classes
-
-        train_loader = data.train_dataloader()
-        valid_loader = data.val_dataloader()
-        self.model = DeepMap(in_shape=in_shape, enc_shape=self.enc_dims,
-                             n_classes=n_classes, lr=self.lr).double()
-        trainer = pl.Trainer(max_epochs=self.n_epochs, auto_lr_find=True)
-        trainer.fit(self.model, train_loader, valid_loader)
-
-    def embed(self,
-              adata,
-              model=None):
-        """
-        Predict embedding on stored test data.
-        Return new adata object if give.
-
-        Args:
-            adata (anndata.AnnData): Multidimensional morphological data. Test set.
-            model (pytorch.nn.Module): Trained module to use.
-        """
-        X_test = choose_representation(adata,
-                                       rep=self.use_rep,
-                                       n_pcs=self.n_pcs)
-
-        X_test = torch.from_numpy(X_test).double()
-
-        if model is not None:
-            self.model = model
-
-        with torch.no_grad():
-            encoded = self.model.encode(X_test)
-            enc = encoded.cpu().detach().numpy()
-
-        adata.obsm['X_nne'] = enc
-
-        return adata
-
-    def save_model(self, path="./"):
-        torch.save(self.model, path)
-
-    def load_model(self, path):
-        self.model = torch.load(path)
-
+        logits, pred, x_hat, cluster_loss = self(x)
+        loss1 = self.cross_entropy(logits, y)
+        loss2 = self.mse(x_hat, x)
+        return (loss1, loss2, cluster_loss), pred, y

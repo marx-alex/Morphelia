@@ -180,6 +180,7 @@ class Palantir:
 
         :param X:
         :param treat_var:
+        :param cutoff:
         :return:
         """
 
@@ -206,9 +207,10 @@ class Palantir:
             unique, counts = np.unique(branch_treats, return_counts=True)
 
             for i, treat in enumerate(unique):
-                count_matrix.loc[branch, treat] = counts[i]
+                count_matrix.loc[branch, treat] += counts[i]
 
-        dist_matrix = count_matrix.div(count_matrix.sum(axis=1), axis=0).fillna(0)
+        dist_matrix = count_matrix.div(count_matrix.sum(axis=0), axis=1).fillna(0)
+        # dist_matrix = count_matrix.div(count_matrix.sum(axis=1), axis=0).fillna(0)
         dist_matrix.name = 'dist'
         count_matrix.name = 'count'
 
@@ -448,7 +450,7 @@ def connect_graph(adj, X, start_cell):
     return adj
 
 
-def shortest_path_helper(adj, cell):
+def shorteaast_path_helper(adj, cell):
     return csgraph.dijkstra(adj, False, cell)
 
 
