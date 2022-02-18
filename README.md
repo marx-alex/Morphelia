@@ -14,12 +14,32 @@ Morphelia uses [AnnData](https://github.com/theislab/anndata) as underlying data
 ![Pipeline](data/pipeline.png)
 
 
-### Installation
+## Installation
+
+Clone the repository.
+
+```
+cd /your/path
+git clone https://github.com/marx-alex/Morphelia
+```
+
+Create a new Conda environment.
+Use morphelia_cpu.yml if GPU is not available on your machine.
+
+```
+conda env create -f morphelia.yml -n morphelia
+conda activate morphelia
+```
+
+Install morphelia.
+
+```
+python setup.py install
+```
 
 
 
-
-### References
+## References
 Most methods were implemented based on this review on image-based profiling:
   * Caicedo, J., Cooper, S., Heigwer, F. et al. Data-analysis strategies for image-based cell profiling. 
     Nat Methods 14, 849–863 (2017). https://doi.org/10.1038/nmeth.4397
