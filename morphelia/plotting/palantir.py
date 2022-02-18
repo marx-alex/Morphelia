@@ -66,8 +66,9 @@ def plot_palantir_results(adata,
 
     if show:
         plt.show()
-    else:
-        return fig
+        return ax
+
+    return fig, ax
 
 
 def plot_branches(adata,
@@ -186,8 +187,9 @@ def plot_branches(adata,
 
     if show:
         plt.show()
-    else:
-        return fig
+        return ax
+
+    return fig, ax
 
 
 def plot_branch_distribution(adata,
@@ -235,8 +237,9 @@ def plot_branch_distribution(adata,
 
     if show:
         plt.show()
-    else:
-        return fig, ax
+        return ax
+
+    return fig, ax
 
 
 def plot_trends(trends, cmap='Set2', show=True):
@@ -281,6 +284,6 @@ def plot_trends(trends, cmap='Set2', show=True):
 
     if show:
         plt.show()
+        return axs
 
-    else:
-        return fig, axs
+    return fig, axs

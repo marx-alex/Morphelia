@@ -1,8 +1,13 @@
 import warnings
+import logging
 
 import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
+
+logger = logging.getLogger(__name__)
+logging.basicConfig()
+logger.setLevel(logging.DEBUG)
 
 
 def correct_bleaching(adata,
@@ -115,7 +120,7 @@ def correct_bleaching(adata,
 
     if verbose:
         output = pd.DataFrame({'variable': adata.var_names, 'r_squared': r_squared})
-        print(output.to_string())
+        logger.info(output.to_string())
 
     target = 0.8
     if ignore_weak_fits is not None:
@@ -241,7 +246,7 @@ def correct_bleached_var(adata,
     r_squared = 1 - (ss_res / ss_tot)
 
     if verbose:
-        print(f'R-Squared: {r_squared}')
+        logger.info(f'R-Squared: {r_squared}')
 
     if ignore_weak_fit is not None:
         if ignore_weak_fit > r_squared:

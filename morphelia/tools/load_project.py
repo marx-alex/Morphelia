@@ -57,9 +57,13 @@ class LoadPlate:
 
         self.observation_ids = []
         if observation_ids == 'cp':
-            self.observation_ids = ['Number', 'Center', 'Box', 'Parent',
-                                    'Child', 'Euler', 'Count', 'Metadata',
-                                    'Location']
+            self.observation_ids = ['ImageNumber',
+                                    'ObjectNumber',
+                                    'Metadata',
+                                    'Location',
+                                    'Parent']
+        elif isinstance(observation_ids, list):
+            self.observation_ids = observation_ids
 
     def load(self):
         """Merge and load objects from a single plate.

@@ -1,55 +1,76 @@
-# import internal libraries
-from collections import defaultdict
-
 # import external libraries
 import numpy as np
-import pandas as pd
-import anndata as ad
 
 
 def subsample(adata, perc=0.1, by=("BatchNumber", "PlateNumber", "Metadata_Well"),
+              grouped=None, replace=False,
               seed=0):
     """Gives a subsample of the data by selecting objects from given groups.
 
     Args:
         adata (anndata.AnnData): Annotated data object.
         perc (float): Percentage of objects to store in subsample.
-        by (list of str): Variables to use for aggregation.
+        by (list, None): Variables to use for aggregation.
+        grouped (str): If given a variable name, samples consist of all items from a unique group.
+        replace (bool): Sample with replacement.
         seed (int): Seed for initialization.
 
     Returns:
         anndata.AnnData
     """
-    # check that variables in by are in anndata
-    if not all(var in adata.obs.columns for var in by):
-        raise KeyError(f"Variables defined in 'by' are not in annotations: {by}")
-    if perc < 0 or perc > 1:
-        raise ValueError(f"Use a float between 0 and 1 for perc: {perc}")
+    assert 0 <= perc <= 1, f"Use a float between 0 and 1 for perc: {perc}"
+    if grouped is not None:
+        assert grouped in adata.obs.columns, f'Variable for grouped sampling not in .obs: {grouped}'
 
-    # store subsample data
-    X_ss = []
-    obs_ss = defaultdict(list)
+    # seed
+    np.random.seed(seed)
 
-    # iterate over md with grouping variables
-    for groups, sub_df in adata.obs.groupby(list(by)):
+    if by is not None:
+        # check that variables in by are in anndata
+        assert (
+            all(var in adata.obs.columns for var in by)
+        ), f"Variables defined in 'by' are not in annotations: {by}"
 
-        n = round(perc * len(sub_df))
-        # cache indices subsample
-        group_ix = sub_df.sample(n=n, random_state=seed).index
+        # store subsample indices
+        subsample_ixs = []
 
-        if len(group_ix) > 0:
-            # cache annotations
-            for key, val in sub_df.loc[group_ix, :].to_dict('list').items():
-                obs_ss[key].extend(val)
+        # iterate over md with grouping variables
+        for groups, sub_df in adata.obs.groupby(list(by)):
 
-            # subsample group
-            agg = adata[group_ix, :].X
+            group_ix = _get_subsample_ixs(sub_df,
+                                          perc=perc,
+                                          replace=replace,
+                                          grouped=grouped)
 
-            # concatenate aggregated groups
-            X_ss.append(agg)
+            subsample_ixs.append(group_ix)
 
-    # make anndata object from subsample
-    X_ss = np.concatenate(X_ss, axis=0)
-    obs_ss = pd.DataFrame(obs_ss)
+        # make anndata object from subsample
+        subsample_ix = np.concatenate(subsample_ixs)
 
-    return ad.AnnData(X=X_ss, obs=obs_ss, var=adata.var)
+    else:
+        subsample_ix = _get_subsample_ixs(adata.obs,
+                                          perc=perc,
+                                          replace=replace,
+                                          grouped=grouped)
+
+    # if with replacement, observation names are not unique
+    adata = adata[subsample_ix, :]
+    adata.obs_names_make_unique()
+    return adata.copy()
+
+
+def _get_subsample_ixs(df, perc=0.1, replace=False, grouped=None):
+    # cache indices subsample
+    if grouped is None:
+        n_samples = round(perc * len(df))
+        group_ix = np.random.choice(df.index, size=n_samples, replace=replace)
+    else:
+        # assert groups are complete
+        unique_groups = df[grouped].unique()
+        n_unique_groups = len(unique_groups)
+        n_samples = round(perc * n_unique_groups)
+        groups_choice = np.random.choice(unique_groups, n_samples, replace=replace)
+        group_ixs = [df.loc[df[grouped] == choice, :].index for choice in groups_choice]
+        group_ix = np.concatenate(group_ixs)
+
+    return group_ix

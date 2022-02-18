@@ -16,6 +16,10 @@ import logging
 from copy import deepcopy
 from collections import OrderedDict
 
+logger = logging.getLogger(__name__)
+logging.basicConfig()
+logger.setLevel(logging.DEBUG)
+
 
 class Palantir:
     """
@@ -105,7 +109,7 @@ class Palantir:
                             f"instead got {type(X)}")
 
         if self.verbose:
-            logging.info(f"Creating {self.n_waypoints} waypoints")
+            logger.info(f"Creating {self.n_waypoints} waypoints")
         self._waypoints = waypoint_sampling(X, n_waypoints=self.n_waypoints)
 
         if self.start_cell is None:
@@ -119,7 +123,7 @@ class Palantir:
             self._waypoints = list(set(self._waypoints + list(self._terminal_states)))
 
         if self.verbose:
-            logging.info(f"Pseudotime computation")
+            logger.info(f"Pseudotime computation")
         self._pseudotime, self._W = compute_pseudotime(X,
                                                        self.start_cell,
                                                        self._waypoints,
@@ -127,7 +131,7 @@ class Palantir:
                                                        verbose=self.verbose)
 
         if self.verbose:
-            logging.info(f"Entropy and branch probabilities")
+            logger.info(f"Entropy and branch probabilities")
         _branch_probs = differentiation_prob(X,
                                              self._waypoints,
                                              self._pseudotime,
@@ -135,7 +139,7 @@ class Palantir:
         self._terminal_states = list(_branch_probs.columns)
 
         if self.verbose:
-            logging.info(f"Project results to all cells")
+            logger.info(f"Project results to all cells")
         self._branch_probs = pd.DataFrame(np.dot(self._W.T, _branch_probs),
                                           columns=self._terminal_states
         )
@@ -143,7 +147,7 @@ class Palantir:
 
         end = time.time()
         if self.verbose:
-            logging.info(f"Time for computation: {end - start} seconds")
+            logger.info(f"Time for computation: {end - start} seconds")
 
         return self
 
@@ -389,7 +393,7 @@ def compute_pseudotime(X, start_cell, wps, n_neighbors=10,
         # check for convergence
         corr = pearsonr(pseudotime, new_traj)[0]
         if verbose:
-            logging.info(f"Correlation at iteration {iter:d}: {corr:.4f}")
+            logger.info(f"Correlation at iteration {iter:d}: {corr:.4f}")
         if corr > 0.9999:
             converged = True
 

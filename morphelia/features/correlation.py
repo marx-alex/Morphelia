@@ -2,17 +2,25 @@ import numpy as np
 from morphelia.plotting import plot_corr_matrix
 from morphelia.tools.utils import get_subsample
 
+import warnings
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig()
+logger.setLevel(logging.DEBUG)
+
 
 def drop_highly_correlated(adata,
                            thresh=0.95,
-                           show=False,
-                           save=False,
                            subsample=False,
                            sample_size=1000,
                            seed=0,
                            verbose=False,
                            neg_corr=False,
                            drop=True,
+                           make_plot=True,
+                           show=True,
+                           save=False,
                            **kwargs):
     """Drops features that have a Pearson correlation coefficient
     with another feature above a certain threshold.
@@ -22,7 +30,6 @@ def drop_highly_correlated(adata,
         adata (anndata.AnnData): Multidimensional morphological data.
         thresh (float): Correlated features with Pearson correlation coefficient
             above threshold get dropped.
-        show (bool): True to get figure.
         save (str): Path where to save figure.
         subsample (bool): If True, fit models on subsample of data.
         sample_size (int): Size of supsample.
@@ -32,6 +39,8 @@ def drop_highly_correlated(adata,
         verbose (bool)
         neg_corr (bool): Drop negative correlated features.
         drop (bool): Drop features. If false add information to .var.
+        make_plot (bool): Make plot to test results.
+        show (bool): Show figure if True, else return anndata object and figure.
         **kwargs: Keyword arguments for sns.clustermap
 
     Returns:
@@ -74,7 +83,7 @@ def drop_highly_correlated(adata,
     if len(drop_ix) > 0:
         drop_ix = list(set(drop_ix[:, 1].tolist()))
     else:
-        print(f'No highly correlated features found with threshold: {thresh}.')
+        warnings.warn(f'No highly correlated features found with threshold: {thresh}.')
         drop_ix = None
 
     # drop highly correlated features
@@ -83,7 +92,7 @@ def drop_highly_correlated(adata,
         drop_vars = all_vars[drop_ix]
 
         if verbose:
-            print(f"Dropped {len(drop_vars)} features: {drop_vars}")
+            logger.info(f"Dropped {len(drop_vars)} features: {drop_vars}")
         keep_vars = [var for var in all_vars if var not in drop_vars]
 
         if drop:
@@ -105,7 +114,7 @@ def drop_highly_correlated(adata,
         non_nan_feats = [feat for feat in adata.var_names if feat not in nan_feats]
 
         if verbose:
-            print(f"Dropped uniform features: {nan_feats}")
+            logger.info(f"Dropped uniform features: {nan_feats}")
 
         if drop:
             adata = adata[:, non_nan_feats].copy()
@@ -123,7 +132,7 @@ def drop_highly_correlated(adata,
             mask = [False for var in adata.var_names]
             adata.var['contains_nan'] = mask
 
-    if show:
+    if make_plot:
         if drop_ix is not None:
             groups = ['other features' if var in keep_vars else 'higly correlated features' for var in all_vars]
             if len(nan_feats) > 0:
@@ -132,7 +141,11 @@ def drop_highly_correlated(adata,
             groups = None
 
         # plot
-        plot_corr_matrix(corr_matrix, groups, save=save, **kwargs)
+        _ = plot_corr_matrix(corr_matrix, groups, save=save, show=show, **kwargs)
+
+        if not show:
+            fig, ax = _
+            return adata, fig
 
     return adata
 

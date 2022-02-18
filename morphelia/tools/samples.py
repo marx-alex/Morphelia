@@ -1,6 +1,7 @@
 # import internal libraries
 import os
 import re
+import logging
 
 # import external libraries
 from tqdm import tqdm
@@ -10,6 +11,10 @@ from skimage import io
 from skimage import color
 from skimage import exposure
 from skimage.util import img_as_ubyte, img_as_float
+
+logger = logging.getLogger(__name__)
+logging.basicConfig()
+logger.setLevel(logging.DEBUG)
 
 
 def group_samples(adata, file_path, identifier, group_var='leiden',
@@ -204,8 +209,7 @@ def _load_files(file_path,
 
     # drop missing values
     if verbose:
-        print(f"Files without a channel from the given channel list: "
-              f"{df.file_name[df.isnull().any(axis=1)].tolist()}")
+        logger.info(f"Files without a channel from the given channel list: {df.file_name[df.isnull().any(axis=1)].tolist()}")
 
     df = df.dropna()
 

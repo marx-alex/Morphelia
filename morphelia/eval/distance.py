@@ -27,7 +27,7 @@ def dist_matrix(adata,
         method (str): Method for similarity/ distance computation.
             Should be one of: pearson, spearman, kendall, euclidean, mahalanobis.
         group_var (str): Find similarity between groups. Could be treatment conditions for example.
-        other_group_vars (list): Other variables that define groups that are similar.
+        other_group_vars (list, str): Other variables that define groups that are similar.
         use_rep (str): Calculate similarity/distance representation of X in .obsm.
         n_pcs (int): Number principal components to use if use_pcs is 'X_pca'.
         show (bool): Show plot.

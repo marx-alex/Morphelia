@@ -1,6 +1,11 @@
 import numpy as np
 from tqdm import tqdm
 from scipy.stats import median_abs_deviation as mad
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig()
+logger.setLevel(logging.DEBUG)
 
 
 def drop_near_zero_variance(adata,
@@ -76,7 +81,7 @@ def drop_near_zero_variance(adata,
     mask = [False if var in drop_feats else True for var in adata.var_names]
 
     if verbose:
-        print(f"Drop {len(drop_feats)} features with low variance: {drop_feats}")
+        logger.info(f"Drop {len(drop_feats)} features with low variance: {drop_feats}")
 
     if drop:
         adata = adata[:, mask].copy()
@@ -171,8 +176,7 @@ def drop_low_cv(adata,
     mask = np.logical_and((norm_dev > cutoff), (norm_dev != np.nan))
     drop_feats = adata.var_names[~mask]
     if verbose:
-        print(f"Drop {len(drop_feats)} features with low "
-              f"coefficient of variance: {drop_feats}")
+        logger.info(f"Drop {len(drop_feats)} features with low coefficient of variance: {drop_feats}")
 
     # drop
     if drop:
@@ -248,8 +252,7 @@ def drop_low_variance(adata,
     drop_feats = adata.var_names[~mask]
 
     if verbose:
-        print(f"Drop {len(drop_feats)} features with low "
-              f"coefficient of variance: {drop_feats}")
+        logger.info(f"Drop {len(drop_feats)} features with low coefficient of variance: {drop_feats}")
 
     # drop
     if drop:

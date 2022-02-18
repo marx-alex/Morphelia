@@ -13,7 +13,7 @@ def time_plot(adata, var,
               units=None,
               time_var='Metadata_Time',
               time_unit='h',
-              show=True,
+              show=False,
               save=False,
               aggregate_data=True,
               **kwargs):
@@ -26,7 +26,7 @@ def time_plot(adata, var,
         units (str): Plot units separately.
         time_var (str): Variable from adata for time.
         time_unit (str): Time unit.
-        show (bool)
+        show (bool): Show and return axes.
         save (str): Path to save.
         aggregate_data (bool): True to aggregate data over time.
         kwargs (dict): Keyword arguments passed to seaborn.lineplot
@@ -93,15 +93,18 @@ def time_plot(adata, var,
     ax.set_xlabel(f"time ({time_unit})")
     ax.set_title(var)
 
-    if show:
-        plt.show()
-
     # save
     if save:
         try:
             plt.savefig(os.path.join(save, "time_plot.png"))
         except OSError:
             print(f'Can not save figure to {save}.')
+
+    if show:
+        plt.show()
+        return ax
+
+    return fig, ax
 
 
 def time_heatmap(adata,
@@ -111,7 +114,7 @@ def time_heatmap(adata,
                  conc_var=None,
                  aggregate_data=True,
                  share_cbar=True,
-                 show=True,
+                 show=False,
                  save=False,
                  **kwargs):
     """Heatmap representation of median fold change in given features over time.
@@ -126,7 +129,7 @@ def time_heatmap(adata,
         conc_var (str): Concentration variable.
         aggregate_data (bool): True if data has to be aggreagated over time.
         share_cbar (bool): True to share color bar among all subplots.
-        show (bool)
+        show (bool): Show and return axes.
         save (str): Path to save figure.
         kwargs (dict): Keyword arguments passed to seaborn.heatmap.
     """
@@ -212,12 +215,15 @@ def time_heatmap(adata,
             
     plt.tight_layout(rect=[0, 0, .9, 1])
 
-    if show:
-        plt.show()
-
     # save
     if save:
         try:
             plt.savefig(os.path.join(save, "time_heatmap.png"))
         except OSError:
             print(f'Can not save figure to {save}.')
+
+    if show:
+        plt.show()
+        return axs
+
+    return fig, axs

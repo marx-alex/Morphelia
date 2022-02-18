@@ -1,5 +1,10 @@
 import numpy as np
 import warnings
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig()
+logger.setLevel(logging.DEBUG)
 
 
 def drop_outlier(adata,
@@ -9,7 +14,7 @@ def drop_outlier(adata,
                  verbose=False):
     """Drop all features or cells with a min or max absolute value that is greater than a threshold.
 
-    Expects normally distributed data.
+    Only use with normally distributed data.
 
     Args:
         adata (anndata.AnnData): Multidimensional morphological data.
@@ -25,12 +30,6 @@ def drop_outlier(adata,
         .var['outlier_feats']: True for features that contain outliers.
             Only if drop is False.
     """
-    # brief check for normal distribution
-    means = np.nanmean(adata.X, axis=0)
-    if not all(np.logical_and(means > -2, means < 2)):
-        warnings.warn("Data does not seem to be normally distributed, "
-                      "use normalize() with 'standard', 'mad_robust' or 'robust' beforehand.")
-
     assert axis in [0, 1], f"axis has to be either 0 (features) or 1 (cells), instead got {axis}"
 
     max_values = np.abs(np.max(adata.X, axis=axis))
@@ -44,7 +43,7 @@ def drop_outlier(adata,
     if axis == 0:
         dropped_feats = adata.var_names[~mask]
         if verbose:
-            print(f"Drop {len(dropped_feats)} features with outlier values: {dropped_feats}")
+            logger.info(f"Drop {len(dropped_feats)} features with outlier values: {dropped_feats}")
 
         # drop features
         if drop:
@@ -59,6 +58,6 @@ def drop_outlier(adata,
         if drop:
             adata = adata[mask, :].copy()
         if verbose:
-            print(f"{n_before - len(adata)} cell removed with feature values >= or <= {thresh}")
+            logger.info(f"{n_before - len(adata)} cells removed with feature values >= or <= {thresh}")
 
     return adata

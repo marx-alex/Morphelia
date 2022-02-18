@@ -5,23 +5,21 @@ from torch.autograd import Variable
 
 
 def compute_kernel(x, y):
-    x_size = x.size(0)
-    y_size = y.size(0)
-    dim = x.size(1)
-    x = x.unsqueeze(1) # (x_size, 1, dim)
-    y = y.unsqueeze(0) # (1, y_size, dim)
-    tiled_x = x.expand(x_size, y_size, dim)
-    tiled_y = y.expand(x_size, y_size, dim)
-    kernel_input = (tiled_x - tiled_y).pow(2).mean(2)/float(dim)
-    return torch.exp(-kernel_input) # (x_size, y_size)
+    x_size = x.shape[0]
+    y_size = y.shape[0]
+    dim = x.shape[1]
+
+    tiled_x = x.view(x_size, 1, dim).repeat(1, y_size, 1)
+    tiled_y = y.view(1, y_size, dim).repeat(x_size, 1, 1)
+
+    return torch.exp(-torch.mean((tiled_x - tiled_y)**2, dim=2) / dim*1.0)
 
 
 def compute_mmd(x, y):
     x_kernel = compute_kernel(x, x)
     y_kernel = compute_kernel(y, y)
     xy_kernel = compute_kernel(x, y)
-    mmd = x_kernel.mean() + y_kernel.mean() - 2*xy_kernel.mean()
-    return mmd
+    return torch.mean(x_kernel) + torch.mean(y_kernel) - 2 * torch.mean(xy_kernel)
 
 
 class Encoder(nn.Module):
@@ -86,6 +84,7 @@ class Decoder(nn.Module):
 
 class MMDVAE(pl.LightningModule):
     """
+    MMD-Variational Autoencoder.
     Based on https://github.com/ShengjiaZhao/MMD-Variational-Autoencoder/blob/master/mmd_vae.ipynb
 
     Args:
@@ -108,26 +107,15 @@ class MMDVAE(pl.LightningModule):
         self.decoder = Decoder(self.in_shape,
                                self.enc_shape)
 
-        self.true_samples = Variable(
-            torch.randn(200, self.enc_shape),
-            requires_grad=False
-        )
         if torch.cuda.is_available():
             self.true_samples = self.true_samples.cuda()
-
-        self.classifier = nn.Sequential(
-            nn.LayerNorm(self.enc_shape),
-            nn.Linear(self.enc_shape, self.n_classes),
-            nn.Softmax(dim=1)
-        )
 
         self.loss = nn.CrossEntropyLoss()
 
     def forward(self, x):
         z = self.encoder(x)
-        out = self.classifier(z)
         x_hat = self.decoder(z)
-        return z, out, x_hat
+        return z, x_hat
 
     def training_step(self, batch, batch_idx):
         loss = self._common_step(batch)
@@ -171,10 +159,14 @@ class MMDVAE(pl.LightningModule):
 
     def _common_step(self, batch):
         x, y = self._prepare_batch(batch)
-        z, out, x_hat = self(x)
-        mmd = compute_mmd(self.true_samples, z)
+        z, x_hat = self(x)
+
+        true_samples = Variable(
+            torch.randn(len(x), self.enc_shape),
+            requires_grad=False
+        )
+
+        mmd = compute_mmd(true_samples, z)
         nll = (x_hat - x).pow(2).mean()
-        loss1 = nll + mmd
-        loss2 = self.loss(out, y)
-        loss = loss1 + loss2
+        loss = nll + mmd
         return loss

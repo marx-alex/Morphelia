@@ -12,6 +12,7 @@ from matplotlib.patches import Patch
 def plot_corr_matrix(corr_matrix,
                      groups=None,
                      save='figures/',
+                     show=False,
                      **kwargs
                      ):
     """
@@ -21,6 +22,7 @@ def plot_corr_matrix(corr_matrix,
     Args:
         corr_matrix (numpy.ndarray): Correlation Matrix.
         groups (list): Group labels.
+        show (bool): Show and return axes.
         save (str): Path to save figure.
     """
     # do not show features with only nan
@@ -42,7 +44,7 @@ def plot_corr_matrix(corr_matrix,
         handles = [Patch(facecolor=col_map[name]) for name in col_map]
 
     sns.set_theme()
-    plt.figure()
+    fig = plt.figure()
     cm = sns.clustermap(corr_matrix, row_colors=row_colors, **kwargs)
     plt.suptitle('Correlation between features', y=1.05, fontsize=16)
     cm.ax_row_dendrogram.set_visible(False)
@@ -63,3 +65,9 @@ def plot_corr_matrix(corr_matrix,
                         bbox_extra_artists=[lgd], bbox_inches='tight')
         except OSError:
             print(f'Can not save figure to {save}.')
+
+    if show:
+        plt.show()
+        return ax
+
+    return fig, ax

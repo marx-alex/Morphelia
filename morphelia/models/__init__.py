@@ -1,3 +1,4 @@
 from .deepmap import DeepMap
-from .autoagg import AutoAggreation, Transformer1DClassifier, Encoder
-from .deepfate import MMDVAE
+from .autoagg import AutoAggregation, Transformer1DClassifier, Encoder
+from .mmd_vae import MMDVAE
+from .loss import NoFussCrossEntropyLoss

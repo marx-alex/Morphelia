@@ -1,5 +1,10 @@
 import numpy as np
 import warnings
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig()
+logger.setLevel(logging.DEBUG)
 
 
 def drop_noise(adata,
@@ -70,7 +75,7 @@ def drop_noise(adata,
     drop_feats = adata.var_names[mask]
 
     if verbose:
-        print(f"Drop {len(drop_feats)} noisy features: {drop_feats}")
+        logger.info(f"Drop {len(drop_feats)} noisy features: {drop_feats}")
 
     if drop:
         adata = adata[:, ~mask].copy()

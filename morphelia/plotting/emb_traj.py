@@ -14,7 +14,7 @@ def plot_trajectory(adata,
                     bar_label='Time',
                     ax=None,
                     fig=None,
-                    show=True):
+                    show=False):
     """
     Plot trajectory on embedding of cell states.
 
@@ -97,8 +97,9 @@ def plot_trajectory(adata,
 
     if show:
         plt.show()
-    else:
-        return fig, ax
+        return ax
+
+    return fig, ax
 
 
 def colorline(x, y, z=None, cmap=plt.get_cmap('copper'), norm=plt.Normalize(0.0, 1.0),

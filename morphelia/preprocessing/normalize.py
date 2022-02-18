@@ -1,7 +1,7 @@
-import numpy as np
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
 from morphelia.tools import RobustMAD
 from morphelia.preprocessing import drop_nan as drop_nan_feats
+from morphelia.features import drop_outlier as drop_outl
 
 
 def normalize(adata,
@@ -9,7 +9,8 @@ def normalize(adata,
               method="standard",
               pop_var="Metadata_Treatment",
               norm_pop=None,
-              clip=None,
+              drop_outlier=False,
+              outlier_thresh=3,
               drop_nan=True,
               verbose=False,
               **kwargs):
@@ -34,7 +35,8 @@ def normalize(adata,
         norm_pop (str): Population to use for calculation of statistics.
             This is not used if norm_pop is None.
         drop_nan (bool): Drop feature containing nan values after transformation.
-        clip (int): Clip (truncate) to this value after scaling. If None, do not clip.
+        drop_outlier (bool): Drop outlier values.
+        outlier_thresh (int, float): Values above are considered outliers and will be removed.
         verbose (bool)
         ** kwargs: Arguments passed to scaler.
     """
@@ -45,12 +47,14 @@ def normalize(adata,
         elif isinstance(by, tuple):
             by = list(by)
 
-        if not all(var in adata.obs.columns for var in by):
-            raise KeyError(f"Variables defined in 'by' are not in annotations: {by}")
+        assert (
+            all(var in adata.obs.columns for var in by)
+        ), f"Variables defined in 'by' are not in annotations: {by}"
 
     if norm_pop is not None:
-        if pop_var not in adata.obs.columns:
-            raise KeyError(f"Population variable not found in annotations: {pop_var}")
+        assert (
+            pop_var in adata.obs.columns
+        ), f"Population variable not found in annotations: {pop_var}"
 
     # define scaler
     method = method.lower()
@@ -59,6 +63,7 @@ def normalize(adata,
     assert method in avail_methods, f"Method must be one of {avail_methods}, " \
                                     f"instead got {method}"
 
+    scaler = None
     if method == "standard":
         scaler = StandardScaler(**kwargs)
     elif method == "robust":
@@ -86,10 +91,9 @@ def normalize(adata,
         scaler.fit(adata.X.copy())
         adata.X = scaler.transform(adata.X.copy())
 
-    if clip is not None:
-        assert (clip > 0), f'Value for clip should be above 0, instead got {clip}'
-        adata.X[adata.X > clip] = clip
-        adata.X[adata.X < -clip] = clip
+    if drop_outlier:
+        assert (outlier_thresh > 0), f'Value for outlier_thresh should be above 0, instead got {outlier_thresh}'
+        adata = drop_outl(adata, thresh=outlier_thresh, axis=1, verbose=verbose)
 
     if drop_nan:
         adata = drop_nan_feats(adata, verbose=verbose)

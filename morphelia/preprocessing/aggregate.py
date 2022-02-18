@@ -1,11 +1,16 @@
 # import internal libraries
 from collections import defaultdict
+import logging
 
 # import external libraries
 import numpy as np
 import pandas as pd
 import anndata as ad
 from tqdm import tqdm
+
+logger = logging.getLogger(__name__)
+logging.basicConfig()
+logger.setLevel(logging.DEBUG)
 
 
 def aggregate(adata,
@@ -22,7 +27,7 @@ def aggregate(adata,
 
     Args:
         adata (anndata.AnnData): Annotated data object.
-        by (list of str): Variables to use for aggregation.
+        by (list, str): Variables to use for aggregation.
         method (str): Method of aggregation.
             Should be one of: Mean, median, modz.
         keep_obs (list of str): Identifiers for observations to keep.
@@ -43,8 +48,9 @@ def aggregate(adata,
         by = [by]
     else:
         by = list(by)
-    if not all(var in adata.obs.columns for var in by):
-        raise KeyError(f"Variables defined in 'by' are not in annotations: {by}")
+    assert(
+        all(var in adata.obs.columns for var in by)
+    ), f"Variables defined in 'by' are not in annotations: {by}"
 
     # delete observations not needed for aggregation
     if keep_obs is not None:
@@ -135,7 +141,7 @@ def aggregate(adata,
         if min_cells is not None:
             if verbose:
                 dropped_pops = adata[adata.obs[cn_var] < min_cells, :].obs[by].values.tolist()
-                print(f"Dropped populations: {dropped_pops}")
+                logger.info(f"Dropped populations: {dropped_pops}")
             adata = adata[adata.obs[cn_var] >= min_cells, :]
 
     return adata

@@ -12,8 +12,8 @@ def plot_eval(adata,
               c_repro='#C84B31',
               c_effect='#346751',
               show_outlier=False,
-              save=False,
-              return_fig=False):
+              show=False,
+              save=False):
     """Plot reproducibility and effect if calculated before.
     The lines show the interquartile range for both measures, the intersections show medians.
 
@@ -26,8 +26,8 @@ def plot_eval(adata,
         c_repro: Color for reproducibility.
         c_effect: Color for effect.
         show_outlier (bool): Plot outlier values.
+        show (bool): Show and return axes.
         save (str): Path where to save figure.
-        return_fig (bool)
 
     Returns:
         fig, axs if return_fig is True
@@ -82,5 +82,8 @@ def plot_eval(adata,
         except OSError:
             print(f'Can not save figure to {save}.')
 
-    if return_fig:
-        return fig, axs
+    if show:
+        plt.show()
+        return axs
+
+    return fig, axs

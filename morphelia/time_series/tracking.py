@@ -6,7 +6,8 @@ from btrack.constants import BayesianUpdates
 import pandas as pd
 import logging
 
-logger = logging.getLogger()
+logger = logging.getLogger('worker_process')
+logger.setLevel(level=logging.WARN)
 
 tracker_config = {
     "TrackerConfig":
@@ -77,20 +78,31 @@ tracker_config = {
         }
 }
 
+fate_dict = {'FALSE_POSITIVE': 'false',
+             'DIVIDE': 'divide',
+             'APOPTOSIS': 'apoptosis',
+             'TERMINATE_BACK': 'full_track',
+             'TERMINATE_LAZY': 'apoptosis'}
+
 
 def track(adata,
           time_var="Metadata_Time",
           group_vars=("Metadata_Well", "Metadata_Field"),
           x_loc="Cells_Location_Center_X",
           y_loc="Cells_Location_Center_Y",
-          parent_id="Metadata_Trace_Parent",
-          tree_id="Metadata_Trace_Tree",
-          do_filter=True,
+          parent_id="Metadata_Track_Parent",
+          tree_id="Metadata_Track",
+          fate_id="Metadata_Fate",
+          root_id="Metadata_Track_Root",
+          gen_id="Metadata_Gen",
+          filter_tracks=False,
           allowed_dummies=0,
-          min_track_len=10,
+          min_track_len='max',
+          drop_untracked=True,
           max_search_radius=100,
           field_size=(2048, 2048),
-          approx=False
+          approx=False,
+          verbose=False
           ):
     """Wrapper for Bayesian Tracker.
 
@@ -109,14 +121,19 @@ def track(adata,
             Should point to specific wells/ or fields on plates that can be compared over time.
         x_loc (str): Identifier for x location in annotations.
         y_loc (str): Identifier for y location in annotations.
-        parent_id (str): Variable name used to store index of parent cell.
-        tree_id (str): Variable name used to store unique branch number for a certain field.
-        do_filter (bool): Filter tracks with dummies and minimum length if True.
+        parent_id (str): Variable name used to store index of parent track.
+        tree_id (str): Variable name used to store unique tree id.
+        fate_id (str): Variable name used to store fate of a track.
+        root_id (str): Variable name used to store root of a track.
+        gen_id (str): Variable name to store generation of a track.
+        filter_tracks (bool): Filter tracks with dummies and minimum length if True.
         allowed_dummies (int): Max allowed dummies in track.
-        min_track_len (int): Min track length.
+        min_track_len (int, str): Min track length. Takes maximum track length if 'max'.
+        drop_untracked (bool): Drop all false positive tracks from the anndata object.
         max_search_radius (int): Local spatial search radius (pixels)
-        field_size (tuple of ints): height and width in of field.
+        field_size (tuple of ints): Height and width in of field.
         approx (bool): Speed up processing on very large datasets.
+        verbose (bool)
 
     Returns:
         adata (anndata.AnnData)
@@ -141,12 +158,22 @@ def track(adata,
     assert x_loc != y_loc, f"x_loc expected to be different from y_loc, " \
                            f"x_loc: {x_loc}, y_loc: {y_loc}"
 
+    # choose track length
+    # TODO: Don't subtract 1 from time points if bug fix is in main repo
+    # https://github.com/quantumjot/BayesianTracker/issues/41
+    if min_track_len == 'max':
+        min_track_len = len(adata.obs[time_var].unique()) - 1
+
     field_height, field_width = field_size
 
     # create new column to store index of parent object
     adata.obs[parent_id] = np.nan
     # create new column and store id for every trace tree
     adata.obs[tree_id] = np.nan
+    # store fate, root and generation
+    adata.obs[fate_id] = np.nan
+    adata.obs[root_id] = np.nan
+    adata.obs[gen_id] = np.nan
 
     # load config settings
     config = tracker_config['TrackerConfig']
@@ -175,7 +202,6 @@ def track(adata,
         objects = btrack.dataio.objects_from_dict(objects_raw)
 
         # start tracker
-        logger.disabled = True
         with btrack.BayesianTracker(verbose=False) as tracker:
             tracker.configure(t_config)
 
@@ -197,69 +223,76 @@ def track(adata,
 
             tracks = tracker.tracks
 
-        logger.disabled = False
-
-        if do_filter:
-            filtered_tracks = filter_tracks(tracks, track_len=min_track_len, allowed_dummies=allowed_dummies)
+        if filter_tracks:
+            filtered_tracks = track_filter(tracks, track_len=min_track_len, allowed_dummies=allowed_dummies)
         else:
             filtered_tracks = tracks
 
         t_header = ["ID", "t"] + ["z", "y", "x"][-2:]
         p_header = ["t", "state", "generation", "root", "parent"]
 
-        # ensure lexicographic ordering of tracks
-        ordered = sorted(list(filtered_tracks), key=lambda t: t.ID)
         header = t_header + p_header
-        dict_tracks = tracks_as_dict(ordered, header)
+        dict_tracks = tracks_as_dict(filtered_tracks, header, add_fate=True)
 
-        # add tree and parent information
-        dict_tracks = add_parent_id(dict_tracks)
-        dict_tracks = add_tree_id(dict_tracks, start_id=tree_start_id)
         cat_tracks = cat_track_dicts(dict_tracks)
         output = pd.DataFrame(cat_tracks)
+        # add convert IDs and parent ids to absolute ids
+        output = add_absolute_ids(output, start_id=tree_start_id)
+        # delete dummies before updating adata
+        output = output[output['id'] != 'nan']
 
         tree_start_id += len(dict_tracks)
 
         # update adata
         if len(output) > 0:
-            adata.obs.loc[output['id'], [tree_id, parent_id]] = output[['tree_id', 'parent_id']].to_numpy()
+            adata.obs.loc[
+                output['id'],
+                [tree_id, parent_id, fate_id, root_id, gen_id]] = output[
+                ['tree_id', 'parent_id', 'fate', 'root_id', 'gen']].to_numpy()
+
+    if drop_untracked:
+        len_before = len(adata)
+        # drop false positive
+        adata = adata[adata.obs[fate_id] != 'false', :].copy()
+        # drop untracked cells
+        adata = adata[adata.obs[tree_id].notna(), :]
+        if verbose:
+            logging.info(f"Dropped {len_before - len(adata)} cells with false positive tracks.")
 
     return adata
 
 
-def add_parent_id(tracks):
-    new_tracks = []
-    for tr in tracks:
-        sort_ix = np.argsort(tr['t'])
-        parent_id = np.zeros(sort_ix.shape)
-        parent_id[0] = np.nan
-        parent_id[1:] = tr['id'][sort_ix[:-1]]
-        tr['parent_id'] = parent_id
-        new_tracks.append(tr)
-
-    return new_tracks
-
-
-def add_tree_id(tracks, start_id=None):
-    n_tracks = len(tracks)
+def add_absolute_ids(output, start_id=None):
+    track_ids = output['ID'].unique()
+    n_tracks = len(track_ids)
     if start_id is None:
         start_id = 0
 
-    any_key = list(tracks[0].keys())[0] if len(tracks) > 0 else None
     ids = list(range(start_id, start_id + n_tracks))
-    new_tracks = []
-    for _id, tr in zip(ids, tracks):
-        tr['tree_id'] = [_id] * len(tr[any_key])
-        new_tracks.append(tr)
+    mapping = {track_id: new_id for track_id, new_id in zip(track_ids, ids)}
+    output['tree_id'] = output['ID'].map(mapping)
+    output['parent_id'] = output['parent'].map(mapping)
+    output['root_id'] = output['root'].map(mapping)
+    output['gen'] = output['generation']
 
-    return new_tracks
+    return output
 
 
-def tracks_as_dict(tracks: list, properties: list):
+def tracks_as_dict(tracks: list, properties: list, add_fate: bool = False):
+    # ensure lexicographic ordering of tracks
+    tracks = sorted(list(tracks), key=lambda t: t.ID)
     dict_tracks = []
 
     for ix, tr in enumerate(tracks):
         trk = tr.to_dict(properties)
+
+        if add_fate:
+            fate = tr.fate.name
+            if fate in fate_dict:
+                fate = fate_dict[fate]
+            else:
+                fate = 'false'
+            trk['fate'] = fate
 
         data = {}
 
@@ -298,7 +331,7 @@ def cat_track_dicts(tracks: list):
     return data
 
 
-def filter_tracks(tracks, allowed_dummies=0, track_len=10):
+def track_filter(tracks, allowed_dummies=0, track_len=10):
     dummy_filtered = []
     if allowed_dummies is not None:
         for tr in tracks:

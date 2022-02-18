@@ -4,6 +4,10 @@ import scanpy as sc
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
 
+logger = logging.getLogger(__name__)
+logging.basicConfig()
+logger.setLevel(logging.DEBUG)
+
 
 def choose_representation(adata,
                           rep=None,
@@ -216,7 +220,10 @@ def encode_labels(adata,
 
     new_var = label_var + sfx
     adata.obs[new_var] = y
-    adata.uns['le_map'] = le_name_mapping
+    if 'le_map' in adata.uns:
+        adata.uns['le_map'][label_var] = le_name_mapping
+    else:
+        adata.uns['le_map'] = {label_var: le_name_mapping}
     return adata
 
 
@@ -246,7 +253,7 @@ def vectorize_emb(adata,
     len_before = len(adata)
     adata = adata[np.isfinite(adata.obs[tree_var])]
     if verbose:
-        logging.info(f"{len_before - len(adata)} samples deleted, "
+        logger.info(f"{len_before - len(adata)} samples deleted, "
                      f"because they were not connected in a tree")
 
     # conver to 3D

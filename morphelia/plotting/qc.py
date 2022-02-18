@@ -22,6 +22,7 @@ def plot_plate(adata,
                size=None,
                select=None,
                wells=96,
+               show=False,
                save=None,
                **kwargs):
     """Plot data of a 96-well or 384-well plate into a well-shaped plot.
@@ -37,6 +38,7 @@ def plot_plate(adata,
         size (str): Variable to use for size representations.
         select (dict): Masks data by annotations. 
         wells (int): Select type of plate: 96 or 384.
+        show (bool): Show and return axes.
         save (str): Path where to save figure.
     
     Returns:
@@ -181,6 +183,10 @@ def plot_plate(adata,
         except OSError:
             print(f'Can not save figure to {save}.')
 
+    if show:
+        plt.show()
+        return ax
+
     return fig, ax
 
 
@@ -190,6 +196,7 @@ def plot_batch_effect(adata,
                       control_var='Metadata_Treatment',
                       control_id='ctrl',
                       method='pearson',
+                      show=False,
                       save=None,
                       **kwargs):
     """
@@ -204,6 +211,7 @@ def plot_batch_effect(adata,
         control_id (str): Name of control wells in control_var.
         method (str): Method for similarity/ distance computation.
                 Should be one of: pearson, spearman, kendall, euclidean, mahalanobis.
+        show (bool): Show and return axes.
         save (str): Path where to save figure.
         **kwargs: Keyword arguments passed to seaborn.heatmap
 
@@ -247,5 +255,9 @@ def plot_batch_effect(adata,
             plt.savefig(os.path.join(save, "qc_plot.png"))
         except OSError:
             print(f'Can not save figure to {save}.')
+
+    if show:
+        plt.show()
+        return ax
 
     return fig, ax

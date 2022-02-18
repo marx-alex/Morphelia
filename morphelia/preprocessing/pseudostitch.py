@@ -3,6 +3,11 @@ import numpy as np
 
 # internal libraries
 import warnings
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig()
+logger.setLevel(logging.DEBUG)
 
 
 def pseudostitch(md, update_loc=False, tile_grid=(5, 5),
@@ -92,7 +97,7 @@ def pseudostitch(md, update_loc=False, tile_grid=(5, 5),
 
     if verbose:
         cell_count_stitch = md.shape[0]
-        print(f"{cell_count_raw - cell_count_stitch} duplicates removed.")
+        logger.info(f"{cell_count_raw - cell_count_stitch} duplicates removed.")
 
     return md
 
