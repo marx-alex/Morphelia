@@ -1,2 +1,7 @@
+[project]
+name = "morphelia"
+authors = [{name = "Alexander Marx", email = "alexander.marx@stud.uni-heidelberg.de"}]
+dynamic = ["version", "description"]
+
 [tool.black]
 include = '\.pyi?$'

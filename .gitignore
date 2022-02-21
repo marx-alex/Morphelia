@@ -72,7 +72,7 @@ instance/
 *.ckpt
 
 # Sphinx documentation
-docs/_build/
+notebooks/_build/
 
 # PyBuilder
 target/
