@@ -1,5 +1,6 @@
 # Morphelia: A data analysis toolkit for image-based morphological profiling
 
+[![Documentation Status](https://readthedocs.org/projects/morphelia/badge/?version=latest)](https://morphelia.readthedocs.io/en/latest/?badge=latest)
 [![Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 ![GitHub](https://img.shields.io/github/license/marx-alex/Morphelia)
 
