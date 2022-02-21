@@ -60,14 +60,14 @@ def main(args=None):
         "-i",
         "--inp",
         type=str,
-        help="Input directory to Cellprofiler output for a whole experiment.",
+        help="AnnData object.",
     )
     parser.add_argument(
         "-o",
         "--out",
         type=str,
         default="./",
-        help="Where to store the stitched AnnData object.",
+        help="Output directory.",
     )
     parser.add_argument(
         "--nan_frac",

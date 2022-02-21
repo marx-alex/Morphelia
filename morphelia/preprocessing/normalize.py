@@ -1,7 +1,7 @@
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
 from morphelia.tools import RobustMAD
 from morphelia.preprocessing import drop_nan as drop_nan_feats
-from morphelia.features import drop_outlier as drop_outl
+from morphelia.features import thresh_outlier
 
 
 def normalize(
@@ -98,7 +98,7 @@ def normalize(
         assert (
             outlier_thresh > 0
         ), f"Value for outlier_thresh should be above 0, instead got {outlier_thresh}"
-        adata = drop_outl(adata, thresh=outlier_thresh, axis=1, verbose=verbose)
+        adata = thresh_outlier(adata, thresh=outlier_thresh, axis=1, verbose=verbose)
 
     if drop_nan:
         adata = drop_nan_feats(adata, verbose=verbose)

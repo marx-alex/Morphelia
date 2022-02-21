@@ -123,8 +123,8 @@ def filter_thresh(adata, var, thresh, side="right"):
         var (str): Variable to use for filtering.
         thresh (int): Threshold.
         side (str):
-            'right': Cap values above threshold.
-            'left': Cap values under threshold.
+            'right': Drop values above threshold.
+            'left': Drop values below threshold.
 
     Returns:
         anndata.AnnData
@@ -146,7 +146,7 @@ def filter_thresh(adata, var, thresh, side="right"):
         elif side == "left":
             adata = adata[adata.obs[var] > thresh, :]
     else:
-        raise ValueError(f"Variable not in AnnData object: {var}")
+        raise KeyError(f"Variable not in AnnData object: {var}")
 
     return adata
 

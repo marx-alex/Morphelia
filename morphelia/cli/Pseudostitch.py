@@ -13,7 +13,7 @@ logger.addHandler(logging.StreamHandler(sys.stdout))
 
 
 def run(inp, out, tile_grid=(5, 5), img_overlap=0.2):
-    """Preprocess morphological annotated data."""
+    """Pseudostitch."""
     if not os.path.exists(out):
         os.makedirs(out)
 

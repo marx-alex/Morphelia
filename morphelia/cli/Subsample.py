@@ -14,7 +14,9 @@ logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler(sys.stdout))
 
 
-def run(inp, out, by=("BatchNumber", "PlateNumber", "Metadata_Well"), frac=0.1):
+def run(
+    inp, out, by=("BatchNumber", "PlateNumber", "Metadata_Well"), frac=0.1, grouped=None
+):
     """Subsample data."""
     if not os.path.exists(out):
         os.makedirs(out)
@@ -24,7 +26,7 @@ def run(inp, out, by=("BatchNumber", "PlateNumber", "Metadata_Well"), frac=0.1):
     adata = ad.read_h5ad(inp)
 
     logger.info("Subsample data...")
-    adata = morphelia.pp.subsample(adata, perc=frac, by=by)
+    adata = morphelia.pp.subsample(adata, perc=frac, by=by, grouped=grouped)
 
     # write file
     fname = Path(inp).stem
@@ -42,14 +44,14 @@ def main(args=None):
         "-i",
         "--inp",
         type=str,
-        help="Input directory to Cellprofiler output for a whole experiment.",
+        help="AnnData object.",
     )
     parser.add_argument(
         "-o",
         "--out",
         type=str,
         default="./",
-        help="Where to store the stitched AnnData object.",
+        help="Output directory.",
     )
     parser.add_argument(
         "-f",
@@ -65,9 +67,15 @@ def main(args=None):
         default=["BatchNumber", "PlateNumber", "Metadata_Well"],
         help="Group data by those values and subsample every group.",
     )
+    parser.add_argument(
+        "--grouped",
+        type=str,
+        default=None,
+        help="Return a grouped subsample.",
+    )
 
     # parser
     args = parser.parse_args(args)
 
     # run
-    run(inp=args.inp, out=args.out, frac=args.frac, by=args.by)
+    run(inp=args.inp, out=args.out, frac=args.frac, by=args.by, grouped=args.grouped)

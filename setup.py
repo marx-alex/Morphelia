@@ -15,6 +15,12 @@ setup(
             "ExpToAD = morphelia.cli.ExpToAD:main",
             "PlateToAD = morphelia.cli.PlateToAD:main",
             "Pseudostitch = morphelia.cli.Pseudostitch:main",
+            "Aggregate = morphelia.cli.Aggregate:main",
+            "CleanData = morphelia.cli.CleanData:main",
+            "Normalize = morphelia.cli.Normalize:main",
+            "Split = morphelia.cli.Split:main",
+            "Subsample = morphelia.cli.Subsample:main",
+            "Track = morphelia.cli.Track:main",
         ]
     },
 )

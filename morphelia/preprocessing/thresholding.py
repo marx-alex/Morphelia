@@ -78,7 +78,7 @@ def assign_by_threshold(
     Returns:
         (anndata.AnnData): AnnData object with new labels stores in .obs.
     """
-    # dist can by a variable, observation or array
+    # dist can be a variable, observation or array
     if isinstance(dist, str):
         if dist in adata.obs.columns:
             dist = adata.obs[dist].to_numpy()

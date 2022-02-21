@@ -1,12 +1,14 @@
 import numpy as np
 import logging
 
+from sklearn.ensemble import IsolationForest
+
 logger = logging.getLogger(__name__)
 logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
 
-def drop_outlier(adata, thresh=15, axis=0, drop=True, verbose=False):
+def thresh_outlier(adata, thresh=15, axis=0, drop=True, verbose=False):
     """Drop all features or cells with a min or max absolute value that is greater than a threshold.
 
     Only use with normally distributed data.
@@ -63,5 +65,30 @@ def drop_outlier(adata, thresh=15, axis=0, drop=True, verbose=False):
             logger.info(
                 f"{n_before - len(adata)} cells removed with feature values >= or <= {thresh}"
             )
+
+    return adata
+
+
+def isolation_forest(adata, drop=True, verbose=False, **kwargs):
+    """
+    Simple wrapper for sklearn's IsolationForest.
+
+    Args:
+        adata (anndata.AnnData): Multidimensional morphological data.
+        drop (bool): Drop outliers.
+        verbose (bool)
+        kwargs (dict): Keyword arguments for sklearn.ensemble.IsolationForest
+    """
+    kwargs.setdefault("random_state", 0)
+    clf = IsolationForest(**kwargs)
+    y_outl = clf.fit_predict(adata.X)
+
+    y_outl = np.clip(y_outl, a_min=0, a_max=None).astype(bool)
+
+    if verbose:
+        logger.info(f"{y_outl.sum()} outlier samples detected.")
+
+    if drop:
+        adata = adata[~y_outl, :].copy()
 
     return adata

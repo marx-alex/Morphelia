@@ -16,7 +16,7 @@ def subsample(
         adata (anndata.AnnData): Annotated data object.
         perc (float): Percentage of objects to store in subsample.
         by (list, None): Variables to use for aggregation.
-        grouped (str): If given a variable name, samples consist of all items from a unique group.
+        grouped (str): Get a subsample of unique groups.
         replace (bool): Sample with replacement.
         seed (int): Seed for initialization.
 

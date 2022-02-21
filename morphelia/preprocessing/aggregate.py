@@ -21,6 +21,7 @@ def aggregate(
     count=True,
     aggregate_reps=True,
     qc=False,
+    drop_qc=False,
     min_cells=300,
     verbose=False,
     **kwargs,
@@ -36,7 +37,9 @@ def aggregate(
             Keep all if None.
         count (bool): Add population count to observations if True.
         aggregate_reps (bool): Aggregate representations similar to adata.X
-        qc (bool): True for quality control.
+        qc (bool): Quality control based on cell counts in the aggregated populations.
+            If True, returns aggregated anndata object and dropped populations.
+        drop_qc (bool): Drop wells after quality control.
         min_cells (int): Minimum number of cells per population.
             Population is deleted from data if below threshold.
         verbose (bool)
@@ -158,13 +161,14 @@ def aggregate(
 
     # quality control
     if qc:
+        dropped_pops = None
         if min_cells is not None:
+            dropped_pops = adata.obs.loc[adata.obs[cn_var] < min_cells, by].values
             if verbose:
-                dropped_pops = (
-                    adata[adata.obs[cn_var] < min_cells, :].obs[by].values.tolist()
-                )
                 logger.info(f"Dropped populations: {dropped_pops}")
-            adata = adata[adata.obs[cn_var] >= min_cells, :]
+            if drop_qc:
+                adata = adata[adata.obs[cn_var] >= min_cells, :]
+        return adata, dropped_pops
 
     return adata
 

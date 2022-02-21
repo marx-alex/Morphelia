@@ -1,17 +1,19 @@
 import numpy as np
 from sklearn.model_selection import train_test_split as tts
-from sklearn.model_selection import GroupShuffleSplit
 
 
 def train_test_split(adata, stratify=None, test_size=0.2, random_state=0):
     """
     Split anndata object into a training and a testing set.
 
-    :param adata:
-    :param stratify:
-    :param test_size:
-    :param random_state:
-    :return:
+    Arguments:
+        adata (anndata.AnnData): Multidimensional morphological data.
+        stratify (str): Variable in .obs to use for stratification.
+        test_size (float): Size of test set.
+        random_state (int)
+
+    Returns:
+        anndata.AnnData, anndata.AnnData
     """
 
     if stratify is not None:
@@ -34,76 +36,48 @@ def train_test_split(adata, stratify=None, test_size=0.2, random_state=0):
     return adata_train, adata_test
 
 
-def tree_split(
+def group_shuffle_split(
     adata,
-    tree_var="Metadata_Trace_Tree",
+    group,
     stratify=None,
     test_size=0.2,
     random_state=0,
 ):
     """
-    Train-test-split for tracked time-lapse data.
-    Tree var should be a unique label for tracked trees.
+    Train-test-split for grouped data.
+    Avoids splitting of groups.
 
-    :param adata:
-    :param tree_var:
-    :param stratify:
-    :param test_size:
-    :param random_state:
-    :return:
+    Arguments:
+        adata (anndata.AnnData): Multidimensional morphological data.
+        group (str): Variable in .obs with groups.
+        stratify (str): Variable in .obs to use for stratification.
+        test_size (float): Size of test set.
+        random_state (int)
+
+    Returns:
+        anndata.AnnData, anndata.AnnData
     """
-    assert tree_var in adata.obs.columns, f"tree_var is not a label in .obs: {tree_var}"
-    all_trees = adata.obs[tree_var].to_numpy()
-    trees, tree_ixs = np.unique(all_trees, return_index=True)
+    assert group in adata.obs.columns, f"group is not a label in .obs: {group}"
+    groups = adata.obs[group].to_numpy()
+    unique_groups = np.unique(groups)
 
     if stratify is not None:
         assert (
             stratify in adata.obs.columns
         ), f"stratify is not a label in .obs: {stratify}"
-        stratify = adata.obs[stratify].to_numpy()[tree_ixs]
+        stratify = adata.obs[stratify].to_numpy()
 
     trees_train, trees_test = tts(
-        trees,
+        unique_groups,
         test_size=test_size,
         stratify=stratify,
         random_state=random_state,
     )
 
-    train_mask = np.isin(all_trees, trees_train)
-    test_mask = np.isin(all_trees, trees_test)
+    train_mask = np.isin(groups, trees_train)
+    test_mask = np.isin(groups, trees_test)
 
     adata_train = adata[train_mask, :].copy()
     adata_test = adata[test_mask, :].copy()
-
-    return adata_train, adata_test
-
-
-def group_split(
-    adata,
-    y_label="Metadata_Treatment_Enc",
-    groups=None,
-    test_size=0.2,
-    random_state=0,
-):
-    X = adata.X.copy()
-
-    assert y_label in adata.obs.columns, f"y_label not in .obs: {y_label}"
-    y = adata.obs[y_label].to_numpy().flatten()
-
-    assert groups in adata.obs.columns, f"groups is not a label in .obs: {groups}"
-    groups = adata.obs[groups].to_numpy().flatten()
-
-    gss_test = GroupShuffleSplit(
-        n_splits=1, test_size=test_size, random_state=random_state
-    )
-    ix_train, ix_test = [], []
-    for ix_tv, ix_t in gss_test.split(X, y, groups):
-        ix_train.append(ix_tv)
-        ix_test.append(ix_t)
-    ix_train = ix_train[0]
-    ix_test = ix_test[0]
-
-    adata_train = adata[ix_train, :].copy()
-    adata_test = adata[ix_test, :].copy()
 
     return adata_train, adata_test
