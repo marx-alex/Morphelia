@@ -12,7 +12,7 @@ class RobustMAD(BaseEstimator, TransformerMixin):
     https://github.com/cytomining/pycytominer/blob/master/pycytominer/operations/transform.py
     """
 
-    def __init__(self, scale='normal', eps=0):
+    def __init__(self, scale="normal", eps=0):
         self.scale = scale
         self.eps = eps
 
@@ -35,7 +35,7 @@ class RobustMAD(BaseEstimator, TransformerMixin):
         Args:
         X (numpy.ndarray): Array to apply RobustMAD scaling.
         """
-        with np.errstate(divide='ignore', invalid='ignore'):
+        with np.errstate(divide="ignore", invalid="ignore"):
             return (X - self.median) / (self.mad + self.eps)
 
 
@@ -44,22 +44,22 @@ class MedianPolish:
     This class is taken from borisvish: https://github.com/borisvish/Median-Polish
     """
 
-    def __init__(self, max_iterations=10, method='median'):
+    def __init__(self, max_iterations=10, method="median"):
         """Store values for maximum iterations and method."""
         self.max_iterations = max_iterations
         self.method = method
 
     def median_polish(self, X):
         """
-            Implements Tukey's median polish alghoritm for additive models
-            method - default is median, alternative is mean. That would give us result equal ANOVA.
+        Implements Tukey's median polish alghoritm for additive models
+        method - default is median, alternative is mean. That would give us result equal ANOVA.
         """
 
         if isinstance(X, np.ndarray):
             X_org = X
             X = X_org.copy()
         else:
-            raise TypeError('Expected the argument to be a numpy.ndarray.')
+            raise TypeError("Expected the argument to be a numpy.ndarray.")
 
         grand_effect = 0
         median_row_effects = 0
@@ -68,11 +68,11 @@ class MedianPolish:
         col_effects = np.zeros(shape=X.shape[1])
 
         for i in range(self.max_iterations):
-            if self.method == 'median':
+            if self.method == "median":
                 row_medians = np.median(X, 1)
                 row_effects += row_medians
                 median_row_effects = np.median(row_effects)
-            elif self.method == 'average':
+            elif self.method == "average":
                 row_medians = np.average(X, 1)
                 row_effects += row_medians
                 median_row_effects = np.average(row_effects)
@@ -80,11 +80,11 @@ class MedianPolish:
             row_effects -= median_row_effects
             X -= row_medians[:, np.newaxis]
 
-            if self.method == 'median':
+            if self.method == "median":
                 col_medians = np.median(X, 0)
                 col_effects += col_medians
                 median_col_effects = np.median(col_effects)
-            elif self.method == 'average':
+            elif self.method == "average":
                 col_medians = np.average(X, 0)
                 col_effects += col_medians
                 median_col_effects = np.average(col_effects)

@@ -2,9 +2,7 @@ import numpy as np
 from sklearn.preprocessing import QuantileTransformer, PowerTransformer
 
 
-def transform(adata,
-              method="power",
-              **kwargs):
+def transform(adata, method="power", **kwargs):
     """
     Transformation of not normally distributed data.
     Several methods are available.
@@ -22,9 +20,10 @@ def transform(adata,
     # define transformer
     method = method.lower()
 
-    avail_methods = ['sqrt', 'log', 'log1p', 'quantile', 'power']
-    assert method in avail_methods, f"Method must be one of {avail_methods}, " \
-                                    f"instead got {method}"
+    avail_methods = ["sqrt", "log", "log1p", "quantile", "power"]
+    assert method in avail_methods, (
+        f"Method must be one of {avail_methods}, " f"instead got {method}"
+    )
 
     if method == "sqrt":
         adata.X = np.sqrt(adata.X, **kwargs)
@@ -36,13 +35,13 @@ def transform(adata,
         adata.X = np.log1p(adata.X, **kwargs)
 
     elif method == "quantile":
-        kwargs.setdefault('random_state', 0)
+        kwargs.setdefault("random_state", 0)
         transformer = QuantileTransformer(**kwargs)
         adata.X = transformer.fit_transform(adata.X)
 
     elif method == "power":
-        kwargs.setdefault('method', 'box_cox')
-        kwargs.setdefault('standardize', False)
+        kwargs.setdefault("method", "box_cox")
+        kwargs.setdefault("standardize", False)
         transformer = PowerTransformer(**kwargs)
         adata.X = transformer.fit_transform(adata.X)
 

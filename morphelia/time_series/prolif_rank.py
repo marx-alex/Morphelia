@@ -3,15 +3,17 @@ import numpy as np
 import os
 
 
-def rank_proliferation(adata,
-                       rank_by='children',
-                       track_id="Metadata_Track",
-                       root_id="Metadata_Track_Root",
-                       gen_id="Metadata_Gen",
-                       show=False,
-                       return_fig=False,
-                       clip=0.05,
-                       save=False):
+def rank_proliferation(
+    adata,
+    rank_by="children",
+    track_id="Metadata_Track",
+    root_id="Metadata_Track_Root",
+    gen_id="Metadata_Gen",
+    show=False,
+    return_fig=False,
+    clip=0.05,
+    save=False,
+):
     """
     Rank all available cell tracks by their proliferative activity.
     Track cells beforehand.
@@ -32,23 +34,33 @@ def rank_proliferation(adata,
     Returns:
         adata.uns[f'prolif_rank_{rank_by}']: Ranking.
     """
-    avail_methods = ['gen', 'children']
+    avail_methods = ["gen", "children"]
     rank_by = rank_by.lower()
-    assert rank_by in avail_methods, f'Rank by not available. Available methods: {avail_methods}.'
+    assert (
+        rank_by in avail_methods
+    ), f"Rank by not available. Available methods: {avail_methods}."
 
-    if rank_by == 'gen':
-        ylabel = 'Number of generations'
-        ranks = adata.obs[[root_id, gen_id]].groupby(root_id).apply(lambda x: x[gen_id].max())
+    if rank_by == "gen":
+        ylabel = "Number of generations"
+        ranks = (
+            adata.obs[[root_id, gen_id]]
+            .groupby(root_id)
+            .apply(lambda x: x[gen_id].max())
+        )
 
     else:
-        ylabel = 'Number of children'
-        ranks = adata.obs[[root_id, track_id]].groupby(root_id).apply(lambda x: len(x[track_id].unique()))
+        ylabel = "Number of children"
+        ranks = (
+            adata.obs[[root_id, track_id]]
+            .groupby(root_id)
+            .apply(lambda x: len(x[track_id].unique()))
+        )
 
     ranks = ranks.sort_values(ascending=False)
 
     if show:
         if clip is not None:
-            ranks_clipped = ranks.iloc[:int(len(ranks) * clip)]
+            ranks_clipped = ranks.iloc[: int(len(ranks) * clip)]
         else:
             clip = 1
             ranks_clipped = ranks
@@ -56,7 +68,13 @@ def rank_proliferation(adata,
         width = (clip * 100) / len(ranks_clipped)
         fig, axs = plt.subplots(figsize=(10, 5))
 
-        axs.bar(x, ranks_clipped, width=width, facecolor='#74959A', edgecolor='#74959A')
+        axs.bar(
+            x,
+            ranks_clipped,
+            width=width,
+            facecolor="#74959A",
+            edgecolor="#74959A",
+        )
         axs.set_xlabel("Percentile")
         axs.set_title(ylabel)
 
@@ -65,11 +83,11 @@ def rank_proliferation(adata,
             try:
                 plt.savefig(os.path.join(save, f"prolif_rank_{rank_by}.png"))
             except OSError:
-                print(f'Can not save figure to {save}.')
+                print(f"Can not save figure to {save}.")
 
         if return_fig:
             return adata, fig
 
-    adata.uns[f'prolif_rank_{rank_by}'] = ranks
+    adata.uns[f"prolif_rank_{rank_by}"] = ranks
 
     return adata

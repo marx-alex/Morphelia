@@ -33,13 +33,16 @@ class Palantir:
 
     The code is licensed under the GPL-2.0 License.
     """
-    def __init__(self,
-                 n_waypoints=100,
-                 n_neighbors=10,
-                 start_cell=None,
-                 terminal_states=None,
-                 n_jobs=None,
-                 verbose=False):
+
+    def __init__(
+        self,
+        n_waypoints=100,
+        n_neighbors=10,
+        start_cell=None,
+        terminal_states=None,
+        n_jobs=None,
+        verbose=False,
+    ):
         self.n_waypoints = n_waypoints
         self.n_neighbors = n_neighbors
         self.start_cell = start_cell
@@ -51,8 +54,10 @@ class Palantir:
         elif isinstance(terminal_states, np.ndarray):
             pass
         else:
-            raise TypeError(f"terminal_states must be of type list, tuple or numpy.ndarray, "
-                f"instead got {type(terminal_states)}")
+            raise TypeError(
+                f"terminal_states must be of type list, tuple or numpy.ndarray, "
+                f"instead got {type(terminal_states)}"
+            )
         self._terminal_states = terminal_states
 
         # results
@@ -100,13 +105,17 @@ class Palantir:
         if isinstance(X, np.ndarray):
             X = X.copy()
         elif isinstance(X, ad.AnnData):
-            assert emb is not None, f"X is of type anndata.AnnData, please provide the embedding name in .obsm"
+            assert (
+                emb is not None
+            ), "X is of type anndata.AnnData, please provide the embedding name in .obsm"
             X = X.obsm[emb].copy()
         elif isinstance(X, pd.DataFrame):
             X = X.to_numpy()
         else:
-            raise TypeError(f"X must be of type numpy.ndarray, pandas.DataFrame or anndata.AnnData, "
-                            f"instead got {type(X)}")
+            raise TypeError(
+                "X must be of type numpy.ndarray, pandas.DataFrame or anndata.AnnData, "
+                f"instead got {type(X)}"
+            )
 
         if self.verbose:
             logger.info(f"Creating {self.n_waypoints} waypoints")
@@ -114,8 +123,10 @@ class Palantir:
 
         if self.start_cell is None:
             self.start_cell = find_start_cell(X)
-        assert isinstance(self.start_cell, int), "start cell must be a y index for X of type(int), " \
-                                                 f"instead got {type(self.start_cell)}"
+        assert isinstance(self.start_cell, int), (
+            "start cell must be a y index for X of type(int), "
+            f"instead got {type(self.start_cell)}"
+        )
 
         if self.start_cell not in self.waypoints:
             self._waypoints.append(self.start_cell)
@@ -123,25 +134,29 @@ class Palantir:
             self._waypoints = list(set(self._waypoints + list(self._terminal_states)))
 
         if self.verbose:
-            logger.info(f"Pseudotime computation")
-        self._pseudotime, self._W = compute_pseudotime(X,
-                                                       self.start_cell,
-                                                       self._waypoints,
-                                                       n_neighbors=self.n_neighbors,
-                                                       verbose=self.verbose)
+            logger.info("Pseudotime computation")
+        self._pseudotime, self._W = compute_pseudotime(
+            X,
+            self.start_cell,
+            self._waypoints,
+            n_neighbors=self.n_neighbors,
+            verbose=self.verbose,
+        )
 
         if self.verbose:
-            logger.info(f"Entropy and branch probabilities")
-        _branch_probs = differentiation_prob(X,
-                                             self._waypoints,
-                                             self._pseudotime,
-                                             terminal_states=self._terminal_states)
+            logger.info("Entropy and branch probabilities")
+        _branch_probs = differentiation_prob(
+            X,
+            self._waypoints,
+            self._pseudotime,
+            terminal_states=self._terminal_states,
+        )
         self._terminal_states = list(_branch_probs.columns)
 
         if self.verbose:
-            logger.info(f"Project results to all cells")
-        self._branch_probs = pd.DataFrame(np.dot(self._W.T, _branch_probs),
-                                          columns=self._terminal_states
+            logger.info("Project results to all cells")
+        self._branch_probs = pd.DataFrame(
+            np.dot(self._W.T, _branch_probs), columns=self._terminal_states
         )
         self._entropy = self._branch_probs.apply(entropy, axis=1)
 
@@ -158,27 +173,28 @@ class Palantir:
         :param adata:
         :return:
         """
-        assert isinstance(adata, ad.AnnData), f"adata must be of type anndata.AnnData, " \
-                                              f"instead got {type(adata)}"
+        assert isinstance(adata, ad.AnnData), (
+            f"adata must be of type anndata.AnnData, " f"instead got {type(adata)}"
+        )
 
-        adata.obs['pseudotime'] = self.pseudotime
-        adata.obs['branch'] = self.branch_label
-        adata.obs['branch'] = adata.obs['branch'].astype("category")
-        adata.obs['entropy'] = self.entropy.to_numpy()
+        adata.obs["pseudotime"] = self.pseudotime
+        adata.obs["branch"] = self.branch_label
+        adata.obs["branch"] = adata.obs["branch"].astype("category")
+        adata.obs["entropy"] = self.entropy.to_numpy()
 
-        uns = {'waypoints': self.waypoints, 'terminal_states': self.terminal_states,
-               'start_cell': self.start_cell}
-        adata.uns['palantir'] = uns
+        uns = {
+            "waypoints": self.waypoints,
+            "terminal_states": self.terminal_states,
+            "start_cell": self.start_cell,
+        }
+        adata.uns["palantir"] = uns
 
         for branch in self.branch_probs:
-            adata.obs[f'branch_prob_{branch}'] = self.branch_probs[branch].to_numpy()
+            adata.obs[f"branch_prob_{branch}"] = self.branch_probs[branch].to_numpy()
 
         return adata
 
-    def branch_dist(self,
-                    X,
-                    treat_var='Metadata_Treatment',
-                    cutoff=0.7):
+    def branch_dist(self, X, treat_var="Metadata_Treatment", cutoff=0.7):
         """
         Convenience function to get distribution of labels per branch.
 
@@ -215,8 +231,8 @@ class Palantir:
 
         dist_matrix = count_matrix.div(count_matrix.sum(axis=0), axis=1).fillna(0)
         # dist_matrix = count_matrix.div(count_matrix.sum(axis=1), axis=0).fillna(0)
-        dist_matrix.name = 'dist'
-        count_matrix.name = 'count'
+        dist_matrix.name = "dist"
+        count_matrix.name = "count"
 
         return count_matrix, dist_matrix
 
@@ -233,15 +249,13 @@ class Palantir:
         if isinstance(feats, str):
             feats = [feats]
         else:
-            try:
-                feats = list(feats)
-            except:
-                raise TypeError("If X is of type anndata.Anndata, feats should be of type str, list or tuple. "
-                                f"instead got {type(feats)}")
+            assert isinstance(
+                feats, (tuple, list)
+            ), f"feats should be of type str, list or tuple, instead got {type(feats)}"
 
         if isinstance(X, ad.AnnData):
-            assert (
-                all(feat in X.var_names for feat in feats)
+            assert all(
+                feat in X.var_names for feat in feats
             ), f"Not all features given by feats found in .var_names: {feats}"
             X = X[:, feats].X.copy()
 
@@ -258,7 +272,7 @@ class Palantir:
             # pseudotime range for branch
             br_max_pt = self.pseudotime[weights > 0.7].max()
             branch_pt = np.linspace(0, br_max_pt, 500)
-            results[branch]['pseudotime'] = branch_pt
+            results[branch]["pseudotime"] = branch_pt
 
             # fit GAM for every feature
             for ix, feat in enumerate(feats):
@@ -273,8 +287,8 @@ class Palantir:
                 y_intervals = gam.confidence_intervals(branch_pt)
 
                 # store values
-                results[branch][feat]['trends'] = y_predict
-                results[branch][feat]['ci'] = y_intervals
+                results[branch][feat]["trends"] = y_predict
+                results[branch][feat]["ci"] = y_intervals
 
         return results
 
@@ -323,12 +337,13 @@ def find_start_cell(X):
     :param X:
     :return:
     """
-    dist_from_orig = np.sqrt(np.sum(X**2, axis=1))
+    dist_from_orig = np.sqrt(np.sum(X ** 2, axis=1))
     return int(np.argmin(dist_from_orig))
 
 
-def compute_pseudotime(X, start_cell, wps, n_neighbors=10,
-                       n_jobs=None, max_iter=25, verbose=False):
+def compute_pseudotime(
+    X, start_cell, wps, n_neighbors=10, n_jobs=None, max_iter=25, verbose=False
+):
     """
     Pseudotime computation for cells embedded in X.
     Pseudotime increases with distance from start_cell.
@@ -344,9 +359,8 @@ def compute_pseudotime(X, start_cell, wps, n_neighbors=10,
     """
     # k nearest neighbors to connect cells
     nbrs = NearestNeighbors(
-        n_neighbors=n_neighbors, metric="euclidean", n_jobs=n_jobs).fit(
-        X
-    )
+        n_neighbors=n_neighbors, metric="euclidean", n_jobs=n_jobs
+    ).fit(X)
 
     adj = nbrs.kneighbors_graph(X, mode="distance")
 
@@ -355,8 +369,7 @@ def compute_pseudotime(X, start_cell, wps, n_neighbors=10,
 
     # compute waypoint distances to all other cells
     D = Parallel(n_jobs=n_jobs, max_nbytes=None)(
-        delayed(shortest_path_helper)(adj, cell)
-        for cell in wps
+        delayed(shortest_path_helper)(adj, cell) for cell in wps
     )
     D = np.stack(D)
 
@@ -424,7 +437,9 @@ def connect_graph(adj, X, start_cell):
     unreachable_nodes = list(set(range(X.shape[0])) - set(dists.index))
 
     if len(unreachable_nodes) > 0:
-        warnings.warn(f"Found {len(unreachable_nodes)} disconnected nodes, consider increasing n_neighbors")
+        warnings.warn(
+            f"Found {len(unreachable_nodes)} disconnected nodes, consider increasing n_neighbors"
+        )
 
         # reconnect isolated cells
         while len(unreachable_nodes) > 0:
@@ -434,12 +449,14 @@ def connect_graph(adj, X, start_cell):
             # compute distance to unreachable_nodes
             unreachable_dists = pairwise_distances(
                 X[unreachable_nodes, :],
-                X[farthest_reachable, :].reshape(1, -1)
+                X[farthest_reachable, :].reshape(1, -1),
             )
 
-            unreachable_dists = pd.DataFrame(unreachable_dists,
-                                             index=unreachable_nodes,
-                                             columns=farthest_reachable)
+            unreachable_dists = pd.DataFrame(
+                unreachable_dists,
+                index=unreachable_nodes,
+                columns=farthest_reachable,
+            )
 
             # add edge between unreachable and its closest farthest reachable
             closest_nodes = unreachable_dists.idxmin(axis=1).to_list()
@@ -454,11 +471,13 @@ def connect_graph(adj, X, start_cell):
     return adj
 
 
-def shorteaast_path_helper(adj, cell):
+def shortest_path_helper(adj, cell):
     return csgraph.dijkstra(adj, False, cell)
 
 
-def differentiation_prob(X, wps, pseudotime, terminal_states=None, n_neighbors=10, n_jobs=None):
+def differentiation_prob(
+    X, wps, pseudotime, terminal_states=None, n_neighbors=10, n_jobs=None
+):
     """
     Differentiation probability for cells of reaching a certain terminal cell state.
     Probability is defined to be the stationary distribution in a markov process.
@@ -543,16 +562,13 @@ def terminal_states_from_markov_chain(X, wps, T, pseudotime):
     # find connected components
     T_dense = pd.DataFrame(T.todense(), index=wps, columns=wps)
     G = nx.from_pandas_adjacency(T_dense.loc[cells, cells])
-    cells = [list(i)[np.argmax(pseudotime[list(i)])] for i in nx.connected_components(G)]
+    cells = [
+        list(i)[np.argmax(pseudotime[list(i)])] for i in nx.connected_components(G)
+    ]
 
     # nearest embedded space boundaries
     terminal_states = [
-        np.argmin(
-            pairwise_distances(
-                X[boundaries, :],
-                X[i, :].reshape(1, -1)
-            )
-        )
+        np.argmin(pairwise_distances(X[boundaries, :], X[i, :].reshape(1, -1)))
         for i in cells
     ]
 
@@ -578,7 +594,7 @@ def construct_markov_chain(X, wps, pseudotime, n_neighbors=10, n_jobs=None):
         n_neighbors=n_neighbors, metric="euclidean", n_jobs=n_jobs
     ).fit(X[wps, :])
 
-    adj = nbrs.kneighbors_graph(X[wps, :], mode='distance')
+    adj = nbrs.kneighbors_graph(X[wps, :], mode="distance")
     dist, ixs = nbrs.kneighbors(X[wps, :])
 
     # standard deviation allowing for "back" edges
@@ -603,7 +619,7 @@ def construct_markov_chain(X, wps, pseudotime, n_neighbors=10, n_jobs=None):
 
     aff = np.exp(
         -(v ** 2) / (adaptive_std[i] ** 2) * 0.5
-        -(v ** 2) / (adaptive_std[j] ** 2) * 0.5
+        - (v ** 2) / (adaptive_std[j] ** 2) * 0.5
     )
     W = csr_matrix((aff, (i, j)), [len(wps), len(wps)])
 

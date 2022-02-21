@@ -10,18 +10,20 @@ logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
 
-def drop_highly_correlated(adata,
-                           thresh=0.95,
-                           subsample=False,
-                           sample_size=1000,
-                           seed=0,
-                           verbose=False,
-                           neg_corr=False,
-                           drop=True,
-                           make_plot=True,
-                           show=True,
-                           save=False,
-                           **kwargs):
+def drop_highly_correlated(
+    adata,
+    thresh=0.95,
+    subsample=False,
+    sample_size=1000,
+    seed=0,
+    verbose=False,
+    neg_corr=False,
+    drop=True,
+    make_plot=True,
+    show=True,
+    save=False,
+    **kwargs,
+):
     """Drops features that have a Pearson correlation coefficient
     with another feature above a certain threshold.
     Only one feature in a highly correlated group is kept.
@@ -55,9 +57,7 @@ def drop_highly_correlated(adata,
 
     # get subsample
     if subsample:
-        adata_ss = get_subsample(adata,
-                                 sample_size=sample_size,
-                                 seed=seed)
+        adata_ss = get_subsample(adata, sample_size=sample_size, seed=seed)
     else:
         adata_ss = adata.copy()
 
@@ -78,12 +78,14 @@ def drop_highly_correlated(adata,
     elif neg_corr is False:
         drop_ix = np.argwhere(tri > thresh)
     else:
-        raise TypeError(f"neg_corr expected to be a boolean, instead got {type(neg_corr)}")
+        raise TypeError(
+            f"neg_corr expected to be a boolean, instead got {type(neg_corr)}"
+        )
 
     if len(drop_ix) > 0:
         drop_ix = list(set(drop_ix[:, 1].tolist()))
     else:
-        warnings.warn(f'No highly correlated features found with threshold: {thresh}.')
+        warnings.warn(f"No highly correlated features found with threshold: {thresh}.")
         drop_ix = None
 
     # drop highly correlated features
@@ -98,16 +100,16 @@ def drop_highly_correlated(adata,
         if drop:
             adata = adata[:, keep_vars].copy()
             # store info in .uns
-            adata.uns['highly_correlated'] = drop_vars
+            adata.uns["highly_correlated"] = drop_vars
         else:
             mask = [True if var in drop_vars else False for var in all_vars]
-            adata.var['highly_correlated'] = mask
+            adata.var["highly_correlated"] = mask
     else:
         if drop:
-            adata.uns['highly_correlated'] = []
+            adata.uns["highly_correlated"] = []
         else:
             mask = [False for var in adata.var_names]
-            adata.var['highly_correlated'] = mask
+            adata.var["highly_correlated"] = mask
 
     # drop nan features
     if len(nan_feats) > 0:
@@ -119,24 +121,30 @@ def drop_highly_correlated(adata,
         if drop:
             adata = adata[:, non_nan_feats].copy()
 
-            if 'nan_feats' not in adata.uns:
-                adata.uns['nan_feats'] = nan_feats
+            if "nan_feats" not in adata.uns:
+                adata.uns["nan_feats"] = nan_feats
             else:
                 adata.uns[nan_feats].append(nan_feats)
 
         else:
             mask = [True if feat in nan_feats else False for feat in adata.var_names]
-            adata.var['contains_nan'] = mask
+            adata.var["contains_nan"] = mask
     else:
         if not drop:
             mask = [False for var in adata.var_names]
-            adata.var['contains_nan'] = mask
+            adata.var["contains_nan"] = mask
 
     if make_plot:
         if drop_ix is not None:
-            groups = ['other features' if var in keep_vars else 'higly correlated features' for var in all_vars]
+            groups = [
+                "other features" if var in keep_vars else "higly correlated features"
+                for var in all_vars
+            ]
             if len(nan_feats) > 0:
-                groups = ['invariant features' if var in nan_feats else label for label, var in zip(groups, all_vars)]
+                groups = [
+                    "invariant features" if var in nan_feats else label
+                    for label, var in zip(groups, all_vars)
+                ]
         else:
             groups = None
 
@@ -148,5 +156,3 @@ def drop_highly_correlated(adata,
             return adata, fig
 
     return adata
-
-

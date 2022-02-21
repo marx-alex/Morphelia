@@ -37,14 +37,22 @@ def boxplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
         y_data.append(column.flatten())
 
     # create figure
-    flierprops = dict(marker='o', markersize=1)
+    flierprops = dict(marker="o", markersize=1)
     sns.set_theme(style="whitegrid")
     fig_height = int(4 * len(y_data))
     fig, axs = plt.subplots(len(y_data), sharex=True, figsize=(10, fig_height))
 
     # plot
     if len(y_data) == 1:
-        sns.boxplot(x=x, y=y_data[0], hue=hue, data=adata.obs, ax=axs, flierprops=flierprops, **kwargs)
+        sns.boxplot(
+            x=x,
+            y=y_data[0],
+            hue=hue,
+            data=adata.obs,
+            ax=axs,
+            flierprops=flierprops,
+            **kwargs,
+        )
 
         # set y label
         if y_label is not None:
@@ -57,7 +65,15 @@ def boxplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
             axs.legend()
     else:
         for ix in range(len(y_data)):
-            sns.boxplot(x=x, y=y_data[ix], hue=hue, data=adata.obs, ax=axs[ix], flierprops=flierprops, **kwargs)
+            sns.boxplot(
+                x=x,
+                y=y_data[ix],
+                hue=hue,
+                data=adata.obs,
+                ax=axs[ix],
+                flierprops=flierprops,
+                **kwargs,
+            )
 
             # set y label
             if y_label is not None:
@@ -67,8 +83,8 @@ def boxplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
 
             if hue is not None:
                 axs[ix].legend()
-            if ix < (len(y_data)-1):
-                axs[ix].set_xlabel('')
+            if ix < (len(y_data) - 1):
+                axs[ix].set_xlabel("")
             elif x_label is not None:
                 axs[ix].set_xlabel(x_label)
 
@@ -115,7 +131,15 @@ def barplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
 
     # plot
     if len(y_data) == 1:
-        sns.barplot(x=x, y=y_data[0], hue=hue, data=adata.obs, ax=axs, capsize=.2, **kwargs)
+        sns.barplot(
+            x=x,
+            y=y_data[0],
+            hue=hue,
+            data=adata.obs,
+            ax=axs,
+            capsize=0.2,
+            **kwargs,
+        )
 
         # set y label
         if y_label is not None:
@@ -128,7 +152,15 @@ def barplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
             axs.legend()
     else:
         for ix in range(len(y_data)):
-            sns.barplot(x=x, y=y_data[ix], hue=hue, data=adata.obs, ax=axs[ix], capsize=.2, **kwargs)
+            sns.barplot(
+                x=x,
+                y=y_data[ix],
+                hue=hue,
+                data=adata.obs,
+                ax=axs[ix],
+                capsize=0.2,
+                **kwargs,
+            )
 
             # set y label
             if y_label is not None:
@@ -138,8 +170,8 @@ def barplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
 
             if hue is not None:
                 axs[ix].legend()
-            if ix < (len(y_data)-1):
-                axs[ix].set_xlabel('')
+            if ix < (len(y_data) - 1):
+                axs[ix].set_xlabel("")
             elif x_label is not None:
                 axs[ix].set_xlabel(x_label)
 
@@ -187,7 +219,7 @@ def violin(adata, x, y, hue=None, jitter=False, y_label=None, x_label=None, **kw
         legend_len = len(adata.obs[hue].unique())
 
     # create figure
-    inner = 'box'
+    inner = "box"
     if jitter:
         inner = None
     sns.set_theme(style="whitegrid")
@@ -199,10 +231,27 @@ def violin(adata, x, y, hue=None, jitter=False, y_label=None, x_label=None, **kw
 
     # plot
     if len(y_data) == 1:
-        sns.violinplot(x=x, y=y_data[0], hue=hue, data=adata.obs, ax=axs, inner=inner, **kwargs)
+        sns.violinplot(
+            x=x,
+            y=y_data[0],
+            hue=hue,
+            data=adata.obs,
+            ax=axs,
+            inner=inner,
+            **kwargs,
+        )
         if jitter:
-            sns.stripplot(x=x, y=y_data[0], hue=hue, data=adata.obs, ax=axs, jitter=jitter,
-                          color='gray', edgecolor='gray', size=1)
+            sns.stripplot(
+                x=x,
+                y=y_data[0],
+                hue=hue,
+                data=adata.obs,
+                ax=axs,
+                jitter=jitter,
+                color="gray",
+                edgecolor="gray",
+                size=1,
+            )
 
         # set y label
         if y_label is not None:
@@ -216,10 +265,27 @@ def violin(adata, x, y, hue=None, jitter=False, y_label=None, x_label=None, **kw
             axs.legend(handles=handles[:legend_len], labels=labels[:legend_len])
     else:
         for ix in range(len(y_data)):
-            sns.violinplot(x=x, y=y_data[ix], hue=hue, data=adata.obs, ax=axs[ix], inner=inner, **kwargs)
+            sns.violinplot(
+                x=x,
+                y=y_data[ix],
+                hue=hue,
+                data=adata.obs,
+                ax=axs[ix],
+                inner=inner,
+                **kwargs,
+            )
             if jitter:
-                sns.stripplot(x=x, y=y_data[ix], hue=hue, data=adata.obs, ax=axs[ix], jitter=jitter,
-                              color='gray', edgecolor='gray', size=1)
+                sns.stripplot(
+                    x=x,
+                    y=y_data[ix],
+                    hue=hue,
+                    data=adata.obs,
+                    ax=axs[ix],
+                    jitter=jitter,
+                    color="gray",
+                    edgecolor="gray",
+                    size=1,
+                )
 
             # set y label
             if y_label is not None:
@@ -230,8 +296,8 @@ def violin(adata, x, y, hue=None, jitter=False, y_label=None, x_label=None, **kw
             if hue is not None:
                 handles, labels = axs[ix].get_legend_handles_labels()
                 axs[ix].legend(handles=handles[:legend_len], labels=labels[:legend_len])
-            if ix < (len(y_data)-1):
-                axs[ix].set_xlabel('')
+            if ix < (len(y_data) - 1):
+                axs[ix].set_xlabel("")
             elif x_label is not None:
                 axs[ix].set_xlabel(x_label)
 

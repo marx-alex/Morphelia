@@ -13,16 +13,18 @@ logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
 
-def aggregate(adata,
-              by=("BatchNumber", "PlateNumber", "Metadata_Well"),
-              method='median',
-              keep_obs=None,
-              count=True,
-              aggregate_reps=True,
-              qc=False,
-              min_cells=300,
-              verbose=False,
-              **kwargs):
+def aggregate(
+    adata,
+    by=("BatchNumber", "PlateNumber", "Metadata_Well"),
+    method="median",
+    keep_obs=None,
+    count=True,
+    aggregate_reps=True,
+    qc=False,
+    min_cells=300,
+    verbose=False,
+    **kwargs,
+):
     """Aggregate multidimensional morphological data by populations.
 
     Args:
@@ -48,8 +50,8 @@ def aggregate(adata,
         by = [by]
     else:
         by = list(by)
-    assert(
-        all(var in adata.obs.columns for var in by)
+    assert all(
+        var in adata.obs.columns for var in by
     ), f"Variables defined in 'by' are not in annotations: {by}"
 
     # delete observations not needed for aggregation
@@ -57,23 +59,31 @@ def aggregate(adata,
         if isinstance(keep_obs, str):
             keep_obs = [keep_obs]
         if isinstance(keep_obs, list):
-            drop_obs = [obs for obs in adata.obs.columns if not any(identifier in obs for identifier in keep_obs)]
+            drop_obs = [
+                obs
+                for obs in adata.obs.columns
+                if not any(identifier in obs for identifier in keep_obs)
+            ]
             for elem in by:
                 if elem in drop_obs:
                     drop_obs.remove(elem)
             adata.obs.drop(drop_obs, axis=1, inplace=True)
         else:
-            raise TypeError(f"obs_ids is expected to be string or list, instead got {type(keep_obs)}")
+            raise TypeError(
+                f"obs_ids is expected to be string or list, instead got {type(keep_obs)}"
+            )
 
     # check if cellnumber is already in adata
-    cn_var = 'Metadata_Cellnumber'
+    cn_var = "Metadata_Cellnumber"
     if cn_var in adata.obs.columns:
         count = False
 
     # check method
-    avail_methods = ['mean', 'median', 'modz']
+    avail_methods = ["mean", "median", "modz"]
     method = method.lower()
-    assert method in avail_methods, f'method not supported, choose one of {avail_methods}'
+    assert (
+        method in avail_methods
+    ), f"method not supported, choose one of {avail_methods}"
 
     # store aggregated data
     X_agg = []
@@ -97,23 +107,33 @@ def aggregate(adata,
         # cache indices of group
         group_ix = sub_df.index
 
-        if method == 'mean':
-            agg = np.nanmean(adata[group_ix, :].X.copy(), axis=0, **kwargs).reshape(1, -1)
+        if method == "mean":
+            agg = np.nanmean(adata[group_ix, :].X.copy(), axis=0, **kwargs).reshape(
+                1, -1
+            )
             if aggregate_reps:
                 for rep in adata.obsm.keys():
-                    agg_rep = np.nanmean(adata[group_ix, :].obsm[rep].copy(), axis=0, **kwargs).reshape(1, -1)
+                    agg_rep = np.nanmean(
+                        adata[group_ix, :].obsm[rep].copy(), axis=0, **kwargs
+                    ).reshape(1, -1)
                     X_reps[rep].append(agg_rep)
-        elif method == 'median':
-            agg = np.nanmedian(adata[group_ix, :].X.copy(), axis=0, **kwargs).reshape(1, -1)
+        elif method == "median":
+            agg = np.nanmedian(adata[group_ix, :].X.copy(), axis=0, **kwargs).reshape(
+                1, -1
+            )
             if aggregate_reps:
                 for rep in adata.obsm.keys():
-                    agg_rep = np.nanmedian(adata[group_ix, :].obsm[rep].copy(), axis=0, **kwargs).reshape(1, -1)
+                    agg_rep = np.nanmedian(
+                        adata[group_ix, :].obsm[rep].copy(), axis=0, **kwargs
+                    ).reshape(1, -1)
                     X_reps[rep].append(agg_rep)
-        elif method == 'modz':
+        elif method == "modz":
             agg = modz(adata[group_ix, :].X.copy(), **kwargs).reshape(1, -1)
             if aggregate_reps:
                 for rep in adata.obsm.keys():
-                    agg_rep = modz(adata[group_ix, :].obsm[rep].copy(), **kwargs).reshape(1, -1)
+                    agg_rep = modz(
+                        adata[group_ix, :].obsm[rep].copy(), **kwargs
+                    ).reshape(1, -1)
                     X_reps[rep].append(agg_rep)
 
         # concatenate aggregated groups
@@ -140,17 +160,16 @@ def aggregate(adata,
     if qc:
         if min_cells is not None:
             if verbose:
-                dropped_pops = adata[adata.obs[cn_var] < min_cells, :].obs[by].values.tolist()
+                dropped_pops = (
+                    adata[adata.obs[cn_var] < min_cells, :].obs[by].values.tolist()
+                )
                 logger.info(f"Dropped populations: {dropped_pops}")
             adata = adata[adata.obs[cn_var] >= min_cells, :]
 
     return adata
 
 
-def modz(arr,
-         method='spearman',
-         min_weight=0.01,
-         precision=4):
+def modz(arr, method="spearman", min_weight=0.01, precision=4):
     """Performs a modified z score transformation.
     This code is modified from pycytominer:
     https://github.com/cytomining/pycytominer/blob/master/pycytominer/cyto_utils/modz.py
@@ -169,8 +188,9 @@ def modz(arr,
 
     avail_methods = ["pearson", "spearman", "kendall"]
     method = method.lower()
-    assert method in avail_methods, f"method must be one of {avail_methods}, " \
-                                    f"instead got {method}"
+    assert method in avail_methods, (
+        f"method must be one of {avail_methods}, " f"instead got {method}"
+    )
 
     # adata to pandas dataframe
     arr = pd.DataFrame(data=arr)
@@ -211,17 +231,19 @@ def modz(arr,
     return modz
 
 
-def aggregate_chunks(adata,
-                     by=("BatchNumber", "PlateNumber", "Metadata_Well"),
-                     chunk_size=25,
-                     with_replacement=False,
-                     n_chunks=500,
-                     method='median',
-                     keep_obs=None,
-                     count=False,
-                     aggregate_reps=False,
-                     seed=0,
-                     **kwargs):
+def aggregate_chunks(
+    adata,
+    by=("BatchNumber", "PlateNumber", "Metadata_Well"),
+    chunk_size=25,
+    with_replacement=False,
+    n_chunks=500,
+    method="median",
+    keep_obs=None,
+    count=False,
+    aggregate_reps=False,
+    seed=0,
+    **kwargs,
+):
     """Aggregate data into random chunks within the same condition defined with 'by'.
 
     Args:
@@ -254,7 +276,9 @@ def aggregate_chunks(adata,
 
     adata_agg = []
 
-    for groups, sub_df in tqdm(adata.obs.groupby(list(by)), desc="Aggregating chunks.."):
+    for groups, sub_df in tqdm(
+        adata.obs.groupby(list(by)), desc="Aggregating chunks.."
+    ):
 
         group_ix = sub_df.index
         avail_ix = list(group_ix)
@@ -266,16 +290,17 @@ def aggregate_chunks(adata,
             if not with_replacement:
                 avail_ix = [ix for ix in avail_ix if ix not in choice]
             choice_adata = adata[choice, :].copy()
-            choice_adata = aggregate(choice_adata,
-                                     by=by,
-                                     method=method,
-                                     keep_obs=keep_obs,
-                                     count=count,
-                                     aggregate_reps=aggregate_reps,
-                                     qc=False,
-                                     verbose=False,
-                                     **kwargs
-                                     )
+            choice_adata = aggregate(
+                choice_adata,
+                by=by,
+                method=method,
+                keep_obs=keep_obs,
+                count=count,
+                aggregate_reps=aggregate_reps,
+                qc=False,
+                verbose=False,
+                **kwargs,
+            )
             adata_agg.append(choice_adata)
             if (counter >= n_chunks) and with_replacement:
                 stop = False
@@ -284,4 +309,3 @@ def aggregate_chunks(adata,
     adata_agg = adata_agg[0].concatenate(*adata_agg[1:])
 
     return adata_agg
-

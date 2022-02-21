@@ -11,15 +11,18 @@ from morphelia.time_series import HMMSimilarity
 from morphelia.tools.utils import choose_representation
 
 
-def dist_matrix(adata,
-                method='pearson',
-                group_var='Metadata_Treatment',
-                other_group_vars=None,
-                use_rep=None,
-                n_pcs=50,
-                show=False,
-                save=None,
-                return_array=False):
+def dist_matrix(
+    adata,
+    method="pearson",
+    group_var="Metadata_Treatment",
+    other_group_vars=None,
+    use_rep=None,
+    n_pcs=50,
+    make_plot=False,
+    show=False,
+    save=None,
+    return_array=False,
+):
     """Computes a similarity or distance matrix between different treatments and doses if given.
 
     Args:
@@ -30,7 +33,8 @@ def dist_matrix(adata,
         other_group_vars (list, str): Other variables that define groups that are similar.
         use_rep (str): Calculate similarity/distance representation of X in .obsm.
         n_pcs (int): Number principal components to use if use_pcs is 'X_pca'.
-        show (bool): Show plot.
+        make_plot (bool): Plot similarity as heatmap.
+        show (bool): Show plot and return figure and axis.
         save (str): Save plot to a specified location.
         return_array (bool): Return array instead of dataframe.
 
@@ -43,23 +47,31 @@ def dist_matrix(adata,
     if other_group_vars is not None:
         if isinstance(other_group_vars, str):
             other_group_vars = [other_group_vars]
-        assert isinstance(other_group_vars, list), "Expected type for other_group_vars is string or list, " \
-                                                   f"instead got {type(other_group_vars)}"
-        assert all(var in adata.obs.columns for var in other_group_vars), f"other_group_vars not in " \
-                                                                          f"observations: {other_group_vars}"
+        assert isinstance(other_group_vars, list), (
+            "Expected type for other_group_vars is string or list, "
+            f"instead got {type(other_group_vars)}"
+        )
+        assert all(var in adata.obs.columns for var in other_group_vars), (
+            f"other_group_vars not in " f"observations: {other_group_vars}"
+        )
 
     # check method
-    avail_methods = ['pearson', 'spearman', 'kendall', 'euclidean', 'mahalanobis']
+    avail_methods = [
+        "pearson",
+        "spearman",
+        "kendall",
+        "euclidean",
+        "mahalanobis",
+    ]
     method = method.lower()
-    assert method in avail_methods, f"method should be in {avail_methods}, " \
-                                    f"instead got {method}"
+    assert method in avail_methods, (
+        f"method should be in {avail_methods}, " f"instead got {method}"
+    )
 
     # get representation of data
     if use_rep is None:
-        use_rep = 'X'
-    X = choose_representation(adata,
-                              rep=use_rep,
-                              n_pcs=n_pcs)
+        use_rep = "X"
+    X = choose_representation(adata, rep=use_rep, n_pcs=n_pcs)
 
     # load profiles to dataframe and transpose
     if other_group_vars is not None:
@@ -69,63 +81,70 @@ def dist_matrix(adata,
         dist_df = pd.DataFrame(X, index=adata.obs[group_var]).T
 
     # calculate similarity
-    if method == 'pearson':
-        dist_df = dist_df.corr(method='pearson')
+    if method == "pearson":
+        dist_df = dist_df.corr(method="pearson")
 
-    if method == 'spearman':
-        dist_df = dist_df.corr(method='spearman')
+    if method == "spearman":
+        dist_df = dist_df.corr(method="spearman")
 
-    if method == 'kendall':
-        dist_df = dist_df.corr(method='kendall')
+    if method == "kendall":
+        dist_df = dist_df.corr(method="kendall")
 
-    if method == 'euclidean':
-        sim = squareform(pdist(dist_df.T, metric='euclidean'))
+    if method == "euclidean":
+        sim = squareform(pdist(dist_df.T, metric="euclidean"))
         dist_df = pd.DataFrame(sim, columns=dist_df.columns, index=dist_df.columns)
 
-    if method == 'mahalanobis':
-        sim = squareform(pdist(dist_df.T, metric='manhattan'))
+    if method == "mahalanobis":
+        sim = squareform(pdist(dist_df.T, metric="manhattan"))
         dist_df = pd.DataFrame(sim, columns=dist_df.columns, index=dist_df.columns)
 
     if return_array:
         return dist_df.to_numpy()
-        
+
     # sort index
     dist_df.sort_index(axis=0, inplace=True)
     dist_df.sort_index(axis=1, inplace=True)
 
-    if show:
+    if make_plot:
         sns.set_theme()
         cmap = matplotlib.cm.plasma
 
         fig = plt.figure(figsize=(7, 5))
         ax = sns.heatmap(dist_df, cmap=cmap)
-        plt.suptitle(f'distance/ similarity: {method}', fontsize=16)
+        plt.suptitle(f"distance/ similarity: {method}", fontsize=16)
 
         if save:
             try:
                 plt.savefig(os.path.join(save, "feature_correlation.png"))
             except OSError:
-                print(f'Can not save figure to {save}.')
+                print(f"Can not save figure to {save}.")
+
+        if show:
+            plt.show()
+            return dist_df, fig, ax
 
     return dist_df
 
 
-def dtw_dist_matrix(adata,
-                    time_var='Metadata_Time',
-                    group_vars='Metadata_Treatment',
-                    method='dependent',
-                    use_rep=None,
-                    n_pcs=50,
-                    show=False,
-                    save=None,
-                    return_array=False,
-                    **kwargs):
+def dtw_dist_matrix(
+    adata,
+    time_var="Metadata_Time",
+    group_vars="Metadata_Treatment",
+    method="dependent",
+    use_rep=None,
+    n_pcs=50,
+    make_plot=False,
+    show=False,
+    save=None,
+    return_array=False,
+    **kwargs,
+):
     """
     Compute distance matrix with time-series data using multivariate dynamic time warping.
 
     This functions wraps the DTW implementation by Shokoohi-Yekta et al.:
-    M. Shokoohi-Yekta, B. Hu, H. Jin, J. Wang, and E. Keogh. 
-    Generalizing dtw to the multi-dimensional case requires an adaptive approach. 
+    M. Shokoohi-Yekta, B. Hu, H. Jin, J. Wang, and E. Keogh.
+    Generalizing dtw to the multi-dimensional case requires an adaptive approach.
     Data Mining and Knowledge Discovery, 31:1–31, 2016.
 
     Args:
@@ -136,7 +155,8 @@ def dtw_dist_matrix(adata,
         method (str): 'dependent' or 'independent' DTW distance between two series.
         use_rep (str): Calculate similarity/distance representation of X in .obsm.
         n_pcs (int): Number principal components to use if use_pcs is 'X_pca'.
-        show (bool): Show plot.
+        make_plot (bool): Plot distance as heatmap.
+        show (bool): Show plot and return figure and axis.
         save (str): Save plot to a specified location.
         return_array (bool): Return array instead of dataframe.
         **kwargs (dict): Keyword arguments passed to dtaidistance.dtw_ndim.distance_matrix_fast
@@ -154,12 +174,15 @@ def dtw_dist_matrix(adata,
     elif isinstance(group_vars, tuple):
         group_vars = list(group_vars)
 
-    assert all(gv in adata.obs for gv in group_vars), f"group_vars not in .obs: {group_vars}"
-    
-    avail_methods = ['dependent', 'independent']
+    assert all(
+        gv in adata.obs for gv in group_vars
+    ), f"group_vars not in .obs: {group_vars}"
+
+    avail_methods = ["dependent", "independent"]
     method = method.lower()
-    assert method in avail_methods, f"method not one of {avail_methods}, " \
-                                    f"instead got {method}"
+    assert method in avail_methods, (
+        f"method not one of {avail_methods}, " f"instead got {method}"
+    )
 
     # get series of groups
     s = []
@@ -173,9 +196,7 @@ def dtw_dist_matrix(adata,
 
         adata_sub = adata[group_ixs, :].copy()
         if use_rep is not None:
-            X = choose_representation(adata_sub,
-                                      rep=use_rep,
-                                      n_pcs=n_pcs)
+            X = choose_representation(adata_sub, rep=use_rep, n_pcs=n_pcs)
         else:
             X = adata_sub.X
 
@@ -184,10 +205,10 @@ def dtw_dist_matrix(adata,
         groups.append(group)
 
     # compute distance matrix
-    if method == 'dependent':
+    if method == "dependent":
         ndim = X.shape[1]
         dist = dtw_ndim.distance_matrix_fast(s, ndim=ndim, **kwargs)
-    elif method == 'independent':
+    elif method == "independent":
         dist = dtw.distance_matrix_fast(_series_sep_dim(s, 0), **kwargs)
         for dim in range(1, X.shape[1]):
             dist += dtw.distance_matrix_fast(_series_sep_dim(s, dim), **kwargs)
@@ -199,50 +220,60 @@ def dtw_dist_matrix(adata,
     groups = np.array(groups)
     if len(groups.shape) == 1:
         groups = groups[:, None]
-    annotations = [pd.Series(groups[:, ix], name=group_var) for ix, group_var in enumerate(group_vars)]
+    annotations = [
+        pd.Series(groups[:, ix], name=group_var)
+        for ix, group_var in enumerate(group_vars)
+    ]
 
     # distance matrix to dataframe
     dist_df = pd.DataFrame(dist, index=annotations, columns=annotations)
 
-    if show:
+    if make_plot:
         sns.set_theme()
         cmap = matplotlib.cm.plasma
 
         fig = plt.figure(figsize=(7, 5))
         ax = sns.heatmap(dist_df, cmap=cmap)
-        plt.suptitle(f'DTW distances', fontsize=16)
+        plt.suptitle("DTW distances", fontsize=16)
 
         if save:
             try:
                 plt.savefig(os.path.join(save, "feature_correlation.png"))
             except OSError:
-                print(f'Can not save figure to {save}.')
+                print(f"Can not save figure to {save}.")
+
+        if show:
+            plt.show()
+            return dist_df, fig, ax
 
     return dist_df
 
 
 def _series_sep_dim(s, dim):
     """Return only one dimension from a series of arrays.
-    
+
     Args:
         s (list of np.ndarray): Series of multivariate arrays.
         dim (int): Dimension to return.
-        
+
     Returns:
         numpy.ndarray
     """
     return [arr[:, dim] for arr in s]
 
 
-def hmm_sim_matrix(adata,
-                   time_var='Metadata_Time',
-                   group_vars='Metadata_Treatment',
-                   comp_range=(1, 10),
-                   use_rep=None,
-                   n_pcs=50,
-                   show=False,
-                   save=None,
-                   return_array=False):
+def hmm_sim_matrix(
+    adata,
+    time_var="Metadata_Time",
+    group_vars="Metadata_Treatment",
+    comp_range=(1, 10),
+    use_rep=None,
+    n_pcs=50,
+    make_plot=False,
+    show=False,
+    save=None,
+    return_array=False,
+):
     """
     Compute distance matrix with time-series data using hidden Markov models.
 
@@ -258,7 +289,8 @@ def hmm_sim_matrix(adata,
         comp_range (tuple): Range with number of components to fit HMMs.
         use_rep (str): Calculate similarity/distance representation of X in .obsm.
         n_pcs (int): Number principal components to use if use_pcs is 'X_pca'.
-        show (bool): Show plot.
+        make_plot (bool): Plot similarity as heatmap.
+        show (bool): Show plot and return figure and axis.
         save (str): Save plot to a specified location.
         return_array (bool): Return array instead of dataframe.
 
@@ -274,7 +306,9 @@ def hmm_sim_matrix(adata,
     elif isinstance(group_vars, tuple):
         group_vars = list(group_vars)
 
-    assert all(gv in adata.obs for gv in group_vars), f"group_vars not in .obs: {group_vars}"
+    assert all(
+        gv in adata.obs for gv in group_vars
+    ), f"group_vars not in .obs: {group_vars}"
 
     # get series of groups
     s = []
@@ -288,9 +322,7 @@ def hmm_sim_matrix(adata,
 
         adata_sub = adata[group_ixs, :].copy()
         if use_rep is not None:
-            X = choose_representation(adata_sub,
-                                      rep=use_rep,
-                                      n_pcs=n_pcs)
+            X = choose_representation(adata_sub, rep=use_rep, n_pcs=n_pcs)
         else:
             X = adata_sub.X
 
@@ -308,23 +340,30 @@ def hmm_sim_matrix(adata,
 
     # annotation to dataframe
     groups = np.array(groups)
-    annotations = [pd.Series(groups[:, ix], name=group_var) for ix, group_var in enumerate(group_vars)]
+    annotations = [
+        pd.Series(groups[:, ix], name=group_var)
+        for ix, group_var in enumerate(group_vars)
+    ]
 
     # distance matrix to dataframe
     sim_df = pd.DataFrame(sim, index=annotations, columns=annotations)
 
-    if show:
+    if make_plot:
         sns.set_theme()
         cmap = matplotlib.cm.plasma
 
         fig = plt.figure(figsize=(7, 5))
         ax = sns.heatmap(sim_df, cmap=cmap)
-        plt.suptitle(f'HMM similarity', fontsize=16)
+        plt.suptitle("HMM similarity", fontsize=16)
 
         if save:
             try:
                 plt.savefig(os.path.join(save, "feature_correlation.png"))
             except OSError:
-                print(f'Can not save figure to {save}.')
+                print(f"Can not save figure to {save}.")
+
+        if show:
+            plt.show()
+            return sim_df, fig, ax
 
     return sim_df

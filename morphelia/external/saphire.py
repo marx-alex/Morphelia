@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.collections as mcoll
 from matplotlib.ticker import MaxNLocator
 
-plt.style.use('seaborn-darkgrid')
+plt.style.use("seaborn-darkgrid")
 
 
 class BaseTraj:
@@ -27,15 +27,21 @@ class BaseTraj:
         :param bins:
         :return:
         """
-        bins = np.linspace(-np.pi, np.pi, bins+1)
+        bins = np.linspace(-np.pi, np.pi, bins + 1)
         bin_means = (bins[:-1] + bins[1:]) / 2
         bin_ix = np.digitize(theta, bins)
-        bin_rd = [rho[(bin_ix == i) & (rho > 0)].mean()
-                  if len(rho[(bin_ix == i) & (rho > 0)]) > 0 else
-                  0 for i in range(1, len(bins))]
-        bin_dt = [dt[(bin_ix == i) & (dt > 0)].sum()
-                  if len(dt[(bin_ix == i) & (dt > 0)]) > 0 else
-                  0 for i in range(1, len(bins))]
+        bin_rd = [
+            rho[(bin_ix == i) & (rho > 0)].mean()
+            if len(rho[(bin_ix == i) & (rho > 0)]) > 0
+            else 0
+            for i in range(1, len(bins))
+        ]
+        bin_dt = [
+            dt[(bin_ix == i) & (dt > 0)].sum()
+            if len(dt[(bin_ix == i) & (dt > 0)]) > 0
+            else 0
+            for i in range(1, len(bins))
+        ]
         return bin_means, bin_rd, bin_dt
 
     def transition_vectors(self):
@@ -50,7 +56,9 @@ class BaseTraj:
 
         dist_vect = np.column_stack((mu_x_dist.flatten(), mu_y_dist.flatten()))
         trans_rho, trans_theta = self.cart2pol(dist_vect)
-        trans_rho = (trans_rho.reshape((self.n_states, self.n_states)) * self.design_transition()).flatten()
+        trans_rho = (
+            trans_rho.reshape((self.n_states, self.n_states)) * self.design_transition()
+        ).flatten()
         return trans_rho, trans_theta
 
     def design_transition(self, thresh=0.1):
@@ -120,17 +128,25 @@ class PhenoSign(BaseTraj):
         # states
         mu_rho, mu_theta = self.cart2pol(self.means)
         state_dt = self.norm_state_time()
-        bin_means_1, state_rd_bins, state_dt_bins = self.rho_dt_bins(mu_rho, mu_theta, state_dt)
+        bin_means_1, state_rd_bins, state_dt_bins = self.rho_dt_bins(
+            mu_rho, mu_theta, state_dt
+        )
 
         # transitions
         trans_rho, trans_theta = self.transition_vectors()
         trans_dt = self.norm_trans_time()
-        bin_means_2, trans_rd_bins, trans_dt_bins = self.rho_dt_bins(trans_rho, trans_theta, trans_dt)
+        bin_means_2, trans_rd_bins, trans_dt_bins = self.rho_dt_bins(
+            trans_rho, trans_theta, trans_dt
+        )
 
-        assert (bin_means_1 == bin_means_2).all(), "state and transition vectors are binned differently and can" \
-                                                   "not be concatenated."
+        assert (bin_means_1 == bin_means_2).all(), (
+            "state and transition vectors are binned differently and can"
+            "not be concatenated."
+        )
 
-        return bin_means_1, np.vstack((state_rd_bins, state_dt_bins, trans_rd_bins, trans_dt_bins))
+        return bin_means_1, np.vstack(
+            (state_rd_bins, state_dt_bins, trans_rd_bins, trans_dt_bins)
+        )
 
 
 class Saphire(PhenoSign):
@@ -140,10 +156,11 @@ class Saphire(PhenoSign):
     Bathe M. Time series modeling of live-cell shape dynamics for
     image-based phenotypic profiling. Integr Biol (Camb). 2016;8(1):73-90.
     """
+
     def __init__(self, model, X):
         super(Saphire, self).__init__(model, X)
 
-    def plot_traj(self, projection='cartesian', ymax=None):
+    def plot_traj(self, projection="cartesian", ymax=None):
         """
         Plot cell trajectory.
 
@@ -151,31 +168,40 @@ class Saphire(PhenoSign):
             projection (str): cartesian or polar.
             ymax (int)
         """
-        avail_proj = ['cartesian', 'polar']
+        avail_proj = ["cartesian", "polar"]
         projection = projection.lower()
         assert projection in avail_proj, f"projection unknown: {projection}"
-        if projection == 'cartesian':
+        if projection == "cartesian":
             projection = None
 
-        cmap = plt.get_cmap('binary')
+        cmap = plt.get_cmap("binary")
         cmap = truncate_colormap(cmap, minval=0.2)
 
-        if projection == 'polar':
+        if projection == "polar":
             y, x = self.cart2pol(self.X)
             y_mu, x_mu = self.cart2pol(self.means)
         else:
             x, y = self.X[:, 0], self.X[:, 1]
             x_mu, y_mu = self.means[:, 0], self.means[:, 1]
 
-        fig, ax = plt.subplots(figsize=(5, 5), subplot_kw={'projection': projection})
-        ax.scatter(x, y,
-                   c=self.states, cmap='Set1', zorder=2)
-        traj = ax.scatter(x_mu, y_mu,
-                          c=np.unique(self.states), cmap='Set1',
-                          s=200, zorder=2, edgecolor='black', alpha=0.6)
-        legend = ax.legend(*traj.legend_elements(),
-                           loc="upper right", bbox_to_anchor=(1.2, 0.94),
-                           title="States")
+        fig, ax = plt.subplots(figsize=(5, 5), subplot_kw={"projection": projection})
+        ax.scatter(x, y, c=self.states, cmap="Set1", zorder=2)
+        traj = ax.scatter(
+            x_mu,
+            y_mu,
+            c=np.unique(self.states),
+            cmap="Set1",
+            s=200,
+            zorder=2,
+            edgecolor="black",
+            alpha=0.6,
+        )
+        legend = ax.legend(
+            *traj.legend_elements(),
+            loc="upper right",
+            bbox_to_anchor=(1.2, 0.94),
+            title="States",
+        )
         ax.add_artist(legend)
         if ymax is not None:
             ax.set_ylim(0, ymax)
@@ -183,8 +209,12 @@ class Saphire(PhenoSign):
         colorline(x, y, cmap=cmap, zorder=1)
         norm = mpl.colors.Normalize(vmin=0, vmax=48)
         cax = fig.add_axes([0.94, 0.15, 0.05, 0.3])
-        fig.colorbar(mpl.cm.ScalarMappable(norm=norm, cmap=cmap), cax=cax,
-                     orientation='vertical', label='Time')
+        fig.colorbar(
+            mpl.cm.ScalarMappable(norm=norm, cmap=cmap),
+            cax=cax,
+            orientation="vertical",
+            label="Time",
+        )
         plt.show()
 
         return fig, ax
@@ -196,7 +226,7 @@ class Saphire(PhenoSign):
         """
         bin_rd, bin_dt = self.signature[0, :], self.signature[1, :]
 
-        fig, ax = plt.subplots(figsize=(5, 5), subplot_kw={'projection': 'polar'})
+        fig, ax = plt.subplots(figsize=(5, 5), subplot_kw={"projection": "polar"})
         cmap = plt.get_cmap("Oranges")
         N = 12
         width = (2 * np.pi) / N
@@ -206,9 +236,13 @@ class Saphire(PhenoSign):
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         norm = mpl.colors.Normalize(vmin=0, vmax=1)
         cax = fig.add_axes([0.94, 0.15, 0.05, 0.3])
-        fig.colorbar(mpl.cm.ScalarMappable(norm=norm, cmap=cmap), cax=cax,
-                     orientation='vertical', label='Increasing state dwell time',
-                     ticks=[0, 0.5, 1])
+        fig.colorbar(
+            mpl.cm.ScalarMappable(norm=norm, cmap=cmap),
+            cax=cax,
+            orientation="vertical",
+            label="Increasing state dwell time",
+            ticks=[0, 0.5, 1],
+        )
 
         return fig, ax
 
@@ -219,7 +253,7 @@ class Saphire(PhenoSign):
         """
         bin_rd, bin_dt = self.signature[2, :], self.signature[3, :]
 
-        fig, ax = plt.subplots(figsize=(5, 5), subplot_kw={'projection': 'polar'})
+        fig, ax = plt.subplots(figsize=(5, 5), subplot_kw={"projection": "polar"})
         cmap = plt.get_cmap("Blues")
         N = 12
         width = (2 * np.pi) / N
@@ -229,15 +263,27 @@ class Saphire(PhenoSign):
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         norm = mpl.colors.Normalize(vmin=0, vmax=1)
         cax = fig.add_axes([0.94, 0.15, 0.05, 0.3])
-        fig.colorbar(mpl.cm.ScalarMappable(norm=norm, cmap=cmap), cax=cax,
-                     orientation='vertical', label='Increasing transition dwell time',
-                     ticks=[0, 0.5, 1])
+        fig.colorbar(
+            mpl.cm.ScalarMappable(norm=norm, cmap=cmap),
+            cax=cax,
+            orientation="vertical",
+            label="Increasing transition dwell time",
+            ticks=[0, 0.5, 1],
+        )
 
         return fig, ax
 
 
-def colorline(x, y, z=None, cmap=plt.get_cmap('copper'), norm=plt.Normalize(0.0, 1.0),
-        linewidth=3, alpha=1.0, zorder=1):
+def colorline(
+    x,
+    y,
+    z=None,
+    cmap=plt.get_cmap("copper"),
+    norm=plt.Normalize(0.0, 1.0),
+    linewidth=3,
+    alpha=1.0,
+    zorder=1,
+):
     """
     Plot a colored line with coordinates x and y
     Optionally specify colors in the array z
@@ -255,8 +301,15 @@ def colorline(x, y, z=None, cmap=plt.get_cmap('copper'), norm=plt.Normalize(0.0,
     z = np.asarray(z)
 
     segments = make_segments(x, y)
-    lc = mcoll.LineCollection(segments, array=z, cmap=cmap, norm=norm,
-                              linewidth=linewidth, alpha=alpha, zorder=zorder)
+    lc = mcoll.LineCollection(
+        segments,
+        array=z,
+        cmap=cmap,
+        norm=norm,
+        linewidth=linewidth,
+        alpha=alpha,
+        zorder=zorder,
+    )
 
     ax = plt.gca()
     ax.add_collection(lc)
@@ -277,12 +330,13 @@ def make_segments(x, y):
 
 
 def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
-    '''
+    """
     https://stackoverflow.com/a/18926541
-    '''
+    """
     if isinstance(cmap, str):
         cmap = plt.get_cmap(cmap)
     new_cmap = mpl.colors.LinearSegmentedColormap.from_list(
-        'trunc({n},{a:.2f},{b:.2f})'.format(n=cmap.name, a=minval, b=maxval),
-        cmap(np.linspace(minval, maxval, n)))
+        "trunc({n},{a:.2f},{b:.2f})".format(n=cmap.name, a=minval, b=maxval),
+        cmap(np.linspace(minval, maxval, n)),
+    )
     return new_cmap

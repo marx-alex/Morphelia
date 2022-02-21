@@ -8,11 +8,9 @@ logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
 
-def drop_near_zero_variance(adata,
-                            freq_thresh=0.05,
-                            unique_thresh=0.01,
-                            drop=True,
-                            verbose=False):
+def drop_near_zero_variance(
+    adata, freq_thresh=0.05, unique_thresh=0.01, drop=True, verbose=False
+):
     """Drop features that have low variance and therefore low expected information content.
     Low variance is assumed if single values appear more than one time in a feature vector.
     The rules are as following:
@@ -43,10 +41,12 @@ def drop_near_zero_variance(adata,
             Only if drop is False.
     """
     # check variables
-    assert 0 <= freq_thresh <= 1, f"freq_thresh must be between 0 and 1, " \
-                                  f"instead got {freq_thresh}"
-    assert 0 <= unique_thresh <= 1, f"unique_thresh must be between 0 and 1, " \
-                                    f"instead got {unique_thresh}"
+    assert 0 <= freq_thresh <= 1, (
+        f"freq_thresh must be between 0 and 1, " f"instead got {freq_thresh}"
+    )
+    assert 0 <= unique_thresh <= 1, (
+        f"unique_thresh must be between 0 and 1, " f"instead got {unique_thresh}"
+    )
 
     # store dropped features
     drop_feats = []
@@ -85,7 +85,7 @@ def drop_near_zero_variance(adata,
 
     if drop:
         adata = adata[:, mask].copy()
-        adata.uns['near_zero_variance_feats'] = drop_feats
+        adata.uns["near_zero_variance_feats"] = drop_feats
     else:
         mask = [True if var in drop_feats else False for var in adata.var_names]
         adata.var["near_zero_variance_feats"] = mask
@@ -93,12 +93,14 @@ def drop_near_zero_variance(adata,
     return adata
 
 
-def drop_low_cv(adata,
-                by=("BatchNumber", "PlateNumber"),
-                method='std',
-                cutoff=0.5,
-                drop=True,
-                verbose=False):
+def drop_low_cv(
+    adata,
+    by=("BatchNumber", "PlateNumber"),
+    method="std",
+    cutoff=0.5,
+    drop=True,
+    verbose=False,
+):
     """Find features with low coefficients of variance which is interpreted as a low content of biological
     information.
     Depending on the method the normalized standard deviation or mean absolute deviation for every feature
@@ -137,14 +139,16 @@ def drop_low_cv(adata,
 
     # check method
     method = method.lower()
-    avail_methods = ['std', 'mad']
-    assert method in avail_methods, f"Method not in {avail_methods}, " \
-                                    f"instead got {method}"
+    avail_methods = ["std", "mad"]
+    assert method in avail_methods, (
+        f"Method not in {avail_methods}, " f"instead got {method}"
+    )
 
-    assert isinstance(cutoff, (int, float)), f"cutoff is expected to be type(float), " \
-                                             f"instead got {type(cutoff)}"
+    assert isinstance(cutoff, (int, float)), (
+        f"cutoff is expected to be type(float), " f"instead got {type(cutoff)}"
+    )
 
-    with np.errstate(divide='ignore', invalid='ignore'):
+    with np.errstate(divide="ignore", invalid="ignore"):
         if by is not None:
             # store deviations
             norm_devs = []
@@ -152,12 +156,18 @@ def drop_low_cv(adata,
                 # cache indices of group
                 group_ix = sub_df.index
 
-                if method == 'std':
+                if method == "std":
                     deviation = np.nanstd(adata[group_ix, :].X, axis=0)
-                    norm_dev = deviation / np.abs(np.nanmean(adata[group_ix, :].X, axis=0))
-                elif method == 'mad':
-                    deviation = mad(adata[group_ix, :].X, scale='normal', nan_policy='omit')
-                    norm_dev = deviation / np.abs(np.nanmedian(adata[group_ix, :].X, axis=0))
+                    norm_dev = deviation / np.abs(
+                        np.nanmean(adata[group_ix, :].X, axis=0)
+                    )
+                elif method == "mad":
+                    deviation = mad(
+                        adata[group_ix, :].X, scale="normal", nan_policy="omit"
+                    )
+                    norm_dev = deviation / np.abs(
+                        np.nanmedian(adata[group_ix, :].X, axis=0)
+                    )
 
                 norm_devs.append(norm_dev)
 
@@ -165,34 +175,38 @@ def drop_low_cv(adata,
             norm_dev = np.nanmean(norm_devs, axis=0)
 
         else:
-            if method == 'std':
+            if method == "std":
                 deviation = np.nanstd(adata.X, axis=0)
                 norm_dev = deviation / np.abs(np.nanmean(adata.X, axis=0))
-            elif method == 'mad':
-                deviation = mad(adata.X, scale='normal', nan_policy='omit')
+            elif method == "mad":
+                deviation = mad(adata.X, scale="normal", nan_policy="omit")
                 norm_dev = deviation / np.abs(np.nanmedian(adata.X, axis=0))
 
     # mask by cutoff
     mask = np.logical_and((norm_dev > cutoff), (norm_dev != np.nan))
     drop_feats = adata.var_names[~mask]
     if verbose:
-        logger.info(f"Drop {len(drop_feats)} features with low coefficient of variance: {drop_feats}")
+        logger.info(
+            f"Drop {len(drop_feats)} features with low coefficient of variance: {drop_feats}"
+        )
 
     # drop
     if drop:
         adata = adata[:, mask].copy()
-        adata.uns['low_cv_feats'] = drop_feats
+        adata.uns["low_cv_feats"] = drop_feats
     else:
-        adata.var['low_cv_feats'] = ~mask
+        adata.var["low_cv_feats"] = ~mask
 
     return adata
 
 
-def drop_low_variance(adata,
-                      by=("BatchNumber", "PlateNumber"),
-                      cutoff=0.5,
-                      drop=True,
-                      verbose=False):
+def drop_low_variance(
+    adata,
+    by=("BatchNumber", "PlateNumber"),
+    cutoff=0.5,
+    drop=True,
+    verbose=False,
+):
     """Find features with low variance. This approach tries to account for the mean-variance
     relationship by applying a variance-stabilizing transformation before ranking variance of features.
     The implementation was described by Stuart et al., 2019:
@@ -226,8 +240,9 @@ def drop_low_variance(adata,
         if not all(var in adata.obs.columns for var in by):
             raise KeyError(f"Variables defined in 'by' are not in annotations: {by}")
 
-    assert isinstance(cutoff, (int, float)), f"cutoff is expected to be type(float), " \
-                                             f"instead got {type(cutoff)}"
+    assert isinstance(cutoff, (int, float)), (
+        f"cutoff is expected to be type(float), " f"instead got {type(cutoff)}"
+    )
 
     if by is not None:
         # store standardized variances
@@ -252,14 +267,16 @@ def drop_low_variance(adata,
     drop_feats = adata.var_names[~mask]
 
     if verbose:
-        logger.info(f"Drop {len(drop_feats)} features with low coefficient of variance: {drop_feats}")
+        logger.info(
+            f"Drop {len(drop_feats)} features with low coefficient of variance: {drop_feats}"
+        )
 
     # drop
     if drop:
         adata = adata[:, mask].copy()
-        adata.uns['low_variance_feats'] = drop_feats
+        adata.uns["low_variance_feats"] = drop_feats
     else:
-        adata.var['low_variance_feats'] = ~mask
+        adata.var["low_variance_feats"] = ~mask
 
     return adata
 
@@ -290,8 +307,6 @@ def _stand_variance(X):
 
     # calculate variance of standardized values
     # stand_var = np.nanvar(X_trans, axis=0)
-    stand_var = mad(X, nan_policy='omit', scale='normal')
+    stand_var = mad(X, nan_policy="omit", scale="normal")
 
     return stand_var
-
-

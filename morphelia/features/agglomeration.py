@@ -15,16 +15,18 @@ import warnings
 from morphelia.tools.utils import get_subsample
 
 
-def feature_agglo(adata,
-                  k='estimate',
-                  cluster_range=(2, 100),
-                  subsample=False,
-                  sample_size=1000,
-                  seed=0,
-                  make_plot=False,
-                  show=False,
-                  save=None,
-                  **kwargs):
+def feature_agglo(
+    adata,
+    k="estimate",
+    cluster_range=(2, 100),
+    subsample=False,
+    sample_size=1000,
+    seed=0,
+    make_plot=False,
+    show=False,
+    save=None,
+    **kwargs,
+):
     """Wrapper for scikits FeatureAgglomeration.
     Calculates clusters by hierarchical clustering and replaces clusters by centers.
     Expects z-transformed data.
@@ -49,14 +51,16 @@ def feature_agglo(adata,
         .uns['agglo_feats']: Agglomerated features and their original features.
     """
     # check cluster_range
-    assert (
-        isinstance(cluster_range, (list, tuple))
+    assert isinstance(
+        cluster_range, (list, tuple)
     ), f"type list or tuple expected for cluster_range instead got: {type(cluster_range)}"
     assert (
         len(cluster_range) == 2
     ), f"cluster_range should be a tuple or list of length 2, instead got: {cluster_range}"
     if cluster_range[1] > adata.shape[1]:
-        warnings.warn("Maximal expected k is larger than number of features", UserWarning)
+        warnings.warn(
+            "Maximal expected k is larger than number of features", UserWarning
+        )
         cluster_range[1] = adata.shape[1]
     if cluster_range[0] < 2:
         warnings.warn(f"Minimum k is 2, changes {cluster_range[0]} to 2", UserWarning)
@@ -68,23 +72,20 @@ def feature_agglo(adata,
 
     # get subsample
     if subsample:
-        adata_ss = get_subsample(adata,
-                                 sample_size=sample_size,
-                                 seed=seed)
+        adata_ss = get_subsample(adata, sample_size=sample_size, seed=seed)
     else:
         adata_ss = adata.copy()
 
-    # initialize figure
-    fig = None
-
-    if k == 'estimate':
-        k = estimate_k(adata_ss,
-                       cluster_range=cluster_range,
-                       make_plot=make_plot,
-                       return_fig=False,
-                       show=show,
-                       save=save,
-                       **kwargs)
+    if k == "estimate":
+        k = estimate_k(
+            adata_ss,
+            cluster_range=cluster_range,
+            make_plot=make_plot,
+            return_fig=False,
+            show=show,
+            save=save,
+            **kwargs,
+        )
 
     # calculate feature agglomeration
     assert isinstance(k, int), f"k should be an integer, instead got {type(k)}"
@@ -104,19 +105,21 @@ def feature_agglo(adata,
     # create new anndata object
     var = pd.DataFrame(index=[f"agglo_{i}" for i in set(agglo.labels_)])
     adata = ad.AnnData(X=X_agglo, obs=adata.obs, var=var, uns=adata.uns)
-    adata.uns['agglo_feats'] = agglo_feats
+    adata.uns["agglo_feats"] = agglo_feats
 
     return adata
 
 
-def estimate_k(adata,
-               cluster_range=(2, 100),
-               min_k=3,
-               make_plot=False,
-               return_fig=False,
-               show=False,
-               save=None,
-               **kwargs):
+def estimate_k(
+    adata,
+    cluster_range=(2, 100),
+    min_k=3,
+    make_plot=False,
+    return_fig=False,
+    show=False,
+    save=None,
+    **kwargs,
+):
     """Estimates k clusters with highest silhouette coefficient
      on subset of data for better performance.
 
@@ -157,7 +160,7 @@ def estimate_k(adata,
 
         # get silhouette score
         label = agglo.labels_
-        sil_coeff = silhouette_score(adata.X.T, label, metric='euclidean')
+        sil_coeff = silhouette_score(adata.X.T, label, metric="euclidean")
         sil_coeffs.append(sil_coeff)
         ks.append(k)
 
@@ -173,9 +176,14 @@ def estimate_k(adata,
         sns.set_theme()
         fig = plt.figure(1)
         sns.lineplot(x=ks, y=sil_coeffs)
-        plt.xlabel('k (Number of clusters)')
-        plt.axvline(max_k, color='firebrick', linestyle='dotted', label=f'Best k: {max_k}')
-        plt.title(f"Silhouette Score")
+        plt.xlabel("k (Number of clusters)")
+        plt.axvline(
+            max_k,
+            color="firebrick",
+            linestyle="dotted",
+            label=f"Best k: {max_k}",
+        )
+        plt.title("Silhouette Score")
         plt.legend()
 
         # save
@@ -183,7 +191,7 @@ def estimate_k(adata,
             try:
                 plt.savefig(os.path.join(save, "estimate_k.png"))
             except OSError:
-                print(f'Can not save figure to {save}.')
+                print(f"Can not save figure to {save}.")
 
         if show:
             plt.show()

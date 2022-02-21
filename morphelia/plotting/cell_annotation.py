@@ -8,13 +8,17 @@ from sklearn.preprocessing import OrdinalEncoder
 import os
 
 
-def annotate_cells(adata, ann_var, channel1_path,
-                   channel2_path=None,
-                   channel3_path=None,
-                   loc_x_var='Primarieswithoutborder_Location_Center_X',
-                   loc_y_var='Primarieswithoutborder_Location_Center_Y',
-                   cmap='tab10',
-                   **kwargs):
+def annotate_cells(
+    adata,
+    ann_var,
+    channel1_path,
+    channel2_path=None,
+    channel3_path=None,
+    loc_x_var="Primarieswithoutborder_Location_Center_X",
+    loc_y_var="Primarieswithoutborder_Location_Center_Y",
+    cmap="tab10",
+    **kwargs,
+):
     """Annotate image of cells with variable from view of an anndata object.
 
     adata (anndata.AnnData): Multidimensional morphological data.
@@ -66,20 +70,23 @@ def annotate_cells(adata, ann_var, channel1_path,
     else:
         raise ValueError(f"Variable for annotation not found: {ann_var}")
 
-    data = pd.DataFrame({loc_x_var: loc_x, loc_y_var: loc_y,
-                         ann_var: ann})
+    data = pd.DataFrame({loc_x_var: loc_x, loc_y_var: loc_y, ann_var: ann})
     if _isint(data.loc[0, ann_var]):
-        data['ann_code'] = data[ann_var].apply(lambda x: int(x))
-        data = data.sort_values('ann_code')
-        data['ann_code'] = data['ann_code'].apply(lambda x: plt.get_cmap(cmap).colors[x])
+        data["ann_code"] = data[ann_var].apply(lambda x: int(x))
+        data = data.sort_values("ann_code")
+        data["ann_code"] = data["ann_code"].apply(
+            lambda x: plt.get_cmap(cmap).colors[x]
+        )
     else:
         ord_enc = OrdinalEncoder()
-        data['ann_code'] = ord_enc.fit_transform(data[[ann_var]])
-        data['ann_code'] = data[ann_var].apply(lambda x: int(x))
-        data = data.sort_values('ann_code')
-        data['ann_code'] = data['ann_code'].apply(lambda x: plt.get_cmap(cmap).colors[x])
+        data["ann_code"] = ord_enc.fit_transform(data[[ann_var]])
+        data["ann_code"] = data[ann_var].apply(lambda x: int(x))
+        data = data.sort_values("ann_code")
+        data["ann_code"] = data["ann_code"].apply(
+            lambda x: plt.get_cmap(cmap).colors[x]
+        )
 
-    handles = set(zip(data['ann_code'].tolist(), data[ann_var].tolist()))
+    handles = set(zip(data["ann_code"].tolist(), data[ann_var].tolist()))
     sorted_handles = sorted(handles, key=lambda tup: tup[1])
 
     # legend
@@ -88,10 +95,10 @@ def annotate_cells(adata, ann_var, channel1_path,
         cell = mpatches.Patch(color=col, label=label)
         cells.append(cell)
 
-    kwargs.setdefault('facecolor', 'none')
-    kwargs.setdefault('alpha', 0.8)
-    kwargs.setdefault('s', 1000)
-    kwargs.setdefault('linewidths', 3)
+    kwargs.setdefault("facecolor", "none")
+    kwargs.setdefault("alpha", 0.8)
+    kwargs.setdefault("s", 1000)
+    kwargs.setdefault("linewidths", 3)
 
     width = 12 * len(imgs)
 
@@ -99,12 +106,14 @@ def annotate_cells(adata, ann_var, channel1_path,
 
     for ix, image in enumerate(imgs):
 
-        plt.subplot(1, len(imgs), ix+1)
-        plt.imshow(image, cmap='gray'), plt.axis('off')
-        plt.scatter(x=data[loc_x_var],
-                    y=data[loc_y_var],
-                    edgecolor=data['ann_code'],
-                    **kwargs)
+        plt.subplot(1, len(imgs), ix + 1)
+        plt.imshow(image, cmap="gray"), plt.axis("off")
+        plt.scatter(
+            x=data[loc_x_var],
+            y=data[loc_y_var],
+            edgecolor=data["ann_code"],
+            **kwargs,
+        )
         plt.legend(handles=cells)
 
     plt.suptitle(f"Annotation by {ann_var}", fontsize=24)
@@ -117,4 +126,3 @@ def _isint(s):
         return True
     except ValueError:
         return False
-

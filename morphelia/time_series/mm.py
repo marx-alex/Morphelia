@@ -7,14 +7,17 @@ class StateTransitionModel:
     """
     Model for state transitions.
     """
-    def __init__(self,
-                 adata,
-                 state_var='leiden',
-                 time_var="Metadata_Time",
-                 rep='X_umap'):
+
+    def __init__(
+        self, adata, state_var="leiden", time_var="Metadata_Time", rep="X_umap"
+    ):
         self.adata = adata
-        assert state_var in self.adata.obs.columns, f"state variable not in .obs: {state_var}"
-        assert time_var in self.adata.obs.columns, f"time variable not in .obs: {time_var}"
+        assert (
+            state_var in self.adata.obs.columns
+        ), f"state variable not in .obs: {state_var}"
+        assert (
+            time_var in self.adata.obs.columns
+        ), f"time variable not in .obs: {time_var}"
         self.state_var = state_var
         self.time_var = time_var
         assert rep in self.adata.obsm, f"Representation not found: {rep}"
@@ -25,8 +28,11 @@ class StateTransitionModel:
         self.state_dists = self._get_state_dists()
 
     def _get_state_means(self):
-        return np.stack(self.adata.obs.groupby(self.state_var).apply(
-            lambda x: np.mean(self.adata[x.index, :].obsm[self.rep], axis=0)))
+        return np.stack(
+            self.adata.obs.groupby(self.state_var).apply(
+                lambda x: np.mean(self.adata[x.index, :].obsm[self.rep], axis=0)
+            )
+        )
 
     def _get_state_dists(self):
         return euclidean_distances(self.state_means, self.state_means)
@@ -55,7 +61,12 @@ class StateTransitionModel:
 
         A_ub = sc.sparse.coo_matrix((value, (irow, jcol)))
 
-        res = sc.optimize.linprog(c=np.reshape(self.state_dists, m*n), A_ub=A_ub, b_ub=b_ub, options={'sparse': True})
+        res = sc.optimize.linprog(
+            c=np.reshape(self.state_dists, m * n),
+            A_ub=A_ub,
+            b_ub=b_ub,
+            options={"sparse": True},
+        )
 
         return res.x.reshape(m, n)
 
@@ -64,9 +75,8 @@ class StateTransitionModel:
         Proportion of cell in states for all time points.
         Sum of proportions for one time point should equal 1.
         """
-        state_dist = self.adata.obs.groupby(self.time_var)[self.state_var].apply(lambda x: x.value_counts()/x.count())
+        state_dist = self.adata.obs.groupby(self.time_var)[self.state_var].apply(
+            lambda x: x.value_counts() / x.count()
+        )
         state_dist = state_dist.unstack(level=1)
         return state_dist
-
-
-

@@ -41,7 +41,8 @@ class HMMSimilarity:
         6. Compute the HMM similarity measure S(lambda||lambda') based on the normalized gini index as a measure
             for sparsity
     """
-    def __init__(self, state_range=(2, 10), criterion='bic', seed=42):
+
+    def __init__(self, state_range=(2, 10), criterion="bic", seed=42):
         """
         Args:
             state_range (tuple): Calculate states in specified range.
@@ -53,7 +54,7 @@ class HMMSimilarity:
         self.hmm_models = []
         self.s = []
 
-        avail_model_select = ['aic', 'bic']
+        avail_model_select = ["aic", "bic"]
         criterion = criterion.lower()
         assert criterion in avail_model_select, (
             f"model selection criterion must be one of: {avail_model_select}, "
@@ -88,7 +89,9 @@ class HMMSimilarity:
         hmm_model = None
 
         for n_components in range(self.state_range[0], self.state_range[1]):
-            hmm_model = hmm.GaussianHMM(n_components=n_components, covariance_type='diag')
+            hmm_model = hmm.GaussianHMM(
+                n_components=n_components, covariance_type="diag"
+            )
             hmm_model.fit(X)
 
             transmat = hmm_model.transmat_
@@ -97,12 +100,15 @@ class HMMSimilarity:
             if not any(val == 0 for val in transmat_rows):
 
                 n_features = hmm_model.n_features
-                free_parameters = 2 * (n_components * n_features) + n_components * (n_components - 1) + (
-                            n_components - 1)
+                free_parameters = (
+                    2 * (n_components * n_features)
+                    + n_components * (n_components - 1)
+                    + (n_components - 1)
+                )
 
-                if self.criterion == 'bic':
+                if self.criterion == "bic":
                     criterion_score = bic(X, free_parameters, hmm_model.score)
-                elif self.criterion == 'aic':
+                elif self.criterion == "aic":
                     criterion_score = aic(X, free_parameters, hmm_model.score)
                 else:
                     raise ValueError(f"criterion method unknown: {self.criterion}")
@@ -135,14 +141,16 @@ class HMMSimilarity:
 
 
 def fisher_rao(params_1, params_2):
-    """Univariate Fisher-Rao distance.
-    """
+    """Univariate Fisher-Rao distance."""
     mu_1, sig_1 = params_1
     mu_2, sig_2 = params_2
     l1 = (mu_1 - mu_2) ** 2 + 2 * (sig_1 - sig_2) ** 2
     l2 = (mu_1 + mu_2) ** 2 + 2 * (sig_1 + sig_2) ** 2
     f = np.sqrt(l1 * l2)
-    dist = np.sqrt(2) * (np.log(f + (mu_1 - mu_2) ** 2 + 2 * (sig_1 ** 2 + sig_2 ** 2)) - np.log(4 * sig_1 * sig_2))
+    dist = np.sqrt(2) * (
+        np.log(f + (mu_1 - mu_2) ** 2 + 2 * (sig_1 ** 2 + sig_2 ** 2))
+        - np.log(4 * sig_1 * sig_2)
+    )
     return dist
 
 
@@ -194,7 +202,7 @@ def kl_multi_div(params_1, params_2):
     det_term = np.log(np.linalg.det(sig_2) / np.linalg.det(sig_1))
     quad_term = mu_diff.T @ sig_2_inv @ mu_diff
 
-    kl = .5 * (tr_term + det_term + quad_term - k)
+    kl = 0.5 * (tr_term + det_term + quad_term - k)
     return kl
 
 
@@ -212,9 +220,11 @@ def js_multi_div(params_1, params_2):
     """
     mu_1, sig_1 = params_1
     mu_2, sig_2 = params_2
-    M_mu = .5 * (mu_1 + mu_2)
-    M_sig = .5 * (sig_1 + sig_2)
-    return (.5 * kl_multi_div(params_1, (M_mu, M_sig))) + (.5 * kl_multi_div(params_2, (M_mu, M_sig)))
+    M_mu = 0.5 * (mu_1 + mu_2)
+    M_sig = 0.5 * (sig_1 + sig_2)
+    return (0.5 * kl_multi_div(params_1, (M_mu, M_sig))) + (
+        0.5 * kl_multi_div(params_2, (M_mu, M_sig))
+    )
 
 
 def gini(x, epsilon=1e-8):
@@ -227,19 +237,19 @@ def gini(x, epsilon=1e-8):
     return g
 
 
-def HMM_similarity(hmm_1, hmm_2, method='js', epsilon=0.01):
+def HMM_similarity(hmm_1, hmm_2, method="js", epsilon=0.01):
     """HMM similarity"""
     n = hmm_1.n_components
     m = hmm_2.n_components
     stationary_1 = hmm_1.get_stationary_distribution()
     stationary_2 = hmm_2.get_stationary_distribution()
 
-    avail_methods = ['js', 'fisher']
+    avail_methods = ["js", "fisher"]
     method = method.lower()
-    assert method in avail_methods, f'method not in available methods: {avail_methods}'
-    if method == 'js':
+    assert method in avail_methods, f"method not in available methods: {avail_methods}"
+    if method == "js":
         dist_func = js_multi_div
-    elif method == 'fisher':
+    elif method == "fisher":
         dist_func = multivariate_fisher_rao
     else:
         raise ValueError(f"distance function unknown: {method}")
@@ -256,7 +266,7 @@ def HMM_similarity(hmm_1, hmm_2, method='js', epsilon=0.01):
 
     gini_rows = np.mean(np.apply_along_axis(lambda x: n * gini(x) / max(n, 1), 0, Q))
     gini_cols = np.mean(np.apply_along_axis(lambda x: m * gini(x) / max(m, 1), 1, Q))
-    similarity = .5 * (gini_rows + gini_cols)
+    similarity = 0.5 * (gini_rows + gini_cols)
 
     # if hmm_1 == hmm_2:
     #     print(np.round(Se_matrix, 2))
@@ -266,5 +276,3 @@ def HMM_similarity(hmm_1, hmm_2, method='js', epsilon=0.01):
     #     print(gini_rows, gini_cols)
     #     print(f"Sim: {similarity}")
     return similarity
-
-

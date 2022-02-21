@@ -2,9 +2,14 @@
 import numpy as np
 
 
-def subsample(adata, perc=0.1, by=("BatchNumber", "PlateNumber", "Metadata_Well"),
-              grouped=None, replace=False,
-              seed=0):
+def subsample(
+    adata,
+    perc=0.1,
+    by=("BatchNumber", "PlateNumber", "Metadata_Well"),
+    grouped=None,
+    replace=False,
+    seed=0,
+):
     """Gives a subsample of the data by selecting objects from given groups.
 
     Args:
@@ -20,15 +25,17 @@ def subsample(adata, perc=0.1, by=("BatchNumber", "PlateNumber", "Metadata_Well"
     """
     assert 0 <= perc <= 1, f"Use a float between 0 and 1 for perc: {perc}"
     if grouped is not None:
-        assert grouped in adata.obs.columns, f'Variable for grouped sampling not in .obs: {grouped}'
+        assert (
+            grouped in adata.obs.columns
+        ), f"Variable for grouped sampling not in .obs: {grouped}"
 
     # seed
     np.random.seed(seed)
 
     if by is not None:
         # check that variables in by are in anndata
-        assert (
-            all(var in adata.obs.columns for var in by)
+        assert all(
+            var in adata.obs.columns for var in by
         ), f"Variables defined in 'by' are not in annotations: {by}"
 
         # store subsample indices
@@ -37,10 +44,9 @@ def subsample(adata, perc=0.1, by=("BatchNumber", "PlateNumber", "Metadata_Well"
         # iterate over md with grouping variables
         for groups, sub_df in adata.obs.groupby(list(by)):
 
-            group_ix = _get_subsample_ixs(sub_df,
-                                          perc=perc,
-                                          replace=replace,
-                                          grouped=grouped)
+            group_ix = _get_subsample_ixs(
+                sub_df, perc=perc, replace=replace, grouped=grouped
+            )
 
             subsample_ixs.append(group_ix)
 
@@ -48,10 +54,9 @@ def subsample(adata, perc=0.1, by=("BatchNumber", "PlateNumber", "Metadata_Well"
         subsample_ix = np.concatenate(subsample_ixs)
 
     else:
-        subsample_ix = _get_subsample_ixs(adata.obs,
-                                          perc=perc,
-                                          replace=replace,
-                                          grouped=grouped)
+        subsample_ix = _get_subsample_ixs(
+            adata.obs, perc=perc, replace=replace, grouped=grouped
+        )
 
     # if with replacement, observation names are not unique
     adata = adata[subsample_ix, :]

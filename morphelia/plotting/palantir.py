@@ -7,21 +7,19 @@ import numpy as np
 import scanpy as sc
 
 
-def plot_palantir_results(adata,
-                          emb='X_tsne',
-                          cmap=None,
-                          show=True):
-    """ Plot Palantir results on embedding
-    """
-    assert emb in adata.obsm, f'emb not found in .obsm: {emb}'
+def plot_palantir_results(adata, emb="X_tsne", cmap=None, show=True):
+    """Plot Palantir results on embedding"""
+    assert emb in adata.obsm, f"emb not found in .obsm: {emb}"
 
-    annotations = ['pseudotime', 'entropy', 'branch']
-    assert all(ann in adata.obs.columns for ann in annotations), "AnnData object is not annotated. " \
-                                                                 "Use Palantir.annotate_data()."
-    terminal_states = adata.uns['palantir']['terminal_states']
+    annotations = ["pseudotime", "entropy", "branch"]
+    assert all(ann in adata.obs.columns for ann in annotations), (
+        "AnnData object is not annotated. " "Use Palantir.annotate_data()."
+    )
+    terminal_states = adata.uns["palantir"]["terminal_states"]
     branch_prob_anns = [f"branch_prob_{ts}" for ts in terminal_states]
-    assert all(ann in adata.obs.columns for ann in branch_prob_anns), "AnnData object is not annotated. " \
-                                                                      "Use Palantir.annotate_data()."
+    assert all(ann in adata.obs.columns for ann in branch_prob_anns), (
+        "AnnData object is not annotated. " "Use Palantir.annotate_data()."
+    )
 
     # set up figure
     n_branches = len(branch_prob_anns)
@@ -29,7 +27,11 @@ def plot_palantir_results(adata,
     n_rows = int(np.ceil(n_branches / n_cols))
     fig = plt.figure(figsize=[2 * n_cols, 2 * (n_rows + 2)])
     gs = plt.GridSpec(
-        n_rows + 2, n_cols, height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows)), hspace=0.4, wspace=0.4
+        n_rows + 2,
+        n_cols,
+        height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows)),
+        hspace=0.4,
+        wspace=0.4,
     )
 
     if cmap is None:
@@ -37,17 +39,17 @@ def plot_palantir_results(adata,
 
     # Pseudotime
     ax = plt.subplot(gs[:2, 0:2])
-    ax = sc.pl.embedding(adata, basis=emb,
-                         color='pseudotime', ax=ax, cmap=cmap,
-                         show=False)
+    ax = sc.pl.embedding(
+        adata, basis=emb, color="pseudotime", ax=ax, cmap=cmap, show=False
+    )
     ax.set_axis_off()
     ax.set_title("Pseudotime")
 
     # Entropy
     ax = plt.subplot(gs[:2, 2:4])
-    ax = sc.pl.embedding(adata, basis=emb,
-                         color='entropy', ax=ax, cmap=cmap,
-                         show=False)
+    ax = sc.pl.embedding(
+        adata, basis=emb, color="entropy", ax=ax, cmap=cmap, show=False
+    )
     ax.set_axis_off()
     ax.set_title("Differentiation potential")
 
@@ -55,12 +57,16 @@ def plot_palantir_results(adata,
         branch_label = f"branch_prob_{ts}"
         row = int(np.floor(i / n_cols))
         ax = plt.subplot(gs[row + 2, np.remainder(i, n_cols)])
-        ax = sc.pl.embedding(adata, basis=emb,
-                             color=branch_label, ax=ax, cmap=cmap,
-                             show=False)
-        ax.scatter(adata.obsm[emb][ts, 0],
-                   adata.obsm[emb][ts, 1],
-                   s=35, c='black', marker='v')
+        ax = sc.pl.embedding(
+            adata, basis=emb, color=branch_label, ax=ax, cmap=cmap, show=False
+        )
+        ax.scatter(
+            adata.obsm[emb][ts, 0],
+            adata.obsm[emb][ts, 1],
+            s=35,
+            c="black",
+            marker="v",
+        )
         ax.set_axis_off()
         ax.set_title(f"Branch {i}", fontsize=10)
 
@@ -71,16 +77,18 @@ def plot_palantir_results(adata,
     return fig, ax
 
 
-def plot_branches(adata,
-                  emb='X_tsne',
-                  treat_var='Metadata_Treatment',
-                  dist=None,
-                  cutoff=0.7,
-                  pie_explode=True,
-                  pie_labels=False,
-                  pie_pct=True,
-                  cmap=None,
-                  show=True):
+def plot_branches(
+    adata,
+    emb="X_tsne",
+    treat_var="Metadata_Treatment",
+    dist=None,
+    cutoff=0.7,
+    pie_explode=True,
+    pie_labels=False,
+    pie_pct=True,
+    cmap=None,
+    show=True,
+):
     """
     Plot branches.
 
@@ -96,19 +104,21 @@ def plot_branches(adata,
     :param emb:
     :return:
     """
-    assert emb in adata.obsm, f'emb not found in .obsm: {emb}'
+    assert emb in adata.obsm, f"emb not found in .obsm: {emb}"
 
-    annotations = ['pseudotime', 'entropy', 'branch']
-    assert all(ann in adata.obs.columns for ann in annotations), "AnnData object is not annotated. " \
-                                                                 "Use Palantir.annotate_data()."
-    terminal_states = adata.uns['palantir']['terminal_states']
+    annotations = ["pseudotime", "entropy", "branch"]
+    assert all(ann in adata.obs.columns for ann in annotations), (
+        "AnnData object is not annotated. " "Use Palantir.annotate_data()."
+    )
+    terminal_states = adata.uns["palantir"]["terminal_states"]
     branch_prob_anns = [f"branch_prob_{ts}" for ts in terminal_states]
-    assert all(ann in adata.obs.columns for ann in branch_prob_anns), "AnnData object is not annotated. " \
-                                                                      "Use Palantir.annotate_data()."
+    assert all(ann in adata.obs.columns for ann in branch_prob_anns), (
+        "AnnData object is not annotated. " "Use Palantir.annotate_data()."
+    )
 
     assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"
 
-    start_cell = int(adata.uns['palantir']['start_cell'])
+    start_cell = int(adata.uns["palantir"]["start_cell"])
 
     # set up figure
     n_branches = len(branch_prob_anns)
@@ -116,31 +126,62 @@ def plot_branches(adata,
     n_rows = int(np.ceil(n_branches / n_cols))
     fig = plt.figure(figsize=[2 * n_cols, 2 * (n_rows + 2)])
     gs = plt.GridSpec(
-        n_rows + 2, n_cols, height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows)), hspace=0.4, wspace=0.4
+        n_rows + 2,
+        n_cols,
+        height_ratios=np.append([0.75, 0.75], np.repeat(1, n_rows)),
+        hspace=0.4,
+        wspace=0.4,
     )
-    
+
     if cmap is None:
         cmap = ListedColormap(sns.color_palette().as_hex())
 
     # Treatments
     ax = plt.subplot(gs[:2, 1:3])
-    ax = sc.pl.embedding(adata, basis=emb,
-                         color=treat_var, ax=ax,
-                         show=False)
-    ax.scatter(adata.obsm[emb][terminal_states, 0],
-               adata.obsm[emb][terminal_states, 1], s=100, c='black', marker='v')
-    ax.scatter(adata.obsm[emb][start_cell, 0],
-               adata.obsm[emb][start_cell, 1], s=100, c='black', marker='*')
+    ax = sc.pl.embedding(adata, basis=emb, color=treat_var, ax=ax, show=False)
+    ax.scatter(
+        adata.obsm[emb][terminal_states, 0],
+        adata.obsm[emb][terminal_states, 1],
+        s=100,
+        c="black",
+        marker="v",
+    )
+    ax.scatter(
+        adata.obsm[emb][start_cell, 0],
+        adata.obsm[emb][start_cell, 1],
+        s=100,
+        c="black",
+        marker="*",
+    )
 
-    black_star = mlines.Line2D([], [], color='black', marker='*', linestyle='None',
-                               markersize=10, label='Early Cell')
-    black_triangle = mlines.Line2D([], [], color='black', marker='v', linestyle='None',
-                                   markersize=10, label='Terminal State')
+    black_star = mlines.Line2D(
+        [],
+        [],
+        color="black",
+        marker="*",
+        linestyle="None",
+        markersize=10,
+        label="Early Cell",
+    )
+    black_triangle = mlines.Line2D(
+        [],
+        [],
+        color="black",
+        marker="v",
+        linestyle="None",
+        markersize=10,
+        label="Terminal State",
+    )
 
     handles, labels = ax.get_legend_handles_labels()
     handles.append(black_star)
     handles.append(black_triangle)
-    ax.legend(handles=handles, bbox_to_anchor=(0, 0.5), loc='center right', frameon=False)
+    ax.legend(
+        handles=handles,
+        bbox_to_anchor=(0, 0.5),
+        loc="center right",
+        frameon=False,
+    )
 
     ax.set_axis_off()
     ax.set_title("Treatment Conditions", fontsize=14)
@@ -151,14 +192,14 @@ def plot_branches(adata,
         if cutoff is not None:
             color_mask = adata.obs[branch_label] > cutoff
         else:
-            color_mask = adata.obs['branch'] == i
-        adata.obs['color'] = adata.obs[treat_var]
-        adata.obs.loc[~color_mask, 'color'] = np.nan
+            color_mask = adata.obs["branch"] == i
+        adata.obs["color"] = adata.obs[treat_var]
+        adata.obs.loc[~color_mask, "color"] = np.nan
         row = int(np.floor(i / n_cols))
         ax = plt.subplot(gs[row + 2, np.remainder(i, n_cols)])
-        ax = sc.pl.embedding(adata, basis=emb,
-                             color='color', ax=ax, cmap=cmap,
-                             show=False)
+        ax = sc.pl.embedding(
+            adata, basis=emb, color="color", ax=ax, cmap=cmap, show=False
+        )
         ax.set_axis_off()
         ax.get_legend().remove()
 
@@ -176,12 +217,12 @@ def plot_branches(adata,
                 explode_sizes[max_size] = 0.1
             autopct = None
             if pie_pct:
-                autopct = '%1.1f%%'
+                autopct = "%1.1f%%"
             pl = None
             if pie_labels:
                 pl = treat_labels
             ins.pie(sizes, explode=explode_sizes, labels=pl, autopct=autopct)
-            ins.axis('equal')
+            ins.axis("equal")
 
         ax.set_title(f"Branch {i}", fontsize=10)
 
@@ -192,11 +233,9 @@ def plot_branches(adata,
     return fig, ax
 
 
-def plot_branch_distribution(adata,
-                             dist,
-                             emb='X_tsne',
-                             treat_var='Metadata_Treatment',
-                             show=True):
+def plot_branch_distribution(
+    adata, dist, emb="X_tsne", treat_var="Metadata_Treatment", show=True
+):
     """
     Plot Treatment distribution for every branch as precalculated with
     morphlia.external.Palantir.branch_dist.
@@ -212,28 +251,29 @@ def plot_branch_distribution(adata,
 
     assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"
 
-    assert emb in adata.obsm, f'emb not found in .obsm: {emb}'
+    assert emb in adata.obsm, f"emb not found in .obsm: {emb}"
 
-    annotations = ['pseudotime', 'entropy', 'branch']
-    assert all(ann in adata.obs.columns for ann in annotations), "AnnData object is not annotated. " \
-                                                                 "Use Palantir.annotate_data()."
+    annotations = ["pseudotime", "entropy", "branch"]
+    assert all(ann in adata.obs.columns for ann in annotations), (
+        "AnnData object is not annotated. " "Use Palantir.annotate_data()."
+    )
 
     # create figure
     plt_df = dist.stack()
-    plt_df.rename('val', inplace=True)
-    plt_df.index.set_names(['Branch', 'Treatment'], inplace=True)
+    plt_df.rename("val", inplace=True)
+    plt_df.index.set_names(["Branch", "Treatment"], inplace=True)
     plt_df = plt_df.reset_index()
 
     sns.set_theme(style="whitegrid")
     fig, ax = plt.subplots(figsize=(7, 4))
-    sns.barplot(data=plt_df, x='Branch', y='val', hue='Treatment')
+    sns.barplot(data=plt_df, x="Branch", y="val", hue="Treatment")
 
-    ax.set_ylabel('')
-    title_style = 'Probability'
-    if dist.name == 'count':
-        title_style = 'Count'
+    ax.set_ylabel("")
+    title_style = "Probability"
+    if dist.name == "count":
+        title_style = "Count"
     ax.set_title(f"Branch {title_style}")
-    ax.legend(frameon=False, bbox_to_anchor=(1, 0.5), loc='center left')
+    ax.legend(frameon=False, bbox_to_anchor=(1, 0.5), loc="center left")
 
     if show:
         plt.show()
@@ -242,7 +282,7 @@ def plot_branch_distribution(adata,
     return fig, ax
 
 
-def plot_trends(trends, cmap='Set2', show=True):
+def plot_trends(trends, cmap="Set2", show=True):
     """
     Plot precomputed feature trends.
     Use morphelia.ext.Palantir.compute_trends beforehand.
@@ -254,7 +294,7 @@ def plot_trends(trends, cmap='Set2', show=True):
     """
     branches = list(trends.keys())
     feats = list(trends[branches[0]].keys())
-    feats.remove('pseudotime')
+    feats.remove("pseudotime")
     n_feats = len(feats)
 
     sns.set_theme(style="white")
@@ -265,22 +305,23 @@ def plot_trends(trends, cmap='Set2', show=True):
     # plot every feature on a separate axis
     for ix, feat in enumerate(feats):
         for branch_i, branch in enumerate(branches):
-            x = trends[branch]['pseudotime']
-            y = trends[branch][feat]['trends']
-            ci = trends[branch][feat]['ci']
+            x = trends[branch]["pseudotime"]
+            y = trends[branch][feat]["trends"]
+            ci = trends[branch][feat]["ci"]
 
             # plot
             axs[ix, 0].plot(x, y, c=cmap(branch_i), label=branch)
-            axs[ix, 0].fill_between(x, ci[:, 0], ci[:, 1],
-                                    color=cmap(branch_i), alpha=0.1)
+            axs[ix, 0].fill_between(
+                x, ci[:, 0], ci[:, 1], color=cmap(branch_i), alpha=0.1
+            )
 
         axs[ix, 0].set_title(feat, fontsize=12)
         axs[ix, 0].set_xticks([0, 1])
-        axs[ix, 0].set_xlabel('Pseudotime')
-        axs[ix, 0].spines['top'].set_visible(False)
-        axs[ix, 0].spines['right'].set_visible(False)
+        axs[ix, 0].set_xlabel("Pseudotime")
+        axs[ix, 0].spines["top"].set_visible(False)
+        axs[ix, 0].spines["right"].set_visible(False)
         if ix == 0:
-            axs[ix, 0].legend(title='Branch', frameon=False)
+            axs[ix, 0].legend(title="Branch", frameon=False)
 
     if show:
         plt.show()

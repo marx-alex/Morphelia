@@ -12,7 +12,7 @@ def compute_kernel(x, y):
     tiled_x = x.view(x_size, 1, dim).repeat(1, y_size, 1)
     tiled_y = y.view(1, y_size, dim).repeat(x_size, 1, 1)
 
-    return torch.exp(-torch.mean((tiled_x - tiled_y)**2, dim=2) / dim*1.0)
+    return torch.exp(-torch.mean((tiled_x - tiled_y) ** 2, dim=2) / dim * 1.0)
 
 
 def compute_mmd(x, y):
@@ -23,9 +23,7 @@ def compute_mmd(x, y):
 
 
 class Encoder(nn.Module):
-    def __init__(self,
-                 in_shape,
-                 out_shape):
+    def __init__(self, in_shape, out_shape):
         super(Encoder, self).__init__()
 
         self.in_shape = in_shape
@@ -41,7 +39,7 @@ class Encoder(nn.Module):
             nn.Linear(64, 32),
             nn.BatchNorm1d(32),
             nn.ReLU(True),
-            nn.Linear(32, self.out_shape)
+            nn.Linear(32, self.out_shape),
         )
 
     def forward(self, x: torch.Tensor):
@@ -53,9 +51,7 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self,
-                 in_shape,
-                 out_shape):
+    def __init__(self, in_shape, out_shape):
         super(Decoder, self).__init__()
 
         self.in_shape = in_shape
@@ -71,7 +67,7 @@ class Decoder(nn.Module):
             nn.Linear(64, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(True),
-            nn.Linear(128, self.in_shape)
+            nn.Linear(128, self.in_shape),
         )
 
     def forward(self, x: torch.Tensor):
@@ -101,11 +97,9 @@ class MMDVAE(pl.LightningModule):
         self.enc_shape = enc_shape
         self.n_classes = n_classes
 
-        self.encoder = Encoder(self.in_shape,
-                               self.enc_shape)
+        self.encoder = Encoder(self.in_shape, self.enc_shape)
 
-        self.decoder = Decoder(self.in_shape,
-                               self.enc_shape)
+        self.decoder = Decoder(self.in_shape, self.enc_shape)
 
         if torch.cuda.is_available():
             self.true_samples = self.true_samples.cuda()
@@ -122,7 +116,7 @@ class MMDVAE(pl.LightningModule):
         return dict(loss=loss)
 
     def training_step_end(self, outs):
-        loss = outs['loss']
+        loss = outs["loss"]
         self.log("train/loss", loss, on_step=True, on_epoch=True)
         return dict(loss=loss)
 
@@ -132,10 +126,9 @@ class MMDVAE(pl.LightningModule):
         return dict(loss=loss)
 
     def validation_step_end(self, outs):
-        loss = outs['loss']
+        loss = outs["loss"]
         self.log("valid/loss", loss, on_step=False, on_epoch=True)
-        return dict(
-            loss=loss)
+        return dict(loss=loss)
 
     def test_step(self, batch, batch_idx):
         loss = self._common_step(batch)
@@ -143,10 +136,9 @@ class MMDVAE(pl.LightningModule):
         return dict(loss=loss)
 
     def test_step_end(self, outs):
-        loss = outs['loss']
+        loss = outs["loss"]
         self.log("test/loss", loss, on_step=False, on_epoch=True)
-        return dict(
-            loss=loss)
+        return dict(loss=loss)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
@@ -162,8 +154,7 @@ class MMDVAE(pl.LightningModule):
         z, x_hat = self(x)
 
         true_samples = Variable(
-            torch.randn(len(x), self.enc_shape),
-            requires_grad=False
+            torch.randn(len(x), self.enc_shape), requires_grad=False
         )
 
         mmd = compute_mmd(true_samples, z)

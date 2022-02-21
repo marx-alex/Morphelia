@@ -8,12 +8,14 @@ logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
 
-def drop_nan(adata,
-             axis=0,
-             drop_inf=True,
-             drop_dtype_max=True,
-             min_nan_frac=None,
-             verbose=False):
+def drop_nan(
+    adata,
+    axis=0,
+    drop_inf=True,
+    drop_dtype_max=True,
+    min_nan_frac=None,
+    verbose=False,
+):
     """Drop rows or columns that contain invalid values.
 
     Args:
@@ -54,15 +56,17 @@ def drop_nan(adata,
         dropped = list(adata.var_names[mask])
 
         if verbose:
-            logger.info(f"Dropped {len(dropped)} features with missing values: {dropped}")
+            logger.info(
+                f"Dropped {len(dropped)} features with missing values: {dropped}"
+            )
 
         adata = adata[:, ~mask].copy()
 
         # store dropped features in adata.uns
-        if 'nan_feats' in adata.uns:
-            adata.uns['nan_feats'].append(dropped)
+        if "nan_feats" in adata.uns:
+            adata.uns["nan_feats"].append(dropped)
         else:
-            adata.uns['nan_feats'] = dropped
+            adata.uns["nan_feats"] = dropped
 
     # if axis 1 --> filter cells
     else:
@@ -74,15 +78,15 @@ def drop_nan(adata,
         adata = adata[~mask, :].copy()
 
         # store dropped features in adata.uns
-        if 'nan_cells' in adata.uns:
-            adata.uns['nan_cells'].append(dropped)
+        if "nan_cells" in adata.uns:
+            adata.uns["nan_cells"].append(dropped)
         else:
-            adata.uns['nan_cells'] = dropped
+            adata.uns["nan_cells"] = dropped
 
     return adata
 
 
-def filter_std(adata, var, std_thresh=3, side='both'):
+def filter_std(adata, var, std_thresh=3, side="both"):
     """Filter cells by identifying outliers in a distribution
     of a single value.
 
@@ -101,17 +105,17 @@ def filter_std(adata, var, std_thresh=3, side='both'):
     mean = np.nanmean(adata[:, var].X)
 
     # do filtering
-    if side not in ['left', 'right', 'both']:
+    if side not in ["left", "right", "both"]:
         raise ValueError(f"side should be 'left', 'right' or 'both': {side}")
-    if side == 'both' or side == 'left':
+    if side == "both" or side == "left":
         adata = adata[adata[:, var].X > (mean - (std_thresh * std)), :]
-    if side == 'both' or side == 'right':
+    if side == "both" or side == "right":
         adata = adata[adata[:, var].X < (mean + (std_thresh * std)), :]
 
     return adata
 
 
-def filter_thresh(adata, var, thresh, side='right'):
+def filter_thresh(adata, var, thresh, side="right"):
     """Filter cells by thresholding.
 
     Args:
@@ -125,19 +129,21 @@ def filter_thresh(adata, var, thresh, side='right'):
     Returns:
         anndata.AnnData
     """
-    sides = ['right', 'left']
-    assert side in sides, f"expected side to be either 'right' or 'left', instead got {side}"
+    sides = ["right", "left"]
+    assert (
+        side in sides
+    ), f"expected side to be either 'right' or 'left', instead got {side}"
 
     # do filtering
     if var in adata.var_names:
-        if side == 'right':
+        if side == "right":
             adata = adata[adata[:, var].X < thresh, :]
-        elif side == 'left':
+        elif side == "left":
             adata = adata[adata[:, var].X > thresh, :]
     elif var in adata.obs.columns:
-        if side == 'right':
+        if side == "right":
             adata = adata[adata.obs[var] < thresh, :]
-        elif side == 'left':
+        elif side == "left":
             adata = adata[adata.obs[var] > thresh, :]
     else:
         raise ValueError(f"Variable not in AnnData object: {var}")
@@ -175,10 +181,10 @@ def drop_duplicates(adata, axis=1, verbose=False):
         adata = adata[:, mask].copy()
 
         # store dropped features in adata.uns
-        if 'duplicated_feats' in adata.uns:
-            adata.uns['duplicated_feats'].append(dropped)
+        if "duplicated_feats" in adata.uns:
+            adata.uns["duplicated_feats"].append(dropped)
         else:
-            adata.uns['duplicated_feats'] = dropped
+            adata.uns["duplicated_feats"] = dropped
 
     else:
         dropped = list(adata.obs.index[~mask])
@@ -189,10 +195,10 @@ def drop_duplicates(adata, axis=1, verbose=False):
         adata = adata[mask, :].copy()
 
         # store dropped cells in adata.uns
-        if 'duplicated_cells' in adata.uns:
-            adata.uns['duplicated_cells'].append(dropped)
+        if "duplicated_cells" in adata.uns:
+            adata.uns["duplicated_cells"].append(dropped)
         else:
-            adata.uns['duplicated_cells'] = dropped
+            adata.uns["duplicated_cells"] = dropped
 
     return adata
 
@@ -227,7 +233,7 @@ def drop_invariant(adata, axis=0, verbose=False):
         # apply mask
         adata = adata[:, ~mask].copy()
 
-        adata.uns['invariant_feats'] = dropped
+        adata.uns["invariant_feats"] = dropped
 
     elif axis == 1:
         comp = adata.X[:, 0]
@@ -240,6 +246,6 @@ def drop_invariant(adata, axis=0, verbose=False):
         # apply mask
         adata = adata[~mask, :].copy()
 
-        adata.uns['invariant_cells'] = dropped
+        adata.uns["invariant_cells"] = dropped
 
     return adata

@@ -1,12 +1,7 @@
 # internal libraries
-import warnings
 import logging
-from morphelia.preprocessing.basic import drop_nan
 
 # external libraries
-import statsmodels.formula.api as smf
-from tqdm import tqdm
-import numpy as np
 from sklearn.feature_selection import RFE
 from sklearn.svm import SVC
 
@@ -17,16 +12,18 @@ logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
 
-def svm_rfe(adata,
-            treat_var='Metadata_Treatment',
-            kernel='linear',
-            C=1,
-            subsample=False,
-            sample_size=1000,
-            seed=0,
-            drop=True,
-            verbose=False,
-            **kwargs):
+def svm_rfe(
+    adata,
+    treat_var="Metadata_Treatment",
+    kernel="linear",
+    C=1,
+    subsample=False,
+    sample_size=1000,
+    seed=0,
+    drop=True,
+    verbose=False,
+    **kwargs,
+):
     """
     Support-vector-machine-based recursive-feature elimination.
 
@@ -55,9 +52,7 @@ def svm_rfe(adata,
     """
     # get subsample
     if subsample:
-        adata_ss = get_subsample(adata,
-                                 sample_size=sample_size,
-                                 seed=seed)
+        adata_ss = get_subsample(adata, sample_size=sample_size, seed=seed)
     else:
         adata_ss = adata.copy()
 
@@ -79,11 +74,13 @@ def svm_rfe(adata,
 
     if drop:
         adata = adata[:, mask].copy()
-        adata.uns['svm_rfe_feats'] = drop_feats
+        adata.uns["svm_rfe_feats"] = drop_feats
     else:
-        adata.var['svm_rfe_feats'] = ~mask
+        adata.var["svm_rfe_feats"] = ~mask
 
     if verbose:
-        logger.info(f"Dropped {len(drop_feats)} with low weights from SVC: {drop_feats}")
+        logger.info(
+            f"Dropped {len(drop_feats)} with low weights from SVC: {drop_feats}"
+        )
 
     return adata

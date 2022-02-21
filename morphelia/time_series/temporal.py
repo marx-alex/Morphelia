@@ -4,15 +4,26 @@ import os
 
 # import external libraries
 import numpy as np
-import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import anndata as ad
 
 
-def temporal_reduction(md, trace_var="Metadata_Trace_Parent", time_var="Metadata_Time",
-                       show=None, vmin=0, vmax=50, save=None,
-                       meta_vars=("BatchNumber", "PlateNumber", "Metadata_Well", "Metadata_Field")):
+def temporal_reduction(
+    md,
+    trace_var="Metadata_Trace_Parent",
+    time_var="Metadata_Time",
+    show=None,
+    vmin=0,
+    vmax=50,
+    save=None,
+    meta_vars=(
+        "BatchNumber",
+        "PlateNumber",
+        "Metadata_Well",
+        "Metadata_Field",
+    ),
+):
     """Takes an AnnData object with data from different time points
     and a variable that indicates the links between objects over time.
 
@@ -32,8 +43,10 @@ def temporal_reduction(md, trace_var="Metadata_Trace_Parent", time_var="Metadata
     """
     # check that time_var and trace_var are in anndata object
     if not all(var in md.obs.columns for var in [time_var, trace_var]):
-        raise KeyError(f"Assert that variables for time and trace ids are also in"
-                       f" AnnData annotations: {time_var}, {trace_var}")
+        raise KeyError(
+            f"Assert that variables for time and trace ids are also in"
+            f" AnnData annotations: {time_var}, {trace_var}"
+        )
 
     # get list of time points
     tp = md.obs[time_var].unique().tolist()
@@ -44,8 +57,10 @@ def temporal_reduction(md, trace_var="Metadata_Trace_Parent", time_var="Metadata
     # cache information about object to show
     if show is not None:
         if not isinstance(show, int):
-            raise TypeError("Index of a single object is needed to show variables."
-                            f"Type must be integer: {type(show)}")
+            raise TypeError(
+                "Index of a single object is needed to show variables."
+                f"Type must be integer: {type(show)}"
+            )
         show_ix = trace_ix[show]
         show_info = md.obs.loc[show_ix, list(meta_vars)].to_dict()
 
@@ -59,7 +74,9 @@ def temporal_reduction(md, trace_var="Metadata_Trace_Parent", time_var="Metadata
     # convert indices to int
     trace_ix = trace_ix.astype(int)
     # get a temporal restructured X
-    T = np.take(md.X, trace_ix, axis=0)  # three-dimensional np.array (objects x time points x variables)
+    T = np.take(
+        md.X, trace_ix, axis=0
+    )  # three-dimensional np.array (objects x time points x variables)
     # store time points as array
     tp = np.asarray(tp)
 
@@ -69,8 +86,12 @@ def temporal_reduction(md, trace_var="Metadata_Trace_Parent", time_var="Metadata
 
     # show chart with variables of a single object
     if show is not None:
-        fig, axes = _show_time_series(T[show, :, vmin:vmax], tp, show_info, var_names=list(
-            md.var.index)[vmin:vmax])
+        fig, axes = _show_time_series(
+            T[show, :, vmin:vmax],
+            tp,
+            show_info,
+            var_names=list(md.var.index)[vmin:vmax],
+        )
 
         # save if save is not None
         if save is not None:
@@ -86,8 +107,9 @@ def temporal_reduction(md, trace_var="Metadata_Trace_Parent", time_var="Metadata
     auc = np.trapz(T, tp, axis=1)
 
     # estimate the slope with least squares regression
-    slope = ((tp[np.newaxis, :, np.newaxis] * T).mean(axis=1) - tp.mean() * T.mean(axis=1)) / (
-            (tp ** 2).mean() - (tp.mean()) ** 2)
+    slope = (
+        (tp[np.newaxis, :, np.newaxis] * T).mean(axis=1) - tp.mean() * T.mean(axis=1)
+    ) / ((tp ** 2).mean() - (tp.mean()) ** 2)
 
     # create new anndata object
     new_ad = ad.AnnData(X=np.multiply(auc, slope), obs=last_trace, var=md.var)
@@ -115,15 +137,11 @@ def _show_time_series(X, time_points, show_info, var_names):
     sns.set()
 
     # plot multiple charts for every variable
-    fig, axes = plt.subplots(rows, cols, figsize=(20, rows*2))
+    fig, axes = plt.subplots(rows, cols, figsize=(20, rows * 2))
     fig.suptitle(f"{', '.join([f'{val}: {key}' for val, key in show_info.items()])}")
 
     # set options for plotting
-    options = {
-        "alpha": 0.9,
-        "linewidth": 1.9,
-        "color": 'firebrick'
-    }
+    options = {"alpha": 0.9, "linewidth": 1.9, "color": "firebrick"}
 
     # iterate over variables
     for row in range(rows):
@@ -157,5 +175,3 @@ def _show_time_series(X, time_points, show_info, var_names):
 #     axes1.set_xlabel("Time")
 #
 #     return None
-
-

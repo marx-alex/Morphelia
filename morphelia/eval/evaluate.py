@@ -4,14 +4,16 @@ from morphelia.eval import dist_matrix
 from scipy.stats import norm
 
 
-def repro_effect(adata,
-                 group_var="Metadata_Treatment",
-                 other_group_vars=None,
-                 method='pearson',
-                 control_id='ctrl',
-                 use_rep=None,
-                 n_pcs=50,
-                 return_scores=False):
+def repro_effect(
+    adata,
+    group_var="Metadata_Treatment",
+    other_group_vars=None,
+    method="pearson",
+    control_id="ctrl",
+    use_rep=None,
+    n_pcs=50,
+    return_scores=False,
+):
     """Compute reproducibility and effect metric for every condition described with group_var
     and other_group_vars.
     Reproducibility is a measure for the within-similarity of certain conditions.
@@ -38,56 +40,71 @@ def repro_effect(adata,
             Only if return_scores is True.
     """
     # check method
-    avail_methods = ['pearson', 'spearman', 'kendall', 'euclidean', 'mahalanobis']
+    avail_methods = [
+        "pearson",
+        "spearman",
+        "kendall",
+        "euclidean",
+        "mahalanobis",
+    ]
     method = method.lower()
-    assert method in avail_methods, f"method should be in {avail_methods}, " \
-                                    f"instead got {method}"
+    assert method in avail_methods, (
+        f"method should be in {avail_methods}, " f"instead got {method}"
+    )
 
     # calculate correlation matrix
-    corr_df = dist_matrix(adata,
-                          method=method,
-                          group_var=group_var,
-                          other_group_vars=other_group_vars,
-                          use_rep=use_rep,
-                          n_pcs=n_pcs,
-                          show=False)
+    corr_df = dist_matrix(
+        adata,
+        method=method,
+        group_var=group_var,
+        other_group_vars=other_group_vars,
+        use_rep=use_rep,
+        n_pcs=n_pcs,
+        show=False,
+    )
 
     # calculate reproducibility and effect
-    repro_df = reproducibility(adata,
-                               group_var=group_var,
-                               other_group_vars=other_group_vars,
-                               method=method,
-                               sim_matrix=corr_df,
-                               return_scores=True)
+    repro_df = reproducibility(
+        adata,
+        group_var=group_var,
+        other_group_vars=other_group_vars,
+        method=method,
+        sim_matrix=corr_df,
+        return_scores=True,
+    )
 
-    effect_df = effect(adata,
-                       group_var=group_var,
-                       other_group_vars=other_group_vars,
-                       method=method,
-                       control_id=control_id,
-                       sim_matrix=corr_df,
-                       return_scores=True)
+    effect_df = effect(
+        adata,
+        group_var=group_var,
+        other_group_vars=other_group_vars,
+        method=method,
+        control_id=control_id,
+        sim_matrix=corr_df,
+        return_scores=True,
+    )
 
     if return_scores:
         return repro_df, effect_df
 
     # update unstructured data
-    if 'eval' not in adata.uns:
-        adata.uns['eval'] = {}
-    adata.uns['eval']['repro'] = {'percentiles': repro_df, 'method': method}
-    adata.uns['eval']['effect'] = {'percentiles': effect_df, 'method': method}
+    if "eval" not in adata.uns:
+        adata.uns["eval"] = {}
+    adata.uns["eval"]["repro"] = {"percentiles": repro_df, "method": method}
+    adata.uns["eval"]["effect"] = {"percentiles": effect_df, "method": method}
 
     return adata
 
 
-def reproducibility(adata,
-                    group_var='Metadata_Treatment',
-                    other_group_vars=None,
-                    method='pearson',
-                    use_rep=None,
-                    n_pcs=50,
-                    sim_matrix=None,
-                    return_scores=False):
+def reproducibility(
+    adata,
+    group_var="Metadata_Treatment",
+    other_group_vars=None,
+    method="pearson",
+    use_rep=None,
+    n_pcs=50,
+    sim_matrix=None,
+    return_scores=False,
+):
     """Computes reproducibility metric for wells with certain treatments and doses for
     different plates and batches.
     First, statistics for a null distribution with wells that should not have a high similarity
@@ -116,39 +133,58 @@ def reproducibility(adata,
     if other_group_vars is not None:
         if isinstance(other_group_vars, str):
             other_group_vars = [other_group_vars]
-        assert isinstance(other_group_vars, list), "Expected type for other_group_vars is string or list, " \
-                                                   f"instead got {type(other_group_vars)}"
-        assert all(var in adata.obs.columns for var in other_group_vars), f"other_group_vars not in " \
-                                                                          f"observations: {other_group_vars}"
+        assert isinstance(other_group_vars, list), (
+            "Expected type for other_group_vars is string or list, "
+            f"instead got {type(other_group_vars)}"
+        )
+        assert all(var in adata.obs.columns for var in other_group_vars), (
+            f"other_group_vars not in " f"observations: {other_group_vars}"
+        )
 
     # every treatment/dose pair should have at least one biological replicate
     if other_group_vars is None:
-        assert len(adata.obs[group_var]) != len(adata.obs[group_var].unique()), "Found no biological " \
-                                                                              f"replicates for {group_var}"
+        assert len(adata.obs[group_var]) != len(adata.obs[group_var].unique()), (
+            "Found no biological " f"replicates for {group_var}"
+        )
     else:
         other_group_vars_lst = adata.obs[other_group_vars].values.tolist()
-        all_group_vars = [(gv,) + tuple(ogv) for gv, ogv in zip(adata.obs[group_var], other_group_vars_lst)]
-        assert len(all_group_vars) != len(set(all_group_vars)), "Found no biological " \
-                                                                f"replicates for {group_var} and {other_group_vars}"
+        all_group_vars = [
+            (gv,) + tuple(ogv)
+            for gv, ogv in zip(adata.obs[group_var], other_group_vars_lst)
+        ]
+        assert len(all_group_vars) != len(set(all_group_vars)), (
+            "Found no biological " f"replicates for {group_var} and {other_group_vars}"
+        )
 
     # check method
-    avail_methods = ['pearson', 'spearman', 'kendall', 'euclidean', 'mahalanobis']
+    avail_methods = [
+        "pearson",
+        "spearman",
+        "kendall",
+        "euclidean",
+        "mahalanobis",
+    ]
     method = method.lower()
-    assert method in avail_methods, f"method should be in {avail_methods}, " \
-                                    f"instead got {method}"
+    assert method in avail_methods, (
+        f"method should be in {avail_methods}, " f"instead got {method}"
+    )
 
     # calculate correlation matrix
     if sim_matrix is None:
-        corr_df = dist_matrix(adata,
-                              method=method,
-                              group_var=group_var,
-                              other_group_vars=other_group_vars,
-                              use_rep=use_rep,
-                              n_pcs=n_pcs,
-                              show=False)
+        corr_df = dist_matrix(
+            adata,
+            method=method,
+            group_var=group_var,
+            other_group_vars=other_group_vars,
+            use_rep=use_rep,
+            n_pcs=n_pcs,
+            show=False,
+        )
     else:
-        assert isinstance(sim_matrix, pd.DataFrame), f"sim_matrix expected to be type(pandas.DataFrame), " \
-                                                     f"instead got {type(sim_matrix)}"
+        assert isinstance(sim_matrix, pd.DataFrame), (
+            f"sim_matrix expected to be type(pandas.DataFrame), "
+            f"instead got {type(sim_matrix)}"
+        )
         corr_df = sim_matrix
 
     # get upper triangular matrix
@@ -165,7 +201,7 @@ def reproducibility(adata,
 
     # get mean similarity for every group
     repro_df = corr_tri_df.groupby(groups).apply(lambda x: np.nanmean(x[x.name]))
-    repro_df.rename('reproducibility', inplace=True)
+    repro_df.rename("reproducibility", inplace=True)
 
     null_dist_df = corr_tri_df.groupby(groups).apply(lambda x: _erase_vals(x, x.name))
 
@@ -178,12 +214,13 @@ def reproducibility(adata,
     ################
     import matplotlib.pyplot as plt
     import seaborn as sns
+
     n = null_dist_df.to_numpy().flatten()
     n = n[~np.isnan(n)]
     e = repro_df.to_numpy().flatten()
     e = e[~np.isnan(e)]
     n = np.random.choice(n, size=len(e), replace=False)
-    data = pd.DataFrame({'null dist': n, 'repro dist': e})
+    data = pd.DataFrame({"null dist": n, "repro dist": e})
     # bins = np.linspace(-1, 1, 50)
     fig, axs = plt.subplots()
     sns.histplot(data=data, ax=axs)
@@ -202,22 +239,24 @@ def reproducibility(adata,
         return repro_df
 
     # update unstructured data
-    if 'eval' not in adata.uns:
-        adata.uns['eval'] = {}
-    adata.uns['eval']['repro'] = {'percentiles': repro_df, 'method': method}
+    if "eval" not in adata.uns:
+        adata.uns["eval"] = {}
+    adata.uns["eval"]["repro"] = {"percentiles": repro_df, "method": method}
 
     return adata
 
 
-def effect(adata,
-           group_var='Metadata_Treatment',
-           other_group_vars=None,
-           control_id='ctrl',
-           method='pearson',
-           use_rep=None,
-           n_pcs=50,
-           sim_matrix=None,
-           return_scores=False):
+def effect(
+    adata,
+    group_var="Metadata_Treatment",
+    other_group_vars=None,
+    control_id="ctrl",
+    method="pearson",
+    use_rep=None,
+    n_pcs=50,
+    sim_matrix=None,
+    return_scores=False,
+):
     """Computes effect metric for wells with certain treatments and doses for
     different plates and batches.
     First, statistics for a null distribution with similarities/distances between control wells are calculated.
@@ -248,31 +287,47 @@ def effect(adata,
     if other_group_vars is not None:
         if isinstance(other_group_vars, str):
             other_group_vars = [other_group_vars]
-        assert isinstance(other_group_vars, list), "Expected type for other_group_vars is string or list, " \
-                                                   f"instead got {type(other_group_vars)}"
-        assert all(var in adata.obs.columns for var in other_group_vars), f"other_group_vars not in " \
-                                                                          f"observations: {other_group_vars}"
+        assert isinstance(other_group_vars, list), (
+            "Expected type for other_group_vars is string or list, "
+            f"instead got {type(other_group_vars)}"
+        )
+        assert all(var in adata.obs.columns for var in other_group_vars), (
+            f"other_group_vars not in " f"observations: {other_group_vars}"
+        )
 
-    assert control_id in adata.obs[group_var].tolist(), f"control_id not in {group_var}: {control_id}"
+    assert (
+        control_id in adata.obs[group_var].tolist()
+    ), f"control_id not in {group_var}: {control_id}"
 
     # check method
-    avail_methods = ['pearson', 'spearman', 'kendall', 'euclidean', 'mahalanobis']
+    avail_methods = [
+        "pearson",
+        "spearman",
+        "kendall",
+        "euclidean",
+        "mahalanobis",
+    ]
     method = method.lower()
-    assert method in avail_methods, f"method should be in {avail_methods}, " \
-                                    f"instead got {method}"
+    assert method in avail_methods, (
+        f"method should be in {avail_methods}, " f"instead got {method}"
+    )
 
     # calculate correlation matrix
     if sim_matrix is None:
-        corr_df = dist_matrix(adata,
-                              method=method,
-                              group_var=group_var,
-                              other_group_vars=other_group_vars,
-                              use_rep=use_rep,
-                              n_pcs=n_pcs,
-                              show=False)
+        corr_df = dist_matrix(
+            adata,
+            method=method,
+            group_var=group_var,
+            other_group_vars=other_group_vars,
+            use_rep=use_rep,
+            n_pcs=n_pcs,
+            show=False,
+        )
     else:
-        assert isinstance(sim_matrix, pd.DataFrame), f"sim_matrix expected to be type(pandas.DataFrame), " \
-                                                     f"instead got {type(sim_matrix)}"
+        assert isinstance(sim_matrix, pd.DataFrame), (
+            f"sim_matrix expected to be type(pandas.DataFrame), "
+            f"instead got {type(sim_matrix)}"
+        )
         corr_df = sim_matrix
 
     # get upper triangular matrix
@@ -285,7 +340,7 @@ def effect(adata,
 
     effect_df = corr_tri_df.groupby(groups).apply(lambda x: np.nanmean(x[control_id]))
     effect_df = effect_df.drop(labels=control_id, axis=0)
-    effect_df.rename('effect', inplace=True)
+    effect_df.rename("effect", inplace=True)
 
     # get null distribution
     null_dist_df = corr_tri_df.loc[control_id, control_id]
@@ -311,17 +366,18 @@ def effect(adata,
     ################
     import matplotlib.pyplot as plt
     import seaborn as sns
+
     n = null_dist_df.to_numpy().flatten()
     n = n[~np.isnan(n)]
     e = effect_df.to_numpy().flatten()
     e = e[~np.isnan(e)]
     n = np.random.choice(n, size=len(e), replace=False)
-    data = pd.DataFrame({'null dist': n, 'effect dist': e})
+    data = pd.DataFrame({"null dist": n, "effect dist": e})
     # bins = np.linspace(-1, 1, 50)
     fig, axs = plt.subplots()
     sns.histplot(data=data, ax=axs)
     axs.set_xlabel("euclidean distance")
-    axs.set_title('Effect')
+    axs.set_title("Effect")
     # axs.hist([n, e], bins=30, alpha=0.5, label=['null dist', 'effect dist'], edgecolor=None)
     # plt.legend()
     # axs.hist(e, bins=100, alpha=0.5)
@@ -335,22 +391,24 @@ def effect(adata,
         return effect_df
 
     # update unstructured data
-    if 'eval' not in adata.uns:
-        adata.uns['eval'] = {}
-    adata.uns['eval']['effect'] = {'percentiles': effect_df, 'method': method}
+    if "eval" not in adata.uns:
+        adata.uns["eval"] = {}
+    adata.uns["eval"]["effect"] = {"percentiles": effect_df, "method": method}
 
     return adata
 
 
-def select_concentration(adata,
-                         treat_var='Metadata_Treatment',
-                         conc_var='Metadata_Concentration',
-                         control_id='ctrl',
-                         method='pearson',
-                         use_rep=None,
-                         n_pcs=50,
-                         return_scores=False,
-                         select=True):
+def select_concentration(
+    adata,
+    treat_var="Metadata_Treatment",
+    conc_var="Metadata_Concentration",
+    control_id="ctrl",
+    method="pearson",
+    use_rep=None,
+    n_pcs=50,
+    return_scores=False,
+    select=True,
+):
     """Select concentration with best effect.
 
     Args:
@@ -371,31 +429,46 @@ def select_concentration(adata,
     """
     assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"
     assert conc_var in adata.obs.columns, f"conc_var not in .obs: {conc_var}"
-    assert control_id in adata.obs[treat_var].tolist(), f"control_id not in .obs[{treat_var}]: {control_id}"
+    assert (
+        control_id in adata.obs[treat_var].tolist()
+    ), f"control_id not in .obs[{treat_var}]: {control_id}"
 
     # check method
-    avail_methods = ['pearson', 'spearman', 'kendall', 'euclidean', 'mahalanobis']
+    avail_methods = [
+        "pearson",
+        "spearman",
+        "kendall",
+        "euclidean",
+        "mahalanobis",
+    ]
     method = method.lower()
-    assert method in avail_methods, f"method should be in {avail_methods}, " \
-                                    f"instead got {method}"
+    assert method in avail_methods, (
+        f"method should be in {avail_methods}, " f"instead got {method}"
+    )
 
-    effect_df = effect(adata,
-                       group_var=treat_var,
-                       other_group_vars=[conc_var],
-                       control_id=control_id,
-                       method=method,
-                       use_rep=use_rep,
-                       n_pcs=n_pcs,
-                       return_scores=True)
+    effect_df = effect(
+        adata,
+        group_var=treat_var,
+        other_group_vars=[conc_var],
+        control_id=control_id,
+        method=method,
+        use_rep=use_rep,
+        n_pcs=n_pcs,
+        return_scores=True,
+    )
 
     # select concentrations with highest effect
     effect_df = effect_df.reset_index()
-    max_conc = effect_df.groupby(treat_var).apply(lambda x: x.iloc[x['effect'].argmax(), :]).reset_index(drop=True)
+    max_conc = (
+        effect_df.groupby(treat_var)
+        .apply(lambda x: x.iloc[x["effect"].argmax(), :])
+        .reset_index(drop=True)
+    )
 
     # update unstructured data
-    if 'eval' not in adata.uns:
-        adata.uns['eval'] = {}
-    adata.uns['eval']['concentration'] = max_conc
+    if "eval" not in adata.uns:
+        adata.uns["eval"] = {}
+    adata.uns["eval"]["concentration"] = max_conc
 
     if return_scores:
         return max_conc
@@ -403,14 +476,14 @@ def select_concentration(adata,
     if select:
         selected_adatas = []
         for ix, row in max_conc.iterrows():
-            sel = adata[(adata.obs[treat_var] == row[treat_var]) & (adata.obs[conc_var] == row[conc_var]), :]
+            sel = adata[
+                (adata.obs[treat_var] == row[treat_var])
+                & (adata.obs[conc_var] == row[conc_var]),
+                :,
+            ]
             selected_adatas.append(sel)
         ctrl_adata = adata[adata.obs[treat_var] == control_id, :]
         selected_adatas.append(ctrl_adata)
         adata = selected_adatas[0].concatenate(selected_adatas[1:])
 
     return adata
-
-
-
-

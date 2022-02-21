@@ -4,16 +4,18 @@ from morphelia.preprocessing import drop_nan as drop_nan_feats
 from morphelia.features import drop_outlier as drop_outl
 
 
-def normalize(adata,
-              by=("BatchNumber", "PlateNumber"),
-              method="standard",
-              pop_var="Metadata_Treatment",
-              norm_pop=None,
-              drop_outlier=False,
-              outlier_thresh=3,
-              drop_nan=True,
-              verbose=False,
-              **kwargs):
+def normalize(
+    adata,
+    by=("BatchNumber", "PlateNumber"),
+    method="standard",
+    pop_var="Metadata_Treatment",
+    norm_pop=None,
+    drop_outlier=False,
+    outlier_thresh=3,
+    drop_nan=True,
+    verbose=False,
+    **kwargs,
+):
     """
     Normalizes features of an experiment with one ore more batches and
     one or more plates.
@@ -47,8 +49,8 @@ def normalize(adata,
         elif isinstance(by, tuple):
             by = list(by)
 
-        assert (
-            all(var in adata.obs.columns for var in by)
+        assert all(
+            var in adata.obs.columns for var in by
         ), f"Variables defined in 'by' are not in annotations: {by}"
 
     if norm_pop is not None:
@@ -59,9 +61,10 @@ def normalize(adata,
     # define scaler
     method = method.lower()
 
-    avail_methods = ['standard', 'robust', 'mad_robust', 'min_max']
-    assert method in avail_methods, f"Method must be one of {avail_methods}, " \
-                                    f"instead got {method}"
+    avail_methods = ["standard", "robust", "mad_robust", "min_max"]
+    assert method in avail_methods, (
+        f"Method must be one of {avail_methods}, " f"instead got {method}"
+    )
 
     scaler = None
     if method == "standard":
@@ -92,7 +95,9 @@ def normalize(adata,
         adata.X = scaler.transform(adata.X.copy())
 
     if drop_outlier:
-        assert (outlier_thresh > 0), f'Value for outlier_thresh should be above 0, instead got {outlier_thresh}'
+        assert (
+            outlier_thresh > 0
+        ), f"Value for outlier_thresh should be above 0, instead got {outlier_thresh}"
         adata = drop_outl(adata, thresh=outlier_thresh, axis=1, verbose=verbose)
 
     if drop_nan:

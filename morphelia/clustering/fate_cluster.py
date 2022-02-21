@@ -9,15 +9,18 @@ class FateCluster:
     """
     Find clusters in a fate map by one directional random walks.
     """
-    def __init__(self,
-                 n_neighbors: int = 10,
-                 neighbor_params: dict = None,
-                 n_iter: int = 100,
-                 centroid: np.array = None,
-                 centroid_method: str = 'median',
-                 centroid_fun_params: dict = None,
-                 random_state: int = None,
-                 verbose=False):
+
+    def __init__(
+        self,
+        n_neighbors: int = 10,
+        neighbor_params: dict = None,
+        n_iter: int = 100,
+        centroid: np.array = None,
+        centroid_method: str = "median",
+        centroid_fun_params: dict = None,
+        random_state: int = None,
+        verbose=False,
+    ):
         self.n_neighbors = n_neighbors
         if neighbor_params is None:
             neighbor_params = {}
@@ -27,37 +30,45 @@ class FateCluster:
 
         self.centroid = centroid
 
-        avail_centroid_methods = ['mean', 'median']
+        avail_centroid_methods = ["mean", "median"]
         centroid_method = centroid_method.lower()
-        if centroid_method == 'mean':
+        if centroid_method == "mean":
             self.centroid_fun = np.nanmean
-            self.centroid_fun_params = {'axis': 0}
-        elif centroid_method == 'median':
+            self.centroid_fun_params = {"axis": 0}
+        elif centroid_method == "median":
             self.centroid_fun = np.nanmedian
-            self.centroid_fun_params = {'axis': 0}
+            self.centroid_fun_params = {"axis": 0}
         elif callable(centroid_method) or centroid_method is None:
             self.centroid_fun = centroid_method
             if centroid_fun_params is None:
                 centroid_fun_params = {}
             self.centroid_fun_params = centroid_fun_params
         else:
-            raise ValueError(f'centroid_method must be one of {avail_centroid_methods} or callable, '
-                             f'instead got {centroid_method}')
+            raise ValueError(
+                f"centroid_method must be one of {avail_centroid_methods} or callable, "
+                f"instead got {centroid_method}"
+            )
 
         self.n_fates = None
         self.terminal_cells = None
         self.fate_prob = None
         self.classes = None
-        
+
         np.random.seed(random_state)
 
     @property
     def result(self):
         unique, counts = np.unique(self.classes, return_counts=True)
-        return pd.DataFrame({'tc_index': self.terminal_cells, 'label': unique, 'counts': counts})
+        return pd.DataFrame(
+            {
+                "tc_index": self.terminal_cells,
+                "label": unique,
+                "counts": counts,
+            }
+        )
 
     def fit(self, X):
-        
+
         # find centroid
         if self.centroid is not None:
             centroid = self.centroid
@@ -96,7 +107,9 @@ class FateCluster:
                 n_next_points = len(next_points_ix)
                 if n_next_points > 0:
                     # choose a random point
-                    next_point_ix = int(next_points_ix[int(np.random.choice(n_next_points, 1))])
+                    next_point_ix = int(
+                        next_points_ix[int(np.random.choice(n_next_points, 1))]
+                    )
                     poi_ix = int(nbs[next_point_ix])
                     # store footprint and update poi
                     footprint[poi_ix, :] += 1
@@ -105,7 +118,9 @@ class FateCluster:
 
                 else:
                     # if no point is further away, a terminal cell is reached
-                    assert poi_ix is not None, "something wrong with X, probably not enough samples"
+                    assert (
+                        poi_ix is not None
+                    ), "something wrong with X, probably not enough samples"
                     if poi_ix not in terminal_cells:
                         terminal_cells.append(poi_ix)
                         if fate_count is None:
@@ -119,7 +134,9 @@ class FateCluster:
 
                     break
 
-        assert fate_count is not None, "can not compute fate probability, n_iter should be at least 1"
+        assert (
+            fate_count is not None
+        ), "can not compute fate probability, n_iter should be at least 1"
         fc_row_sum = fate_count.sum(axis=1)
         fate_prob = fate_count / fc_row_sum[:, np.newaxis]
 

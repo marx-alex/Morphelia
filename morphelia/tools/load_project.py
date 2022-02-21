@@ -8,26 +8,27 @@ import warnings
 import pandas as pd
 import anndata as ad
 
-__all__ = ["MorphData",
-           "LoadPlate"]
+__all__ = ["MorphData", "LoadPlate"]
 
 
 class LoadPlate:
-    def __init__(self, path,
-                 filenames=("Cells", "Primarieswithoutborder", "Cytoplasm"),
-                 obj_sfx=".csv",
-                 merge_method='object',
-                 obj_well_var="Metadata_Well",
-                 meta_var="Metadata",
-                 image_var="ImageNumber",
-                 obj_var="ObjectNumber",
-                 obj_delimiter=",",
-                 treat_file=None,
-                 treat_well_var="well",
-                 treat_sfx=".csv",
-                 treat_delimiter=",",
-                 observation_ids='cp'
-                 ):
+    def __init__(
+        self,
+        path,
+        filenames=("Cells", "Primarieswithoutborder", "Cytoplasm"),
+        obj_sfx=".csv",
+        merge_method="object",
+        obj_well_var="Metadata_Well",
+        meta_var="Metadata",
+        image_var="ImageNumber",
+        obj_var="ObjectNumber",
+        obj_delimiter=",",
+        treat_file=None,
+        treat_well_var="well",
+        treat_sfx=".csv",
+        treat_delimiter=",",
+        observation_ids="cp",
+    ):
         self.path = pathlib.Path(path)
 
         if isinstance(filenames, str):
@@ -35,12 +36,12 @@ class LoadPlate:
         self.filenames = filenames
         self.obj_sfx = obj_sfx
 
-        avail_merge_methods = ['relation', 'object']
+        avail_merge_methods = ["relation", "object"]
         merge_method = merge_method.lower()
-        assert (
-                merge_method in avail_merge_methods
-        ), f"merge_method must be one of {avail_merge_methods}, " \
-           f"instead got {merge_method}"
+        assert merge_method in avail_merge_methods, (
+            f"merge_method must be one of {avail_merge_methods}, "
+            f"instead got {merge_method}"
+        )
         self.merge_method = merge_method
 
         self.obj_well_var = obj_well_var
@@ -56,50 +57,62 @@ class LoadPlate:
         self.plate = None
 
         self.observation_ids = []
-        if observation_ids == 'cp':
-            self.observation_ids = ['ImageNumber',
-                                    'ObjectNumber',
-                                    'Metadata',
-                                    'Location',
-                                    'Parent']
+        if observation_ids == "cp":
+            self.observation_ids = [
+                "ImageNumber",
+                "ObjectNumber",
+                "Metadata",
+                "Location",
+                "Parent",
+            ]
         elif isinstance(observation_ids, list):
             self.observation_ids = observation_ids
 
     def load(self):
-        """Merge and load objects from a single plate.
-        """
+        """Merge and load objects from a single plate."""
         dfs = {}
-        parent_graph = {}   # if method is relation
+        parent_graph = {}  # if method is relation
 
         for file in self.filenames:
-            _df = pd.read_csv(self.path.joinpath(file).with_suffix(self.obj_sfx), sep=self.obj_delimiter)
-            assert (
-                all(col in list(_df.columns) for col in self.merge_vars)
+            _df = pd.read_csv(
+                self.path.joinpath(file).with_suffix(self.obj_sfx),
+                sep=self.obj_delimiter,
+            )
+            assert all(
+                col in list(_df.columns) for col in self.merge_vars
             ), f"Variables needed for merging must be in all files: {self.merge_vars}"
 
-            new_cols = {col: "_".join([file, col]) for col in _df.columns
-                        if (col not in self.merge_vars)
-                        and (self.meta_var not in col)}
+            new_cols = {
+                col: "_".join([file, col])
+                for col in _df.columns
+                if (col not in self.merge_vars) and (self.meta_var not in col)
+            }
             _df = _df.rename(columns=new_cols)
             dfs[file] = _df
 
             # cache parents
-            parents = [col.split("_")[2] for col in _df.columns if "parent" in col.lower()]
+            parents = [
+                col.split("_")[2] for col in _df.columns if "parent" in col.lower()
+            ]
             parent_graph[file] = parents
 
-        if self.merge_method == 'relation':
+        if self.merge_method == "relation":
             plate_df = self.relational_merge(dfs, parent_graph)
 
-        elif self.merge_method == 'object':
+        elif self.merge_method == "object":
             plate_df = None
             for obj in self.filenames:
                 if plate_df is not None:
-                    meta_cols = [col for col in dfs[obj].columns if
-                                 (self.meta_var in col) and (col not in self.merge_vars)]
+                    meta_cols = [
+                        col
+                        for col in dfs[obj].columns
+                        if (self.meta_var in col) and (col not in self.merge_vars)
+                    ]
                     plate_df = plate_df.merge(
                         dfs[obj].drop(meta_cols, axis=1),
                         left_on=list(self.merge_vars),
-                        right_on=list(self.merge_vars))
+                        right_on=list(self.merge_vars),
+                    )
                 else:
                     plate_df = dfs[obj]
         else:
@@ -112,29 +125,35 @@ class LoadPlate:
         self.plate = plate_df
         return plate_df
 
-    def add_annotation(self,
-                       plate_df):
-        treat = pd.read_csv(self.path.joinpath(self.treat_file).with_suffix(self.treat_sfx), sep=self.treat_delimiter)
+    def add_annotation(self, plate_df):
+        treat = pd.read_csv(
+            self.path.joinpath(self.treat_file).with_suffix(self.treat_sfx),
+            sep=self.treat_delimiter,
+        )
 
         treat[self.treat_well_var] = treat[self.treat_well_var].apply(standard_well)
 
         # rename columns of treatment dataframe
-        new_treat_cols = {value: ("_".join([self.meta_var, value]) if
-                                  value != self.treat_well_var else self.obj_well_var)
-                          for value in treat.columns}
+        new_treat_cols = {
+            value: (
+                "_".join([self.meta_var, value])
+                if value != self.treat_well_var
+                else self.obj_well_var
+            )
+            for value in treat.columns
+        }
         treat.rename(columns=new_treat_cols, inplace=True)
 
         # standardize well variable
         plate_df[self.obj_well_var] = plate_df[self.obj_well_var].apply(standard_well)
 
-        plate_df = plate_df.merge(treat,
-                                  left_on=[self.obj_well_var],
-                                  right_on=[self.obj_well_var])
+        plate_df = plate_df.merge(
+            treat, left_on=[self.obj_well_var], right_on=[self.obj_well_var]
+        )
 
         return plate_df
 
-    def relational_merge(self,
-                         df_dict, parent_graph):
+    def relational_merge(self, df_dict, parent_graph):
 
         # find best path through all nodes of parent_graph
         def graph_paths(graph, start_node, visited):
@@ -161,21 +180,25 @@ class LoadPlate:
         for obj in reversed(best_path):
             if plate_df is not None:
                 parent_obj = "_".join([obj, "Parent", parent])
-                meta_cols = [col for col in df_dict[obj].columns if (
-                        self.meta_var in col) and (col not in self.merge_vars)]
+                meta_cols = [
+                    col
+                    for col in df_dict[obj].columns
+                    if (self.meta_var in col) and (col not in self.merge_vars)
+                ]
                 plate_df = plate_df.merge(
-                    df_dict[obj].drop(meta_cols, axis=1).rename(
-                        columns={self.obj_var: "_".join([obj, self.obj_var])}),
+                    df_dict[obj]
+                    .drop(meta_cols, axis=1)
+                    .rename(columns={self.obj_var: "_".join([obj, self.obj_var])}),
                     left_on=list(self.merge_vars),
-                    right_on=[self.image_var, parent_obj, self.obj_well_var])
+                    right_on=[self.image_var, parent_obj, self.obj_well_var],
+                )
             else:
                 plate_df = df_dict[obj]
             parent = obj
 
         return plate_df
 
-    def to_anndata(self,
-                   observation_ids=None):
+    def to_anndata(self, observation_ids=None):
         """Create AnnData object from dataframe.
 
         Args:
@@ -190,13 +213,19 @@ class LoadPlate:
 
         assert isinstance(self.plate, pd.DataFrame), "No data loaded as DataFrame"
         assert len(self.observation_ids) > 0, "No observations found"
-        obs_cols = [col for col in self.plate.columns if
-                    any(matcher.lower() in col.lower() for matcher in self.observation_ids)]
+        obs_cols = [
+            col
+            for col in self.plate.columns
+            if any(matcher.lower() in col.lower() for matcher in self.observation_ids)
+        ]
         # variable annotation
         var = pd.DataFrame(index=self.plate.drop(obs_cols, axis=1).columns)
         # create AnnData object
-        adata = ad.AnnData(X=self.plate.drop(obs_cols, axis=1).to_numpy(),
-                           obs=self.plate[obs_cols], var=var)
+        adata = ad.AnnData(
+            X=self.plate.drop(obs_cols, axis=1).to_numpy(),
+            obs=self.plate[obs_cols],
+            var=var,
+        )
 
         self.plate = adata
         return adata
@@ -241,10 +270,20 @@ class MorphData(object):
 
     """
 
-    def __init__(self, morphome=None, tile_grid=(5, 5), tile_reading="horizontal",
-                 tile_var="Metadata_Field", add_tile_pos=False,
-                 trow_var="Metadata_TileRow", tcol_var="Metadata_TileCol",
-                 obj_delimiter=",", treat_delimiter=",", datadict=None, obs_ids=None):
+    def __init__(
+        self,
+        morphome=None,
+        tile_grid=(5, 5),
+        tile_reading="horizontal",
+        tile_var="Metadata_Field",
+        add_tile_pos=False,
+        trow_var="Metadata_TileRow",
+        tcol_var="Metadata_TileCol",
+        obj_delimiter=",",
+        treat_delimiter=",",
+        datadict=None,
+        obs_ids=None,
+    ):
         """
         Args:
             morphome (pandas.DataFrame): Cellprofiler output
@@ -265,20 +304,40 @@ class MorphData(object):
 
         # store identifiers for annotation columns
         if obs_ids is None:
-            self.obs_ids = ['Number', 'Center', 'Box', 'Parent', 'Child',
-                            'Euler', 'Count', 'Metadata', 'Location']
+            self.obs_ids = [
+                "Number",
+                "Center",
+                "Box",
+                "Parent",
+                "Child",
+                "Euler",
+                "Count",
+                "Metadata",
+                "Location",
+            ]
         else:
             self.obs_ids = obs_ids
 
         # dictionary of data files
         self.datadict = datadict
 
-    def from_csv(self, exp, treat_file=None, exp_well_var="Metadata_Well", treat_well_var="well",
-                 files=("Cells.csv", "Primarieswithoutborder.csv", "Cytoplasm.csv"),
-                 merge_method='relation',
-                 meta_var="Metadata", exp_image_var="ImageNumber", exp_obj_var="ObjectNumber",
-                 obj_delimiter=",", treat_delimiter=",", to_disk=None, output=None,
-                 **kwargs):
+    def from_csv(
+        self,
+        exp,
+        treat_file=None,
+        exp_well_var="Metadata_Well",
+        treat_well_var="well",
+        files=("Cells.csv", "Primarieswithoutborder.csv", "Cytoplasm.csv"),
+        merge_method="relation",
+        meta_var="Metadata",
+        exp_image_var="ImageNumber",
+        exp_obj_var="ObjectNumber",
+        obj_delimiter=",",
+        treat_delimiter=",",
+        to_disk=None,
+        output=None,
+        **kwargs,
+    ):
         """Extracts phenotypic data per object from Cellprofiler Output 'Export to Spreadsheet'
         The output directory could look like the following:
 
@@ -328,23 +387,30 @@ class MorphData(object):
         # assert experiment path exists
         assert os.path.exists(pathlib.Path(exp)), f"Path {exp} does not exist"
         # assertion if data is saved directly
-        if to_disk in ['plate', 'batch']:
+        if to_disk in ["plate", "batch"]:
             assert output is not None, "Select output path if to_disk is True"
-            assert os.path.exists(pathlib.Path(output)), f"Path for output does not exist: {output}"
+            assert os.path.exists(
+                pathlib.Path(output)
+            ), f"Path for output does not exist: {output}"
         elif to_disk is not None:
-            raise ValueError(f"to_disk should be either 'plate', 'batch' or None: {to_disk}.")
+            raise ValueError(
+                f"to_disk should be either 'plate', 'batch' or None: {to_disk}."
+            )
         # create list of dictionaries
         # each dictionary represents one batch with one or more plates
         datadict = self._create_datadict(exp, files)
 
-        assert len(list(datadict.keys())) != 0, f"{files} not found in {exp} " \
-                                                f"or files are not .csv or .txt"
+        assert len(list(datadict.keys())) != 0, (
+            f"{files} not found in {exp} " f"or files are not .csv or .txt"
+        )
 
         # merging method
-        avail_merge_methods = ['relation', 'object_id']
+        avail_merge_methods = ["relation", "object_id"]
         merge_method = merge_method.lower()
-        assert merge_method in avail_merge_methods, f"merge_method must be one of {avail_merge_methods}, " \
-                                                    f"instead got {merge_method}"
+        assert merge_method in avail_merge_methods, (
+            f"merge_method must be one of {avail_merge_methods}, "
+            f"instead got {merge_method}"
+        )
 
         # create final dataframe
         morphome_list = []
@@ -354,7 +420,7 @@ class MorphData(object):
 
         # iterate over batches
         for batch_i, batch in enumerate(sorted(datadict.keys())):
-            print('Reading Morphome Data from CSV...')
+            print("Reading Morphome Data from CSV...")
             batchdata_list = []
             # iterate over plates
             for plate_i, plate_path in enumerate(sorted(datadict[batch].keys())):
@@ -365,35 +431,47 @@ class MorphData(object):
                 plate_dfs = {}
 
                 for file in datadict[batch][plate_path]:
-                    open_df = pd.read_csv(os.path.join(plate_path, file), sep=obj_delimiter)
+                    open_df = pd.read_csv(
+                        os.path.join(plate_path, file), sep=obj_delimiter
+                    )
 
                     # check if merge columns in dataframe
                     merge_vars = [exp_image_var, exp_obj_var, exp_well_var]
                     if not all(col in list(open_df.columns) for col in merge_vars):
                         plate_err = True
-                        warnings.warn(f"{merge_vars} not found in {os.path.join(plate_path, file)}")
+                        warnings.warn(
+                            f"{merge_vars} not found in {os.path.join(plate_path, file)}"
+                        )
                         break
                     # check if nan values in meta_vars
                     if open_df[merge_vars].isnull().values.any():
                         plate_err = True
-                        warnings.warn(f"Merge variables corrupt: {merge_vars} (NaN): {os.path.join(plate_path, file)}")
+                        warnings.warn(
+                            f"Merge variables corrupt: {merge_vars} (NaN): {os.path.join(plate_path, file)}"
+                        )
                         break
 
                     # make column names unique
-                    uid = file.split('.')[0]
+                    uid = file.split(".")[0]
                     if uid in parent_graph.keys():
                         plate_err = True
                         warnings.warn(f"File exists more than one time: {file}")
                         break
 
-                    new_cols = {col: "_".join([uid, col]) for col in open_df.columns
-                                if (col not in merge_vars)
-                                and (meta_var not in col)}
+                    new_cols = {
+                        col: "_".join([uid, col])
+                        for col in open_df.columns
+                        if (col not in merge_vars) and (meta_var not in col)
+                    }
                     open_df = open_df.rename(columns=new_cols)
                     plate_dfs[uid] = open_df
 
                     # cache parents
-                    parents = [col.split("_")[2] for col in open_df.columns if "parent" in col.lower()]
+                    parents = [
+                        col.split("_")[2]
+                        for col in open_df.columns
+                        if "parent" in col.lower()
+                    ]
                     parent_graph[uid] = parents
 
                 if plate_err:
@@ -414,7 +492,9 @@ class MorphData(object):
                 for obj in parent_graph.keys():
                     graph_paths(parent_graph, obj, [])
                 if len(path_list) == 0:
-                    warnings.warn(f"Files can not be merged: {files}, no common parents: {parent_graph}")
+                    warnings.warn(
+                        f"Files can not be merged: {files}, no common parents: {parent_graph}"
+                    )
                     missing_plates.append((plate_i, plate_path))
                     break
 
@@ -426,24 +506,33 @@ class MorphData(object):
                 for obj in reversed(best_path):
                     if plate_df is not None:
                         parent_obj = "_".join([obj, "Parent", parent])
-                        meta_cols = [col for col in plate_dfs[obj].columns if (meta_var in col) and (col not in merge_vars)]
+                        meta_cols = [
+                            col
+                            for col in plate_dfs[obj].columns
+                            if (meta_var in col) and (col not in merge_vars)
+                        ]
                         plate_df = plate_df.merge(
-                            plate_dfs[obj].drop(meta_cols, axis=1).rename(
-                                columns={exp_obj_var: "_".join([obj, exp_obj_var])}),
+                            plate_dfs[obj]
+                            .drop(meta_cols, axis=1)
+                            .rename(
+                                columns={exp_obj_var: "_".join([obj, exp_obj_var])}
+                            ),
                             left_on=list(merge_vars),
-                            right_on=[exp_image_var, parent_obj, exp_well_var])
+                            right_on=[exp_image_var, parent_obj, exp_well_var],
+                        )
                     else:
                         plate_df = plate_dfs[obj]
                     parent = obj
 
                 # add treatment file to plate_df
                 if treat_file is not None:
+
                     def stand_well(s):
                         """Standardize well names.
                         Name should be like E07 or E7.
                         """
-                        row = re.split("(\d+)", s)[0]
-                        col = str(int(re.split("(\d+)", s)[1]))
+                        row = re.split(r"(\d+)", s)[0]
+                        col = str(int(re.split(r"(\d+)", s)[1]))
                         return row + col
 
                     # read treatment
@@ -453,43 +542,49 @@ class MorphData(object):
                         missing_plates.append((plate_i, plate_path))
                         break
                     treat = pd.read_csv(treat_path, sep=treat_delimiter)
-                    try:
+                    if treat_well_var in treat.columns:
                         treat[treat_well_var] = treat[treat_well_var].apply(stand_well)
-                    except:
-                        warnings.warn(f"{treat_well_var} not in columns of treatment file {treat_file}: {treat.columns} "
-                                      f"Or variables for wells are corrupted.")
+                    else:
+                        warnings.warn(
+                            f"{treat_well_var} not in columns of treatment file {treat_file}: {treat.columns} "
+                            "Or variables for wells are corrupted."
+                        )
                         missing_plates.append((plate_i, plate_path))
                         break
 
                     # rename columns of treatment dataframe
-                    new_treat_cols = {value: ("_".join([meta_var, value]) if value != treat_well_var else exp_well_var)
-                                      for value in treat.columns}
+                    new_treat_cols = {
+                        value: (
+                            "_".join([meta_var, value])
+                            if value != treat_well_var
+                            else exp_well_var
+                        )
+                        for value in treat.columns
+                    }
                     treat.rename(columns=new_treat_cols, inplace=True)
 
                     # standardize well variable
                     plate_df[exp_well_var] = plate_df[exp_well_var].apply(stand_well)
-                    try:
-                        plate_df = plate_df.merge(treat, left_on=[exp_well_var],
-                                                  right_on=[exp_well_var])
-                    except:
-                        warnings.warn(f"Treatment file could not be merged on {treat_well_var}")
-                        missing_plates.append((plate_i, plate_path))
-                        break
+                    plate_df = plate_df.merge(
+                        treat,
+                        left_on=[exp_well_var],
+                        right_on=[exp_well_var],
+                    )
 
                 # insert information about plate number
                 plate_df.insert(loc=0, column="PlateNumber", value=(plate_i + 1))
                 # insert information about batch number
                 plate_df.insert(loc=0, column="BatchNumber", value=(batch_i + 1))
                 # concatenate batchdata_list
-                if to_disk != 'plate':
+                if to_disk != "plate":
                     batchdata_list.append(plate_df)
                 else:
                     name = f"morph_data_batch{batch_i + 1}_plate{plate_i + 1}.h5ad"
                     self.save_anndata(md=plate_df, output=output, name=name)
 
-            if to_disk != 'plate':
+            if to_disk != "plate":
                 batch_df = pd.concat(batchdata_list, ignore_index=True)
-                if to_disk != 'batch':
+                if to_disk != "batch":
                     morphome_list.append(batch_df)
                 else:
                     name = f"morph_data_batch{batch_i + 1}.h5ad"
@@ -501,8 +596,13 @@ class MorphData(object):
         else:
             morphome = None
 
-        self.__init__(morphome=morphome, treat_delimiter=treat_delimiter, obj_delimiter=obj_delimiter,
-                      datadict=datadict, **kwargs)
+        self.__init__(
+            morphome=morphome,
+            treat_delimiter=treat_delimiter,
+            obj_delimiter=obj_delimiter,
+            datadict=datadict,
+            **kwargs,
+        )
 
         return self
 
@@ -521,12 +621,18 @@ class MorphData(object):
         datadict = {}
         for path, subdirs, filenames in os.walk(pathlib.Path(exp_path)):
             if files is not None:
-                csv_files = [filename for filename in filenames
-                             if (filename.endswith(".csv") or filename.endswith(".txt"))
-                             and filename in files]
+                csv_files = [
+                    filename
+                    for filename in filenames
+                    if (filename.endswith(".csv") or filename.endswith(".txt"))
+                    and filename in files
+                ]
             else:
-                csv_files = [filename for filename in filenames
-                             if (filename.endswith(".csv") or filename.endswith(".txt"))]
+                csv_files = [
+                    filename
+                    for filename in filenames
+                    if (filename.endswith(".csv") or filename.endswith(".txt"))
+                ]
 
             if len(csv_files) != 0:
                 batch = path.split(os.sep)[-2]
@@ -539,10 +645,14 @@ class MorphData(object):
     def add_tile_pos(self, morphome):
         # add row and columns of tiles to the morphome depending on the reading method
         # extract rows and columns
-        assert len(self.tile_grid) == 2, f"Grid should be a tuple with two integers for rows and columns of tiles."
+        assert (
+            len(self.tile_grid) == 2
+        ), "Grid should be a tuple with two integers for rows and columns of tiles."
         tile_rows, tile_cols = self.tile_grid
         # assert self.tile_var is in morphome
-        assert self.tile_var in morphome.columns, f"{self.tile_var} is not found in data."
+        assert (
+            self.tile_var in morphome.columns
+        ), f"{self.tile_var} is not found in data."
 
         # create a dictionary with ImageNumbers as keys and TileRow and TileCol as items
         if self.tile_reading == "horizontal":
@@ -553,21 +663,32 @@ class MorphData(object):
             col_ls = [col for col in range(1, tile_cols + 1) for _ in range(tile_rows)]
         elif self.tile_reading == "horizontal_serp":
             row_ls = [row for row in range(1, tile_rows + 1) for _ in range(tile_cols)]
-            col_ls = (list(range(1, tile_cols + 1)) + list(range(1, tile_cols + 1))[::-1]) * (tile_rows // 2)
+            col_ls = (
+                list(range(1, tile_cols + 1)) + list(range(1, tile_cols + 1))[::-1]
+            ) * (tile_rows // 2)
             if len(col_ls) == 0:
                 col_ls = list(range(1, tile_cols + 1))
             elif (tile_rows % 2) != 0:
                 col_ls = col_ls + list(range(1, tile_cols + 1))
         elif self.tile_reading == "vertical_serp":
             col_ls = [col for col in range(1, tile_cols + 1) for _ in range(tile_rows)]
-            row_ls = (list(range(1, tile_rows + 1)) + list(range(1, tile_rows + 1))[::-1]) * (tile_cols // 2)
+            row_ls = (
+                list(range(1, tile_rows + 1)) + list(range(1, tile_rows + 1))[::-1]
+            ) * (tile_cols // 2)
             if len(row_ls) == 0:
                 row_ls = list(range(1, tile_rows + 1))
             elif (tile_rows % 2) != 0:
                 row_ls = row_ls + list(range(1, tile_rows + 1))
         else:
-            reading_methods = ['horizontal', 'horizontal_serp', 'vertical', 'vertical_serp']
-            raise ValueError(f"{self.tile_reading} not in reading methods: {reading_methods}")
+            reading_methods = [
+                "horizontal",
+                "horizontal_serp",
+                "vertical",
+                "vertical_serp",
+            ]
+            raise ValueError(
+                f"{self.tile_reading} not in reading methods: {reading_methods}"
+            )
 
         tiles = list(range(1, (tile_rows * tile_cols) + 1))
         tile_grid = dict(zip(tiles, list(zip(row_ls, col_ls))))
@@ -598,20 +719,34 @@ class MorphData(object):
         # take data from class if md is None
         if md is None:
             assert self.morphome is not None, "No morphome initialized in this class."
-            obs_cols = [col for col in self.morphome.columns if
-                        any(matcher.lower() in col.lower() for matcher in self.obs_ids)]
+            obs_cols = [
+                col
+                for col in self.morphome.columns
+                if any(matcher.lower() in col.lower() for matcher in self.obs_ids)
+            ]
             # variable annotation
             var = pd.DataFrame(index=self.morphome.drop(obs_cols, axis=1).columns)
             # create AnnData object
-            md = ad.AnnData(X=self.morphome.drop(obs_cols, axis=1).to_numpy(), obs=self.morphome[obs_cols], var=var)
+            md = ad.AnnData(
+                X=self.morphome.drop(obs_cols, axis=1).to_numpy(),
+                obs=self.morphome[obs_cols],
+                var=var,
+            )
 
         else:
-            obs_cols = [col for col in md.columns if
-                        any(matcher.lower() in col.lower() for matcher in self.obs_ids)]
+            obs_cols = [
+                col
+                for col in md.columns
+                if any(matcher.lower() in col.lower() for matcher in self.obs_ids)
+            ]
             # variable annotation
             var = pd.DataFrame(index=md.drop(obs_cols, axis=1).columns)
             # create AnnData object
-            md = ad.AnnData(X=md.drop(obs_cols, axis=1).to_numpy(), obs=md[obs_cols], var=var)
+            md = ad.AnnData(
+                X=md.drop(obs_cols, axis=1).to_numpy(),
+                obs=md[obs_cols],
+                var=var,
+            )
 
         return md
 
@@ -629,7 +764,9 @@ class MorphData(object):
         elif isinstance(md, ad.AnnData):
             pass
         else:
-            raise TypeError(f"Data should be either pandas.DataFrame or anndata.AnnData.")
+            raise TypeError(
+                "Data should be either pandas.DataFrame or anndata.AnnData."
+            )
 
         # get output path
         output = pathlib.Path(output)
@@ -641,7 +778,7 @@ class MorphData(object):
 
         # use name if given
         if name is None:
-            name = 'morph_data.h5ad'
+            name = "morph_data.h5ad"
 
         # save
         md.write(os.path.join(output, name))

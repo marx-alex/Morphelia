@@ -6,16 +6,18 @@ import os
 from morphelia.tools.utils import choose_representation
 
 
-def linkage_tree(adata,
-                 time_var='Metadata_Time',
-                 group_vars='Metadata_Treatment',
-                 dtw_method='dependent',
-                 use_rep=None,
-                 n_pcs=50,
-                 show=False,
-                 save=None,
-                 plot_kwargs={},
-                 **kwargs):
+def linkage_tree(
+    adata,
+    time_var="Metadata_Time",
+    group_vars="Metadata_Treatment",
+    dtw_method="dependent",
+    use_rep=None,
+    n_pcs=50,
+    show=False,
+    save=None,
+    plot_kwargs={},
+    **kwargs,
+):
     """
     Wrapper for scipy.cluster.hierarchy.linkage with a DTW distance matrix.
 
@@ -44,12 +46,15 @@ def linkage_tree(adata,
     elif isinstance(group_vars, tuple):
         group_vars = list(group_vars)
 
-    assert all(gv in adata.obs for gv in group_vars), f"group_vars not in .obs: {group_vars}"
+    assert all(
+        gv in adata.obs for gv in group_vars
+    ), f"group_vars not in .obs: {group_vars}"
 
-    avail_dtw_methods = ['dependent', 'independent']
+    avail_dtw_methods = ["dependent", "independent"]
     dtw_method = dtw_method.lower()
-    assert dtw_method in avail_dtw_methods, f"method not one of {avail_dtw_methods}, " \
-                                            f"instead got {dtw_method}"
+    assert dtw_method in avail_dtw_methods, (
+        f"method not one of {avail_dtw_methods}, " f"instead got {dtw_method}"
+    )
 
     # get series of groups
     s = []
@@ -63,9 +68,7 @@ def linkage_tree(adata,
 
         adata_sub = adata[group_ixs, :].copy()
         if use_rep is not None:
-            X = choose_representation(adata_sub,
-                                      rep=use_rep,
-                                      n_pcs=n_pcs)
+            X = choose_representation(adata_sub, rep=use_rep, n_pcs=n_pcs)
         else:
             X = adata_sub.X
 
@@ -75,38 +78,48 @@ def linkage_tree(adata,
 
     # y-dims should be all equal
     y_dims = [X.shape[0] for X in s]
-    assert len(set(y_dims)) == 1, "Data seems to be incorrectly aggregated. " \
-                                  "Assert that time points for groups are equal." \
-                                  f"Group lengths: {y_dims}"
+    assert len(set(y_dims)) == 1, (
+        "Data seems to be incorrectly aggregated. "
+        "Assert that time points for groups are equal."
+        f"Group lengths: {y_dims}"
+    )
 
     # compute distance matrix
     ndim = X.shape[1]
-    if dtw_method == 'dependent':
+    if dtw_method == "dependent":
         dists_fun = dtw_ndim.distance_matrix_fast
-    elif dtw_method == 'independent':
+    elif dtw_method == "independent":
         dists_fun = distance_matrix_fast_indipendent
 
-    model = clustering.LinkageTree(dists_fun=dists_fun, dists_options={'ndim': ndim}, **kwargs)
+    model = clustering.LinkageTree(
+        dists_fun=dists_fun, dists_options={"ndim": ndim}, **kwargs
+    )
     model.fit(s)
 
     if show:
-        plot_kwargs.setdefault('show_tr_label', True)
+        plot_kwargs.setdefault("show_tr_label", True)
         # plot_kwargs.setdefault('ts_label_margin', -10)
         # plot_kwargs.setdefault('ts_left_margin', 10)
         # plot_kwargs.setdefault('ts_sample_length', 1)
         # plot_kwargs.setdefault('ts_height', 30)
 
         fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(10, 10))
-        groups = ["-".join([str(elem) for elem in group]) if type(group) == tuple else group for group in groups]
-        show_ts_label = lambda idx: str(groups[idx])
-        plot_kwargs.setdefault('show_ts_label', show_ts_label)
+        groups = [
+            "-".join([str(elem) for elem in group]) if type(group) == tuple else group
+            for group in groups
+        ]
+
+        def show_ts_label(idx):
+            return str(groups[idx])
+
+        plot_kwargs.setdefault("show_ts_label", show_ts_label)
         model.plot(axes=ax, **plot_kwargs)
 
         if save:
             try:
                 plt.savefig(os.path.join(save, "feature_correlation.png"))
             except OSError:
-                print(f'Can not save figure to {save}.')
+                print(f"Can not save figure to {save}.")
 
         return model, fig, ax
     return model

@@ -7,11 +7,13 @@ logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
 
-def drop_noise(adata,
-               by='Metadata_Treatment',
-               mean_std_thresh=0.8,
-               drop=True,
-               verbose=False):
+def drop_noise(
+    adata,
+    by="Metadata_Treatment",
+    mean_std_thresh=0.8,
+    drop=True,
+    verbose=False,
+):
     """Removal of features with high mean of standard deviations within treatment groups.
     Features with mean standard deviation above mean_std_thresh will be removed.
 
@@ -40,13 +42,17 @@ def drop_noise(adata,
             by = list(by)
 
         if not all(var in adata.obs.columns for var in by):
-            raise KeyError(f"Variables defined in 'group_vars' are not in annotations: {by}")
+            raise KeyError(
+                f"Variables defined in 'group_vars' are not in annotations: {by}"
+            )
 
     # brief check for normal distribution
     means = np.nanmean(adata.X, axis=0)
     if not all(np.logical_and(means > -2, means < 2)):
-        warnings.warn("Data does not seem to be normally distributed, "
-                      "use normalize() with 'standard', 'mad_robust' or 'robust' beforehand.")
+        warnings.warn(
+            "Data does not seem to be normally distributed, "
+            "use normalize() with 'standard', 'mad_robust' or 'robust' beforehand."
+        )
 
     # iterate over group_vars groups
     if by is not None:
@@ -80,8 +86,8 @@ def drop_noise(adata,
     if drop:
         adata = adata[:, ~mask].copy()
 
-        adata.uns['noisy_feats'] = drop_feats
+        adata.uns["noisy_feats"] = drop_feats
     else:
-        adata.var['noisy_feats'] = mask
+        adata.var["noisy_feats"] = mask
 
     return adata

@@ -10,15 +10,17 @@ logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
 
-def correct_bleaching(adata,
-                      channels,
-                      treat_var='Metadata_Treatment',
-                      time_var='Metadata_Time',
-                      exp_curve='mono',
-                      ctrl='ctrl',
-                      correct_X=True,
-                      ignore_weak_fits=None,
-                      verbose=False):
+def correct_bleaching(
+    adata,
+    channels,
+    treat_var="Metadata_Treatment",
+    time_var="Metadata_Time",
+    exp_curve="mono",
+    ctrl="ctrl",
+    correct_X=True,
+    ignore_weak_fits=None,
+    verbose=False,
+):
     """
     Correction of Photobleaching as described by Vicente et al 2007 J. Phys.: Conf. Ser. 90 012068.
     Every intensity dependend feature is fit to a mono- or bi-exponential curve using
@@ -41,7 +43,9 @@ def correct_bleaching(adata,
     """
     min_vals = None
     if (adata.X < 0).any():
-        warnings.warn('Negative values encountered in .X. Attempting to correct .X anyway.')
+        warnings.warn(
+            "Negative values encountered in .X. Attempting to correct .X anyway."
+        )
         min_vals = np.min(adata.X, axis=0)
 
         adata.X = adata.X + min_vals[None, :]
@@ -50,23 +54,21 @@ def correct_bleaching(adata,
     assert time_var in adata.obs.columns, f"time_var not in .obs: {time_var}"
 
     # choose exponential curve
-    avail_exp_curves = ['mono', 'bi']
+    avail_exp_curves = ["mono", "bi"]
     exp_curve = exp_curve.lower()
-    assert exp_curve in avail_exp_curves, f"exp_curve must be one of {avail_exp_curves}, " \
-                                          f"instead got {exp_curve}"
-    if exp_curve == 'mono':
+    assert exp_curve in avail_exp_curves, (
+        f"exp_curve must be one of {avail_exp_curves}, " f"instead got {exp_curve}"
+    )
+    if exp_curve == "mono":
         func = mono_exp
-    elif exp_curve == 'bi':
+    elif exp_curve == "bi":
         func = bi_exp
 
     if isinstance(channels, str):
         channels = [channels]
-    else:
-        try:
-            channels = list(channels)
-        except:
-            raise ValueError(
-            f"channels must be of type str, list or tuple, instead got {type(channels)}")
+    assert isinstance(
+        channels, (list, tuple)
+    ), f"channels must be of type str, list or tuple, instead got {type(channels)}"
 
     assert (
         len([var for var in adata.var_names if any((ch in var) for ch in channels)]) > 0
@@ -105,7 +107,7 @@ def correct_bleaching(adata,
                 # get theoretical values for aggregated controls
                 f_ctrl = np.vectorize(func)(time_points, *popt)
                 F_ctrl[:, ix] = f_ctrl
-            except:
+            except (ValueError, RuntimeError, Warning):
                 F_[:, ix] = 1
                 F_ctrl[:, ix] = ctrl_df.loc[:, var]
         else:
@@ -115,11 +117,13 @@ def correct_bleaching(adata,
     # calculate r squared
     residuals = ctrl_df.to_numpy() - F_ctrl
     ss_res = np.sum((residuals ** 2), axis=0)
-    ss_tot = np.sum((ctrl_df.to_numpy() - np.mean(ctrl_df.to_numpy(), axis=0)) ** 2, axis=0)
+    ss_tot = np.sum(
+        (ctrl_df.to_numpy() - np.mean(ctrl_df.to_numpy(), axis=0)) ** 2, axis=0
+    )
     r_squared = 1 - (ss_res / ss_tot)
 
     if verbose:
-        output = pd.DataFrame({'variable': adata.var_names, 'r_squared': r_squared})
+        output = pd.DataFrame({"variable": adata.var_names, "r_squared": r_squared})
         logger.info(output.to_string())
 
     target = 0.8
@@ -146,23 +150,25 @@ def correct_bleaching(adata,
         adata.X = adata.X - min_vals[None, :]
 
     if correct_X:
-        adata.var['R-squared'] = r_squared
+        adata.var["R-squared"] = r_squared
         adata.X = F
         return adata
 
     return F, ctrl_df
 
 
-def correct_bleached_var(adata,
-                         var_name,
-                         treat_var='Metadata_Treatment',
-                         time_var='Metadata_Time',
-                         exp_curve='mono',
-                         ctrl='ctrl',
-                         correct_adata=False,
-                         ignore_weak_fit=None,
-                         return_r_squared=False,
-                         verbose=False):
+def correct_bleached_var(
+    adata,
+    var_name,
+    treat_var="Metadata_Treatment",
+    time_var="Metadata_Time",
+    exp_curve="mono",
+    ctrl="ctrl",
+    correct_adata=False,
+    ignore_weak_fit=None,
+    return_r_squared=False,
+    verbose=False,
+):
     """
     Correction of Photobleaching as described by Vicente et al 2007 J. Phys.: Conf. Ser. 90 012068.
     A given variable is fit to a mono- or bi-exponential curve using
@@ -189,11 +195,13 @@ def correct_bleached_var(adata,
     elif var_name in adata.var_names:
         x = adata[:, var_name].X.flatten().copy()
     else:
-        raise ValueError(f'var_name not in .obs or .var_names: {var_name}')
+        raise ValueError(f"var_name not in .obs or .var_names: {var_name}")
 
     min_val = None
     if (x < 0).any():
-        warnings.warn('Negative values encountered in x, attempting to correct .x anyway.')
+        warnings.warn(
+            "Negative values encountered in x, attempting to correct .x anyway."
+        )
         min_val = np.min(x)
 
         x = x + min_val
@@ -202,18 +210,20 @@ def correct_bleached_var(adata,
     assert time_var in adata.obs.columns, f"time_var not in .obs: {time_var}"
 
     # choose exponential curve
-    avail_exp_curves = ['mono', 'bi']
-    if exp_curve == 'mono':
+    avail_exp_curves = ["mono", "bi"]
+    if exp_curve == "mono":
         func = mono_exp
-    elif exp_curve == 'bi':
+    elif exp_curve == "bi":
         func = bi_exp
     else:
-        raise ValueError(f"exp_curve must be one of {avail_exp_curves}, instead got {exp_curve}")
+        raise ValueError(
+            f"exp_curve must be one of {avail_exp_curves}, instead got {exp_curve}"
+        )
 
     # subset to control condition
     ctrl_mask = adata.obs[treat_var] == ctrl
     assert (
-            np.sum(ctrl_mask) > 0
+        np.sum(ctrl_mask) > 0
     ), f"no cells with control condition {ctrl} in treatment variable {treat_var}"
 
     # get unique timepoints
@@ -235,7 +245,7 @@ def correct_bleached_var(adata,
         f_ = np.vectorize(func)(x_time, *popt)
         # get theoretical values for aggregated controls
         f_ctrl = np.vectorize(func)(time_points, *popt)
-    except:
+    except (ValueError, RuntimeError, Warning):
         f_ = np.ones(x_time.shape)
         f_ctrl = np.ones(time_points.shape)
 
@@ -246,7 +256,7 @@ def correct_bleached_var(adata,
     r_squared = 1 - (ss_res / ss_tot)
 
     if verbose:
-        logger.info(f'R-Squared: {r_squared}')
+        logger.info(f"R-Squared: {r_squared}")
 
     if ignore_weak_fit is not None:
         if ignore_weak_fit > r_squared:

@@ -9,9 +9,7 @@ logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
 
-def choose_representation(adata,
-                          rep=None,
-                          n_pcs=None):
+def choose_representation(adata, rep=None, n_pcs=None):
     """Get representation of multivariate data.
 
     Args:
@@ -28,25 +26,27 @@ def choose_representation(adata,
 
     # use X_pca by default
     if rep is None:
-        if 'X_pca' not in adata.obsm.keys():
+        if "X_pca" not in adata.obsm.keys():
             warnings.warn("Found no PC representation. Trying to compute PCA...")
             sc.tl.pca(adata)
 
-        if 'X_pca' in adata.obsm.keys():
+        if "X_pca" in adata.obsm.keys():
 
-            if n_pcs is not None and n_pcs > adata.obsm['X_pca'].shape[1]:
-                warnings.warn(f"Number n_pcs {n_pcs} is larger than PCs in X_pca, "
-                              f"use number of PCs in X_pca instead {adata.obsm['X_pca'].shape[1]}")
-                n_pcs = adata.obsm['X_pca'].shape[1]
+            if n_pcs is not None and n_pcs > adata.obsm["X_pca"].shape[1]:
+                warnings.warn(
+                    f"Number n_pcs {n_pcs} is larger than PCs in X_pca, "
+                    f"use number of PCs in X_pca instead {adata.obsm['X_pca'].shape[1]}"
+                )
+                n_pcs = adata.obsm["X_pca"].shape[1]
 
             # return pcs
-            X = adata.obsm['X_pca'][:, :n_pcs].copy()
+            X = adata.obsm["X_pca"][:, :n_pcs].copy()
 
         else:
             raise ValueError("Did not found X_pca in .obsm")
 
     else:
-        if rep == 'X_pca':
+        if rep == "X_pca":
             if n_pcs is not None:
                 X = adata.obsm[rep][:, :n_pcs].copy()
             else:
@@ -55,7 +55,7 @@ def choose_representation(adata,
         elif rep in adata.obsm.keys():
             X = adata.obsm[rep].copy()
 
-        elif rep == 'X':
+        elif rep == "X":
             X = adata.X.copy()
 
         else:
@@ -64,9 +64,7 @@ def choose_representation(adata,
     return X
 
 
-def get_subsample(adata,
-                  sample_size=None,
-                  seed=0):
+def get_subsample(adata, sample_size=None, seed=0):
     """Draws n (sample_size) random samples from adata.
 
     Args:
@@ -80,13 +78,16 @@ def get_subsample(adata,
     if sample_size is None:
         return adata
     else:
-        assert isinstance(sample_size, int), f"expected type(int) for sample_size, " \
-                                             f"instead got {type(sample_size)}"
+        assert isinstance(sample_size, int), (
+            f"expected type(int) for sample_size, " f"instead got {type(sample_size)}"
+        )
         # get samples
         np.random.seed(seed)
         N = len(adata)
         if sample_size >= N:
-            warnings.warn(f"sample_size exceeds available samples, draws all samples instead.")
+            warnings.warn(
+                "sample_size exceeds available samples, draws all samples instead."
+            )
             return adata
         else:
             rng = np.random.default_rng()
@@ -96,11 +97,13 @@ def get_subsample(adata,
     return adata_ss
 
 
-def make_3d(adata,
-            time_var='Metadata_Time',
-            tree_var='Metadata_Trace_Tree',
-            use_rep=None,
-            n_pcs=50):
+def make_3d(
+    adata,
+    time_var="Metadata_Time",
+    tree_var="Metadata_Trace_Tree",
+    use_rep=None,
+    n_pcs=50,
+):
     """Return three dimensional representation of data.
 
     Args:
@@ -115,10 +118,8 @@ def make_3d(adata,
     adata = adata[np.isfinite(adata.obs[tree_var])]
 
     if use_rep is None:
-        use_rep = 'X'
-    X = choose_representation(adata,
-                              rep=use_rep,
-                              n_pcs=n_pcs)
+        use_rep = "X"
+    X = choose_representation(adata, rep=use_rep, n_pcs=n_pcs)
 
     trees, trees_ix = np.unique(adata.obs[tree_var], return_inverse=True)
     time, time_ix = np.unique(adata.obs[time_var], return_inverse=True)
@@ -130,23 +131,25 @@ def make_3d(adata,
 
 
 class Adata3D:
-    def __init__(self,
-                 adata,
-                 time_var='Metadata_Time',
-                 tree_var='Metadata_Trace_Tree',
-                 use_rep=None,
-                 y_var='Metadata_Treatment_Enc',
-                 n_pcs=50):
+    def __init__(
+        self,
+        adata,
+        time_var="Metadata_Time",
+        tree_var="Metadata_Trace_Tree",
+        use_rep=None,
+        y_var="Metadata_Treatment_Enc",
+        n_pcs=50,
+    ):
         """Return three dimensional representation of data.
 
-            Args:
-                time_var (str): Variable in .obs with timesteps
-                tree_var (str): Variable in .obs with tree identifier
-                use_rep (bool): Make representation of data 3d
-                n_pcs (int): Number of PCs to use if use_rep is "X_pca"
+        Args:
+            time_var (str): Variable in .obs with timesteps
+            tree_var (str): Variable in .obs with tree identifier
+            use_rep (bool): Make representation of data 3d
+            n_pcs (int): Number of PCs to use if use_rep is "X_pca"
 
-            Returns:
-                np.array of shape [samples x timesteps x features]
+        Returns:
+            np.array of shape [samples x timesteps x features]
         """
         adata = adata[np.isfinite(adata.obs[tree_var])]
         self.y = None
@@ -155,10 +158,8 @@ class Adata3D:
             self.y = adata.obs[y_var].to_numpy()
 
         if use_rep is None:
-            use_rep = 'X'
-        self.X = choose_representation(adata,
-                                       rep=use_rep,
-                                       n_pcs=n_pcs)
+            use_rep = "X"
+        self.X = choose_representation(adata, rep=use_rep, n_pcs=n_pcs)
         self.n_vars = self.X.shape[-1]
 
         self.trees, self.trees_ix = np.unique(adata.obs[tree_var], return_inverse=True)
@@ -176,13 +177,17 @@ class Adata3D:
         Returns:
             (np.array): Three dimensional representation of adata.X --> [Samples x Time x Features]
         """
-        X_3d = np.zeros((len(self.trees), len(self.time), self.n_vars), dtype=self.X.dtype)
+        X_3d = np.zeros(
+            (len(self.trees), len(self.time), self.n_vars), dtype=self.X.dtype
+        )
         X_3d[self.trees_ix, self.time_ix, :] = self.X
 
         if return_y:
             y_2d = np.zeros((len(self.trees), len(self.time)), dtype=self.y.dtype)
             y_2d[self.trees_ix, self.time_ix] = self.y
-            assert np.all(y_2d.T == y_2d.T[0, :]), "y label not consistent within samples!"
+            assert np.all(
+                y_2d.T == y_2d.T[0, :]
+            ), "y label not consistent within samples!"
             y = y_2d[:, 0].flatten()
             return X_3d, y
 
@@ -201,16 +206,16 @@ class Adata3D:
         Returns:
             (np.array)
         """
-        assert len(X_3d.shape) == 3, f"Shape of X_3d must be three-dimensional, instead got shape {X_3d.shape}"
+        assert (
+            len(X_3d.shape) == 3
+        ), f"Shape of X_3d must be three-dimensional, instead got shape {X_3d.shape}"
 
         X_2d = X_3d[self.trees_ix, self.time_ix, :].copy()
 
         return X_2d
 
 
-def encode_labels(adata,
-                  label_var='Metadata_Treatment',
-                  sfx='_Enc'):
+def encode_labels(adata, label_var="Metadata_Treatment", sfx="_Enc"):
     """Encode categorical label in adata.obs."""
     assert label_var in adata.obs.columns, f"label_var not in .obs: {label_var}"
     x = adata.obs[label_var].to_numpy()
@@ -220,20 +225,22 @@ def encode_labels(adata,
 
     new_var = label_var + sfx
     adata.obs[new_var] = y
-    if 'le_map' in adata.uns:
-        adata.uns['le_map'][label_var] = le_name_mapping
+    if "le_map" in adata.uns:
+        adata.uns["le_map"][label_var] = le_name_mapping
     else:
-        adata.uns['le_map'] = {label_var: le_name_mapping}
+        adata.uns["le_map"] = {label_var: le_name_mapping}
     return adata
 
 
-def vectorize_emb(adata,
-                  use_rep=None,
-                  n_pcs=None,
-                  vkey='X_vect',
-                  time_var='Metadata_Time',
-                  tree_var='Metadata_Trace_Tree',
-                  verbose=False):
+def vectorize_emb(
+    adata,
+    use_rep=None,
+    n_pcs=None,
+    vkey="X_vect",
+    time_var="Metadata_Time",
+    tree_var="Metadata_Trace_Tree",
+    verbose=False,
+):
     """
     Vectorize embedding.
 
@@ -247,23 +254,21 @@ def vectorize_emb(adata,
     :return:
     """
     # check vars
-    assert time_var in adata.obs.columns, f'time_var not in .obs: {time_var}'
-    assert tree_var in adata.obs.columns, f'tree_var not in .obs: {tree_var}'
+    assert time_var in adata.obs.columns, f"time_var not in .obs: {time_var}"
+    assert tree_var in adata.obs.columns, f"tree_var not in .obs: {tree_var}"
 
     len_before = len(adata)
     adata = adata[np.isfinite(adata.obs[tree_var])]
     if verbose:
-        logger.info(f"{len_before - len(adata)} samples deleted, "
-                     f"because they were not connected in a tree")
+        logger.info(
+            f"{len_before - len(adata)} samples deleted, "
+            f"because they were not connected in a tree"
+        )
 
     # conver to 3D
-    converter = Adata3D(adata,
-                        time_var,
-                        tree_var,
-                        use_rep=use_rep,
-                        n_pcs=n_pcs)
+    converter = Adata3D(adata, time_var, tree_var, use_rep=use_rep, n_pcs=n_pcs)
 
-    X = converter.to_3d()   # [N x T x F]
+    X = converter.to_3d()  # [N x T x F]
 
     # vectorize
     X[:, :-1, :] = X[:, 1:, :] - X[:, :-1, :]

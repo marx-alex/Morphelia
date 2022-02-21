@@ -15,18 +15,20 @@ logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
 
-def feature_lmem(adata,
-                 treat_var='Metadata_Treatment',
-                 ctrl_id='ctrl',
-                 fixed_var='Metadata_Concentration',
-                 rand_var='BatchNumber',
-                 method='bonferroni',
-                 alpha=0.05,
-                 r2_thresh=0.7,
-                 drop=False,
-                 subsample=False,
-                 sample_size=10000,
-                 seed=0):
+def feature_lmem(
+    adata,
+    treat_var="Metadata_Treatment",
+    ctrl_id="ctrl",
+    fixed_var="Metadata_Concentration",
+    rand_var="BatchNumber",
+    method="bonferroni",
+    alpha=0.05,
+    r2_thresh=0.7,
+    drop=False,
+    subsample=False,
+    sample_size=10000,
+    seed=0,
+):
     r"""
     Use Linear Mixed Models to select features that have an effect compared to
     the control and are dependent on dose.
@@ -81,21 +83,21 @@ def feature_lmem(adata,
     assert fixed_var in adata.obs.columns, f"fixed_var not in .obs: {fixed_var}"
     if isinstance(rand_var, str):
         rand_var = [rand_var]
-    assert (
-        all(rv in adata.obs.columns for rv in rand_var)
+    assert all(
+        rv in adata.obs.columns for rv in rand_var
     ), f"rand_var not in .obs: {rand_var}"
     # control group should be in treat_var
     unique_treats = list(adata.obs[treat_var].unique())
     if ctrl_id not in unique_treats:
-        warnings.warn(f'Control group not in {treat_var}: {unique_treats}. Control will not be included in dose steps.')
+        warnings.warn(
+            f"Control group not in {treat_var}: {unique_treats}. Control will not be included in dose steps."
+        )
     else:
         unique_treats.remove(ctrl_id)
 
     # evtl subsample data
     if subsample:
-        adata_ss = get_subsample(adata,
-                                 sample_size=sample_size,
-                                 seed=seed)
+        adata_ss = get_subsample(adata, sample_size=sample_size, seed=seed)
     else:
         adata_ss = adata.copy()
 
@@ -107,27 +109,31 @@ def feature_lmem(adata,
     # R-squared scores for every treatment and feature
     for treat in unique_treats:
         logger.info(f"Fit LME on {treat} [{treat_var}]")
-        adata_treat = adata_ss[(adata_ss.obs[treat_var] == treat) | (adata_ss.obs[treat_var] == ctrl_id)].copy()
-        r2, p = multivariate_lmem_fit(adata_treat,
-                                      fixed_effect=fixed_var,
-                                      rand_effect=rand_var)
+        adata_treat = adata_ss[
+            (adata_ss.obs[treat_var] == treat) | (adata_ss.obs[treat_var] == ctrl_id)
+        ].copy()
+        r2, p = multivariate_lmem_fit(
+            adata_treat, fixed_effect=fixed_var, rand_effect=rand_var
+        )
         # store output
         r2_metric.loc[treat, :] = r2
         p_metric.loc[treat, :] = p
 
     # correct for multiple testing
     method = method.lower()
-    if method == 'bh':
-        method = 'fdr_bh'
+    if method == "bh":
+        method = "fdr_bh"
 
-    def corr_func(x): return multipletests(x, alpha=alpha, method=method)[1]
+    def corr_func(x):
+        return multipletests(x, alpha=alpha, method=method)[1]
+
     p_metric = p_metric.apply(corr_func, axis=0)
 
     # add metrics to .var
     r2_mean = r2_metric.mean()
     r2_std = r2_metric.std()
-    adata.var['r2_mean'] = r2_mean
-    adata.var['r2_std'] = r2_std
+    adata.var["r2_mean"] = r2_mean
+    adata.var["r2_std"] = r2_std
     for row_ix, row in r2_metric.iterrows():
         col_name = f"r2_{row_ix}"
         adata.var[col_name] = row
@@ -139,22 +145,22 @@ def feature_lmem(adata,
     r2_mask = r2_mean > r2_thresh
     p_mask = (p_metric < alpha).any(axis=0)
     combined_mask = np.logical_or(r2_mask, p_mask)
-    adata.var['r2_mask'] = r2_mask
-    adata.var['p_mask'] = p_mask
-    adata.var['lme_combined_mask'] = combined_mask
+    adata.var["r2_mask"] = r2_mask
+    adata.var["p_mask"] = p_mask
+    adata.var["lme_combined_mask"] = combined_mask
 
     if drop:
         dropped_feats = adata.var_names[~combined_mask]
         logger.info(f"Dropped {len(dropped_feats)} features: {dropped_feats}")
-        adata.uns['lmm_dropped'] = dropped_feats
+        adata.uns["lmm_dropped"] = dropped_feats
         adata = adata[:, combined_mask].copy()
 
     return adata
 
 
-def multivariate_lmem_fit(adata,
-                          fixed_effect='Metadata_Concentration',
-                          rand_effect='BatchNumber'):
+def multivariate_lmem_fit(
+    adata, fixed_effect="Metadata_Concentration", rand_effect="BatchNumber"
+):
     # store p-values from log-likelihood ratio test
     ps = []
     # store r_squared values
@@ -170,28 +176,28 @@ def multivariate_lmem_fit(adata,
     z = adata.obs[rand_effect]
     if isinstance(z, pd.DataFrame):
         # merge columns
-        z = z.apply(lambda col: '_'.join(col.astype(str)), axis=1)
-    z = z.astype('category')
+        z = z.apply(lambda col: "_".join(col.astype(str)), axis=1)
+    z = z.astype("category")
     z = np.asarray(z.cat.codes)
 
-    for feat_ix, feat in tqdm(enumerate(adata.var_names),
-                              desc="Fitting LME-Model on every feature...",
-                              total=len(adata.var_names)):
+    for feat_ix, feat in tqdm(
+        enumerate(adata.var_names),
+        desc="Fitting LME-Model on every feature...",
+        total=len(adata.var_names),
+    ):
         y = adata[:, feat].X.copy()
 
         with warnings.catch_warnings():
-            warnings.filterwarnings('ignore')
+            warnings.filterwarnings("ignore")
             # model
-            lmm = sm.MixedLM(endog=y,
-                             exog=x,
-                             groups=z)
+            lmm = sm.MixedLM(endog=y, exog=x, groups=z)
 
             try:
                 f_lmm = lmm.fit(reml=True)
 
                 # r-squared with random effects
                 re = f_lmm.random_effects
-                rev = [re[g]['Group Var'] for g in z]
+                rev = [re[g]["Group Var"] for g in z]
                 y_pred = f_lmm.predict(exog=x) + rev
                 ss_res = np.sum((y - y_pred) ** 2)
                 ss_tot = np.sum((y - np.mean(y)) ** 2)
@@ -200,7 +206,7 @@ def multivariate_lmem_fit(adata,
                 r2.append(r_squared)
 
             except (np.linalg.LinAlgError, ValueError):
-                logger.info(f'Raised exception at features: {feat}')
+                logger.info(f"Raised exception at features: {feat}")
                 ps.append(1)
                 r2.append(0)
 

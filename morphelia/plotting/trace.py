@@ -11,16 +11,20 @@ import networkx as nx
 from sklearn.decomposition import PCA
 
 
-def show_trace(adata,
-               fields,
-               dim='2d',
-               time_var="Metadata_Time",
-               time_unit="h",
-               trace_var="Metadata_Trace_Parent",
-               x_loc="Cells_Location_Center_X",
-               y_loc="Cells_Location_Center_Y",
-               size=None, color=None, save=None,
-               **kwargs):
+def show_trace(
+    adata,
+    fields,
+    dim="2d",
+    time_var="Metadata_Time",
+    time_unit="h",
+    trace_var="Metadata_Trace_Parent",
+    x_loc="Cells_Location_Center_X",
+    y_loc="Cells_Location_Center_Y",
+    size=None,
+    color=None,
+    save=None,
+    **kwargs,
+):
     """Visualizes the trace of all objects in a specified field of view.
 
     Args:
@@ -40,7 +44,9 @@ def show_trace(adata,
     """
     # check that variables of fields are in morphome
     if not all(var in adata.obs.columns for var in fields.keys()):
-        raise KeyError(f"Variables defined in show are not in anndata annotations: {fields.keys()}")
+        raise KeyError(
+            f"Variables defined in show are not in anndata annotations: {fields.keys()}"
+        )
     # check that values of fields are lists
     if not all(type(val) == list for val in fields.values()):
         raise TypeError(f"Values of show are not lists: {type(fields.values()[0])}")
@@ -53,9 +59,10 @@ def show_trace(adata,
 
     # check dimensions
     dim = dim.lower()
-    dims_avail = ['2d', '3d']
-    assert dim in dims_avail, f'dim should be one of {dims_avail}, ' \
-                              f'instead got {dim}'
+    dims_avail = ["2d", "3d"]
+    assert dim in dims_avail, (
+        f"dim should be one of {dims_avail}, " f"instead got {dim}"
+    )
 
     # iterate over fields to show
     field_ids_lst = list(zip(*fields.values()))
@@ -65,19 +72,16 @@ def show_trace(adata,
         # create filter to select requested field
         morphome_filter = dict(zip(field_vars, field_ids))
         # create query term
-        query_term = [f"({key} == '{item}')" if (
-                type(item) == str) else f"({key} == {item})" for key, item in morphome_filter.items()]
+        query_term = [
+            f"({key} == '{item}')" if (type(item) == str) else f"({key} == {item})"
+            for key, item in morphome_filter.items()
+        ]
         query_term = " and ".join(query_term)
 
         adata_field = adata[adata.obs.query(query_term).index, :].copy()
 
         # create graph from annotations
-        G, pos = create_graph(adata_field,
-                              dim,
-                              trace_var,
-                              x_loc,
-                              y_loc,
-                              time_var)
+        G, pos = create_graph(adata_field, dim, trace_var, x_loc, y_loc, time_var)
 
         # Extract node and edge positions from the layout
         node_xyz = np.array([pos[v] for v in sorted(G)])
@@ -108,25 +112,30 @@ def show_trace(adata,
             vmin = np.min(c)
             vmax = np.max(c)
         else:
-            c = 'firebrick'
+            c = "firebrick"
             vmin = None
             vmax = None
 
-        kwargs.setdefault('cmap', 'plasma')
-        kwargs.setdefault('vmin', vmin)
-        kwargs.setdefault('vmax', vmax)
-        kwargs.setdefault('alpha', 0.6)
+        kwargs.setdefault("cmap", "plasma")
+        kwargs.setdefault("vmin", vmin)
+        kwargs.setdefault("vmax", vmax)
+        kwargs.setdefault("alpha", 0.6)
 
         # create figure
-        sns.set_theme(style='white')
+        sns.set_theme(style="white")
         fig = plt.figure(figsize=(7, 7))
-        if dim == '3d':
+        if dim == "3d":
             ax = fig.add_subplot(111, projection="3d")
 
-            kwargs.setdefault('c', c)
-            kwargs.setdefault('s', s)
+            kwargs.setdefault("c", c)
+            kwargs.setdefault("s", s)
 
-            sc = ax.scatter(xs=node_xyz[:, 0], ys=node_xyz[:, 1], zs=node_xyz[:, 2], **kwargs)
+            ax.scatter(
+                xs=node_xyz[:, 0],
+                ys=node_xyz[:, 1],
+                zs=node_xyz[:, 2],
+                **kwargs,
+            )
             # plot edges
             for edge in edge_xyz:
                 plt.plot(*edge.T, color="tab:gray")
@@ -143,12 +152,12 @@ def show_trace(adata,
         else:
             ax = fig.add_subplot(111)
 
-            kwargs.setdefault('node_color', c)
-            kwargs.setdefault('node_size', s)
-            kwargs.setdefault('arrowstyle', "-")
-            kwargs.setdefault('width', 1)
-            kwargs.setdefault('with_labels', False)
-            kwargs.setdefault('edge_color', 'tab:gray')
+            kwargs.setdefault("node_color", c)
+            kwargs.setdefault("node_size", s)
+            kwargs.setdefault("arrowstyle", "-")
+            kwargs.setdefault("width", 1)
+            kwargs.setdefault("with_labels", False)
+            kwargs.setdefault("edge_color", "tab:gray")
 
             nx.draw_networkx(G, pos=pos, ax=ax, **kwargs)
 
@@ -157,13 +166,18 @@ def show_trace(adata,
             ax.set_xlabel(f"time ({time_unit})")
 
         if color is not None:
-            sm = plt.cm.ScalarMappable(cmap=plt.get_cmap(kwargs['cmap']), norm=plt.Normalize(vmin=vmin, vmax=vmax))
+            sm = plt.cm.ScalarMappable(
+                cmap=plt.get_cmap(kwargs["cmap"]),
+                norm=plt.Normalize(vmin=vmin, vmax=vmax),
+            )
             sm._A = []
             cbar = plt.colorbar(sm, shrink=0.3, pad=0.06, ax=ax)
             if color is not None:
                 cbar.ax.set_ylabel(f"{color}", rotation=270, labelpad=15.0)
 
-        fig.suptitle(f"Traces for: {', '.join([f'{key}: {val}' for key, val in morphome_filter.items()])}")
+        fig.suptitle(
+            f"Traces for: {', '.join([f'{key}: {val}' for key, val in morphome_filter.items()])}"
+        )
         plt.tight_layout()
 
         if save is not None:
@@ -174,12 +188,14 @@ def show_trace(adata,
     return None
 
 
-def create_graph(adata,
-                 dim='2d',
-                 trace_var='Metadata_Trace_Parent',
-                 x_loc="Cells_Location_Center_X",
-                 y_loc="Cells_Location_Center_X",
-                 time_var='Metadata_Time'):
+def create_graph(
+    adata,
+    dim="2d",
+    trace_var="Metadata_Trace_Parent",
+    x_loc="Cells_Location_Center_X",
+    y_loc="Cells_Location_Center_X",
+    time_var="Metadata_Time",
+):
     """Creates directed graph with connection from parent cells to their children.
 
     Args:
@@ -201,8 +217,8 @@ def create_graph(adata,
     assert y_loc in adata.obs.columns, f"y_loc not in .obs: {y_loc}"
 
     # create edges from indices and trace
-    indices = list(pd.to_numeric(adata.obs.index, errors='coerce'))
-    parents = pd.to_numeric(adata.obs[trace_var], errors='coerce').tolist()
+    indices = list(pd.to_numeric(adata.obs.index, errors="coerce"))
+    parents = pd.to_numeric(adata.obs[trace_var], errors="coerce").tolist()
     edges = list(zip(parents, indices))
 
     # delete tuples with np.nan
@@ -214,18 +230,18 @@ def create_graph(adata,
     G.add_edges_from(edges)
 
     # get node positions
-    if dim == '2d':
+    if dim == "2d":
         locs = adata.obs[[x_loc, y_loc]].to_numpy()
         y = PCA(n_components=1).fit_transform(locs)
         x = adata.obs[time_var].to_list()
         xy = list(zip(x, y.flatten()))
-        pos = dict(zip(pd.to_numeric(adata.obs.index, errors='coerce'), xy))
-    elif dim == '3d':
+        pos = dict(zip(pd.to_numeric(adata.obs.index, errors="coerce"), xy))
+    elif dim == "3d":
         x = adata.obs[x_loc].to_list()
         y = adata.obs[y_loc].to_list()
         z = adata.obs[time_var].to_list()
         xyz = list(zip(x, y, z))
-        pos = dict(zip(pd.to_numeric(adata.obs.index, errors='coerce'), xyz))
+        pos = dict(zip(pd.to_numeric(adata.obs.index, errors="coerce"), xyz))
     else:
         raise ValueError(f"dim neither '2d' nor '3d', instead got {dim}")
 

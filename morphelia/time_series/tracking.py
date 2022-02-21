@@ -6,104 +6,182 @@ from btrack.constants import BayesianUpdates
 import pandas as pd
 import logging
 
-logger = logging.getLogger('worker_process')
+logger = logging.getLogger("worker_process")
 logger.setLevel(level=logging.WARN)
 
 tracker_config = {
-    "TrackerConfig":
-        {
-            "MotionModel":
-                {
-                    "name": "cell_motion",
-                    "dt": 1.0,
-                    "measurements": 3,
-                    "states": 6,
-                    "accuracy": 7.5,
-                    "prob_not_assign": 0.001,
-                    "max_lost": 3,
-                    "A": {
-                        "matrix": [1, 0, 0, 1, 0, 0,
-                                   0, 1, 0, 0, 1, 0,
-                                   0, 0, 1, 0, 0, 1,
-                                   0, 0, 0, 1, 0, 0,
-                                   0, 0, 0, 0, 1, 0,
-                                   0, 0, 0, 0, 0, 1]
-                    },
-                    "H": {
-                        "matrix": [1, 0, 0, 0, 0, 0,
-                                   0, 1, 0, 0, 0, 0,
-                                   0, 0, 1, 0, 0, 0]
-                    },
-                    "P": {
-                        "sigma": 150.0,
-                        "matrix": [0.1, 0, 0, 0, 0, 0,
-                                   0, 0.1, 0, 0, 0, 0,
-                                   0, 0, 0.1, 0, 0, 0,
-                                   0, 0, 0, 1, 0, 0,
-                                   0, 0, 0, 0, 1, 0,
-                                   0, 0, 0, 0, 0, 1]
-                    },
-                    "G": {
-                        "sigma": 15.0,
-                        "matrix": [0.5, 0.5, 0.5, 1, 1, 1]
-
-                    },
-                    "R": {
-                        "sigma": 5.0,
-                        "matrix": [1, 0, 0,
-                                   0, 1, 0,
-                                   0, 0, 1]
-                    }
-                },
-            "ObjectModel":
-                {},
-            "HypothesisModel":
-                {
-                    "name": "cell_hypothesis",
-                    "hypotheses": ["P_FP", "P_init", "P_term", "P_link", "P_branch", "P_dead"],
-                    "lambda_time": 5.0,
-                    "lambda_dist": 3.0,
-                    "lambda_link": 10.0,
-                    "lambda_branch": 50.0,
-                    "eta": 1e-10,
-                    "theta_dist": 20.0,
-                    "theta_time": 5.0,
-                    "dist_thresh": 40,
-                    "time_thresh": 2,
-                    "apop_thresh": 5,
-                    "segmentation_miss_rate": 0.1,
-                    "apoptosis_rate": 0.001,
-                    "relax": True
-                }
-        }
+    "TrackerConfig": {
+        "MotionModel": {
+            "name": "cell_motion",
+            "dt": 1.0,
+            "measurements": 3,
+            "states": 6,
+            "accuracy": 7.5,
+            "prob_not_assign": 0.001,
+            "max_lost": 3,
+            "A": {
+                "matrix": [
+                    1,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    1,
+                ]
+            },
+            "H": {
+                "matrix": [
+                    1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                ]
+            },
+            "P": {
+                "sigma": 150.0,
+                "matrix": [
+                    0.1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0.1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0.1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    1,
+                ],
+            },
+            "G": {"sigma": 15.0, "matrix": [0.5, 0.5, 0.5, 1, 1, 1]},
+            "R": {"sigma": 5.0, "matrix": [1, 0, 0, 0, 1, 0, 0, 0, 1]},
+        },
+        "ObjectModel": {},
+        "HypothesisModel": {
+            "name": "cell_hypothesis",
+            "hypotheses": [
+                "P_FP",
+                "P_init",
+                "P_term",
+                "P_link",
+                "P_branch",
+                "P_dead",
+            ],
+            "lambda_time": 5.0,
+            "lambda_dist": 3.0,
+            "lambda_link": 10.0,
+            "lambda_branch": 50.0,
+            "eta": 1e-10,
+            "theta_dist": 20.0,
+            "theta_time": 5.0,
+            "dist_thresh": 40,
+            "time_thresh": 2,
+            "apop_thresh": 5,
+            "segmentation_miss_rate": 0.1,
+            "apoptosis_rate": 0.001,
+            "relax": True,
+        },
+    }
 }
 
-fate_dict = {'FALSE_POSITIVE': 'false',
-             'DIVIDE': 'divide',
-             'APOPTOSIS': 'apoptosis',
-             'TERMINATE_BACK': 'full_track',
-             'TERMINATE_LAZY': 'apoptosis'}
+fate_dict = {
+    "FALSE_POSITIVE": "false",
+    "DIVIDE": "divide",
+    "APOPTOSIS": "apoptosis",
+    "TERMINATE_BACK": "full_track",
+    "TERMINATE_LAZY": "apoptosis",
+}
 
 
-def track(adata,
-          time_var="Metadata_Time",
-          group_vars=("Metadata_Well", "Metadata_Field"),
-          x_loc="Cells_Location_Center_X",
-          y_loc="Cells_Location_Center_Y",
-          parent_id="Metadata_Track_Parent",
-          tree_id="Metadata_Track",
-          fate_id="Metadata_Fate",
-          root_id="Metadata_Track_Root",
-          gen_id="Metadata_Gen",
-          filter_tracks=False,
-          allowed_dummies=0,
-          min_track_len='max',
-          drop_untracked=True,
-          max_search_radius=100,
-          field_size=(2048, 2048),
-          approx=False,
-          verbose=False
-          ):
+def track(
+    adata,
+    time_var="Metadata_Time",
+    group_vars=("Metadata_Well", "Metadata_Field"),
+    x_loc="Cells_Location_Center_X",
+    y_loc="Cells_Location_Center_Y",
+    parent_id="Metadata_Track_Parent",
+    tree_id="Metadata_Track",
+    fate_id="Metadata_Fate",
+    root_id="Metadata_Track_Root",
+    gen_id="Metadata_Gen",
+    filter_tracks=False,
+    allowed_dummies=0,
+    min_track_len="max",
+    drop_untracked=True,
+    max_search_radius=100,
+    field_size=(2048, 2048),
+    approx=False,
+    verbose=False,
+):
     """Wrapper for Bayesian Tracker.
 
     Tracks objects per field of view defined by group_vars.
@@ -145,23 +223,27 @@ def track(adata,
         group_vars = list(group_vars)
 
     if isinstance(group_vars, list):
-        assert all(gv in adata.obs.columns for gv in group_vars), \
-            f"One or all group_vars not in .obs.columns: {group_vars}"
+        assert all(
+            gv in adata.obs.columns for gv in group_vars
+        ), f"One or all group_vars not in .obs.columns: {group_vars}"
     else:
-        raise KeyError(f"Expected type(list) or type(str) for group_vars, "
-                       f"instead got {type(group_vars)}")
+        raise KeyError(
+            f"Expected type(list) or type(str) for group_vars, "
+            f"instead got {type(group_vars)}"
+        )
 
     assert time_var in adata.obs.columns, f"time_var not in .obs.columns: {time_var}"
     assert x_loc in adata.obs.columns, f"x_loc not in .obs.columns: {x_loc}"
     assert x_loc in adata.obs.columns, f"x_loc not in .obs.columns: {x_loc}"
     assert y_loc in adata.obs.columns, f"y_loc not in .obs.columns: {y_loc}"
-    assert x_loc != y_loc, f"x_loc expected to be different from y_loc, " \
-                           f"x_loc: {x_loc}, y_loc: {y_loc}"
+    assert x_loc != y_loc, (
+        f"x_loc expected to be different from y_loc, " f"x_loc: {x_loc}, y_loc: {y_loc}"
+    )
 
     # choose track length
     # TODO: Don't subtract 1 from time points if bug fix is in main repo
     # https://github.com/quantumjot/BayesianTracker/issues/41
-    if min_track_len == 'max':
+    if min_track_len == "max":
         min_track_len = len(adata.obs[time_var].unique()) - 1
 
     field_height, field_width = field_size
@@ -176,7 +258,7 @@ def track(adata,
     adata.obs[gen_id] = np.nan
 
     # load config settings
-    config = tracker_config['TrackerConfig']
+    config = tracker_config["TrackerConfig"]
     t_config = {
         "MotionModel": btrack.utils.read_motion_model(config),
         "ObjectModel": btrack.utils.read_object_model(config),
@@ -187,18 +269,22 @@ def track(adata,
 
     # iterate over every field and get field at different times
     total_its = np.prod([len(adata.obs[gv].unique()) for gv in group_vars])
-    for ix, (groups, field_df) in tqdm(enumerate(adata.obs.groupby(list(group_vars))),
-                                       desc='Tracking cells in every field',
-                                       total=int(total_its)):
+    for ix, (groups, field_df) in tqdm(
+        enumerate(adata.obs.groupby(list(group_vars))),
+        desc="Tracking cells in every field",
+        total=int(total_its),
+    ):
         # create objects for btracker
         z = np.zeros((len(field_df),))
         _id = field_df.index
 
-        objects_raw = {'x': field_df[x_loc].to_numpy(),
-                       'y': field_df[y_loc].to_numpy(),
-                       'z': z,
-                       't': field_df[time_var].to_numpy(),
-                       'id': _id}
+        objects_raw = {
+            "x": field_df[x_loc].to_numpy(),
+            "y": field_df[y_loc].to_numpy(),
+            "z": z,
+            "t": field_df[time_var].to_numpy(),
+            "id": _id,
+        }
         objects = btrack.dataio.objects_from_dict(objects_raw)
 
         # start tracker
@@ -224,7 +310,11 @@ def track(adata,
             tracks = tracker.tracks
 
         if filter_tracks:
-            filtered_tracks = track_filter(tracks, track_len=min_track_len, allowed_dummies=allowed_dummies)
+            filtered_tracks = track_filter(
+                tracks,
+                track_len=min_track_len,
+                allowed_dummies=allowed_dummies,
+            )
         else:
             filtered_tracks = tracks
 
@@ -239,41 +329,42 @@ def track(adata,
         # add convert IDs and parent ids to absolute ids
         output = add_absolute_ids(output, start_id=tree_start_id)
         # delete dummies before updating adata
-        output = output[output['id'] != 'nan']
+        output = output[output["id"] != "nan"]
 
         tree_start_id += len(dict_tracks)
 
         # update adata
         if len(output) > 0:
             adata.obs.loc[
-                output['id'],
-                [tree_id, parent_id, fate_id, root_id, gen_id]] = output[
-                ['tree_id', 'parent_id', 'fate', 'root_id', 'gen']].to_numpy()
+                output["id"], [tree_id, parent_id, fate_id, root_id, gen_id]
+            ] = output[["tree_id", "parent_id", "fate", "root_id", "gen"]].to_numpy()
 
     if drop_untracked:
         len_before = len(adata)
         # drop false positive
-        adata = adata[adata.obs[fate_id] != 'false', :].copy()
+        adata = adata[adata.obs[fate_id] != "false", :].copy()
         # drop untracked cells
         adata = adata[adata.obs[tree_id].notna(), :]
         if verbose:
-            logging.info(f"Dropped {len_before - len(adata)} cells with false positive tracks.")
+            logging.info(
+                f"Dropped {len_before - len(adata)} cells with false positive tracks."
+            )
 
     return adata
 
 
 def add_absolute_ids(output, start_id=None):
-    track_ids = output['ID'].unique()
+    track_ids = output["ID"].unique()
     n_tracks = len(track_ids)
     if start_id is None:
         start_id = 0
 
     ids = list(range(start_id, start_id + n_tracks))
     mapping = {track_id: new_id for track_id, new_id in zip(track_ids, ids)}
-    output['tree_id'] = output['ID'].map(mapping)
-    output['parent_id'] = output['parent'].map(mapping)
-    output['root_id'] = output['root'].map(mapping)
-    output['gen'] = output['generation']
+    output["tree_id"] = output["ID"].map(mapping)
+    output["parent_id"] = output["parent"].map(mapping)
+    output["root_id"] = output["root"].map(mapping)
+    output["gen"] = output["generation"]
 
     return output
 
@@ -291,8 +382,8 @@ def tracks_as_dict(tracks: list, properties: list, add_fate: bool = False):
             if fate in fate_dict:
                 fate = fate_dict[fate]
             else:
-                fate = 'false'
-            trk['fate'] = fate
+                fate = "false"
+            trk["fate"] = fate
 
         data = {}
 
@@ -319,8 +410,8 @@ def cat_track_dicts(tracks: list):
 
         for key in data.keys():
             prop = trk[key]
-            assert (
-                isinstance(prop, (list, np.ndarray))
+            assert isinstance(
+                prop, (list, np.ndarray)
             ), "all track properties must be lists"
 
             data[key].append(prop)
@@ -335,7 +426,7 @@ def track_filter(tracks, allowed_dummies=0, track_len=10):
     dummy_filtered = []
     if allowed_dummies is not None:
         for tr in tracks:
-            if np.sum(tr['dummy']) <= allowed_dummies:
+            if np.sum(tr["dummy"]) <= allowed_dummies:
                 dummy_filtered.append(tr)
     else:
         dummy_filtered = tracks
@@ -351,14 +442,16 @@ def track_filter(tracks, allowed_dummies=0, track_len=10):
     return len_filtered
 
 
-def track_nn(adata,
-             time_var="Metadata_Time",
-             group_vars=("Metadata_Well", "Metadata_Field"),
-             x_loc="Cells_Location_Center_X",
-             y_loc="Cells_Location_Center_Y",
-             parent_id="Metadata_Trace_Parent",
-             tree_id="Metadata_Trace_Tree",
-             start_tp=0):
+def track_nn(
+    adata,
+    time_var="Metadata_Time",
+    group_vars=("Metadata_Well", "Metadata_Field"),
+    x_loc="Cells_Location_Center_X",
+    y_loc="Cells_Location_Center_Y",
+    parent_id="Metadata_Trace_Parent",
+    tree_id="Metadata_Trace_Tree",
+    start_tp=0,
+):
     """Neares neighbor tracking.
 
     Iterates over every well or field that can be traced over time.
@@ -387,18 +480,22 @@ def track_nn(adata,
         group_vars = list(group_vars)
 
     if isinstance(group_vars, list):
-        assert all(gv in adata.obs.columns for gv in group_vars), \
-            f"One or all group_vars not in .obs.columns: {group_vars}"
+        assert all(
+            gv in adata.obs.columns for gv in group_vars
+        ), f"One or all group_vars not in .obs.columns: {group_vars}"
     else:
-        raise KeyError(f"Expected type(list) or type(str) for group_vars, "
-                       f"instead got {type(group_vars)}")
+        raise KeyError(
+            f"Expected type(list) or type(str) for group_vars, "
+            f"instead got {type(group_vars)}"
+        )
 
     assert time_var in adata.obs.columns, f"time_var not in .obs.columns: {time_var}"
     assert x_loc in adata.obs.columns, f"x_loc not in .obs.columns: {x_loc}"
     assert x_loc in adata.obs.columns, f"x_loc not in .obs.columns: {x_loc}"
     assert y_loc in adata.obs.columns, f"y_loc not in .obs.columns: {y_loc}"
-    assert x_loc != y_loc, f"x_loc expected to be different from y_loc, " \
-                           f"x_loc: {x_loc}, y_loc: {y_loc}"
+    assert x_loc != y_loc, (
+        f"x_loc expected to be different from y_loc, " f"x_loc: {x_loc}, y_loc: {y_loc}"
+    )
 
     # create new column to store index of parent object
     adata.obs[parent_id] = np.nan
@@ -408,13 +505,17 @@ def track_nn(adata,
     if n_start_tp > 1:
         adata.obs.loc[adata.obs[time_var] == start_tp, tree_id] = range(n_start_tp)
     else:
-        raise ValueError(f"No observation with time_var {time_var} and start_tp {start_tp}")
+        raise ValueError(
+            f"No observation with time_var {time_var} and start_tp {start_tp}"
+        )
 
     # iterate over every field and get field at different times
     total_its = np.prod([len(adata.obs[gv].unique()) for gv in group_vars])
-    for ix, (groups, field_df) in tqdm(enumerate(adata.obs.groupby(list(group_vars))),
-                                       desc='Tracking cells in every field',
-                                       total=int(total_its)):
+    for ix, (groups, field_df) in tqdm(
+        enumerate(adata.obs.groupby(list(group_vars))),
+        desc="Tracking cells in every field",
+        total=int(total_its),
+    ):
 
         # cache lagged values
         lagged = None
@@ -433,7 +534,9 @@ def track_nn(adata,
                 _, parent_ix = tree.query(t_loc, k=1)
 
                 # assign lagged trace ids to objects
-                adata.obs.loc[t_df.index, tree_id] = lagged.iloc[parent_ix][tree_id].tolist()
+                adata.obs.loc[t_df.index, tree_id] = lagged.iloc[parent_ix][
+                    tree_id
+                ].tolist()
                 # assign trace parents to objects
                 adata.obs.loc[t_df.index, parent_id] = lagged.iloc[parent_ix].index
 

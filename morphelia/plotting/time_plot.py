@@ -8,15 +8,18 @@ from morphelia.preprocessing import aggregate
 import os
 
 
-def time_plot(adata, var,
-              hue=None,
-              units=None,
-              time_var='Metadata_Time',
-              time_unit='h',
-              show=False,
-              save=False,
-              aggregate_data=True,
-              **kwargs):
+def time_plot(
+    adata,
+    var,
+    hue=None,
+    units=None,
+    time_var="Metadata_Time",
+    time_unit="h",
+    show=False,
+    save=False,
+    aggregate_data=True,
+    **kwargs,
+):
     """Plot temporal course of a variable in wells/ cells.
 
     Args:
@@ -47,7 +50,7 @@ def time_plot(adata, var,
     else:
         raise KeyError(f"Variable for time not in AnnData object: f{time_var}")
 
-    data = pd.DataFrame({'time': time_vals})
+    data = pd.DataFrame({"time": time_vals})
 
     # variable
     if var in adata.obs.columns:
@@ -68,8 +71,8 @@ def time_plot(adata, var,
         else:
             raise KeyError(f"Hue variable not in AnnData object: f{hue}")
 
-        data['hue'] = hue_vals
-        kwargs.setdefault('hue', 'hue')
+        data["hue"] = hue_vals
+        kwargs.setdefault("hue", "hue")
 
     # units
     if units is not None:
@@ -80,13 +83,13 @@ def time_plot(adata, var,
         else:
             raise KeyError(f"Units variable not in AnnData object: f{units}")
 
-        data['units'] = units_vals
-        kwargs.setdefault('units', 'units')
-        kwargs.setdefault('estimator', None)
+        data["units"] = units_vals
+        kwargs.setdefault("units", "units")
+        kwargs.setdefault("estimator", None)
 
     # plot
     fig, ax = plt.subplots(figsize=(15, 7))
-    sns.lineplot(data=data, x='time', y=var, palette='Dark2', **kwargs)
+    sns.lineplot(data=data, x="time", y=var, palette="Dark2", **kwargs)
 
     ax.legend()
 
@@ -98,7 +101,7 @@ def time_plot(adata, var,
         try:
             plt.savefig(os.path.join(save, "time_plot.png"))
         except OSError:
-            print(f'Can not save figure to {save}.')
+            print(f"Can not save figure to {save}.")
 
     if show:
         plt.show()
@@ -107,16 +110,18 @@ def time_plot(adata, var,
     return fig, ax
 
 
-def time_heatmap(adata,
-                 time_var='Metadata_Time',
-                 treat_var='Metadata_Treatment',
-                 feats=None,
-                 conc_var=None,
-                 aggregate_data=True,
-                 share_cbar=True,
-                 show=False,
-                 save=False,
-                 **kwargs):
+def time_heatmap(
+    adata,
+    time_var="Metadata_Time",
+    treat_var="Metadata_Treatment",
+    feats=None,
+    conc_var=None,
+    aggregate_data=True,
+    share_cbar=True,
+    show=False,
+    save=False,
+    **kwargs,
+):
     """Heatmap representation of median fold change in given features over time.
 
     First aggregate features for treatments and concetrations if given.
@@ -140,17 +145,23 @@ def time_heatmap(adata,
         raise ValueError(f"Varibale for treatment not in anndata object: {treat_var}")
     if conc_var is not None:
         if conc_var not in adata.obs.columns:
-            raise ValueError(f"Varibale for concentration not in anndata object: {conc_var}")
+            raise ValueError(
+                f"Varibale for concentration not in anndata object: {conc_var}"
+            )
     if feats is not None:
         if isinstance(feats, list):
             if not all(v in adata.var_names for v in feats):
-                raise KeyError(f"Variables for features are not in annotations: {feats}")
+                raise KeyError(
+                    f"Variables for features are not in annotations: {feats}"
+                )
         elif isinstance(feats, str):
             feat_lst = []
             feat_lst.append(feats)
             feats = feat_lst
         else:
-            raise TypeError(f"feats is expected to be either list or string, instead got {type(feats)}")
+            raise TypeError(
+                f"feats is expected to be either list or string, instead got {type(feats)}"
+            )
 
     # get pandas dataframe from features
     adata = adata.copy()
@@ -167,7 +178,9 @@ def time_heatmap(adata,
         df_ix = treat_var
     elif conc_var is not None:
         adata = aggregate(adata, by=[time_var, treat_var, conc_var], qc=False)
-        adata_df = pd.concat([adata.obs[[time_var, treat_var, conc_var]], adata.to_df()], axis=1)
+        adata_df = pd.concat(
+            [adata.obs[[time_var, treat_var, conc_var]], adata.to_df()], axis=1
+        )
         df_ix = [treat_var, conc_var]
     else:
         adata = aggregate(adata, by=[time_var, treat_var], qc=False)
@@ -185,42 +198,46 @@ def time_heatmap(adata,
     h_size = (h / (h + w)) * 15
     w_size = (w / (h + w)) * 20
 
-    fig, axs = plt.subplots(h, w, figsize=(w_size, h_size), squeeze=False,
-                            sharex=True, sharey=True)
+    fig, axs = plt.subplots(
+        h, w, figsize=(w_size, h_size), squeeze=False, sharex=True, sharey=True
+    )
     cbar_ax = None
     if share_cbar:
-        cbar_ax = fig.add_axes([.91, .3, .03, .4])
+        cbar_ax = fig.add_axes([0.91, 0.3, 0.03, 0.4])
 
     i, j = 0, 0
 
     for ix, feat in enumerate(feats):
         feat_time = adata_df.pivot(df_ix, time_var, feat)
 
-        sns.heatmap(feat_time, ax=axs[i][j],
-                    cbar=ix == 0 if share_cbar else True,
-                    cbar_ax=None if ix else cbar_ax,
-                    **kwargs)
+        sns.heatmap(
+            feat_time,
+            ax=axs[i][j],
+            cbar=ix == 0 if share_cbar else True,
+            cbar_ax=None if ix else cbar_ax,
+            **kwargs,
+        )
         axs[i][j].set_title(feat)
 
-        if i < (h-1):
-            axs[i][j].set_xlabel('')
+        if i < (h - 1):
+            axs[i][j].set_xlabel("")
         if j > 0:
-            axs[i][j].set_ylabel('')
+            axs[i][j].set_ylabel("")
 
-        if j < (w-1):
+        if j < (w - 1):
             j += 1
         else:
             j = 0
             i += 1
-            
-    plt.tight_layout(rect=[0, 0, .9, 1])
+
+    plt.tight_layout(rect=[0, 0, 0.9, 1])
 
     # save
     if save:
         try:
             plt.savefig(os.path.join(save, "time_heatmap.png"))
         except OSError:
-            print(f'Can not save figure to {save}.')
+            print(f"Can not save figure to {save}.")
 
     if show:
         plt.show()

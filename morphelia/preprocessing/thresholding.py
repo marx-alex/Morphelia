@@ -5,39 +5,52 @@ import os
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from skimage.filters import threshold_li, threshold_multiotsu, threshold_otsu,\
-    threshold_isodata, threshold_mean, threshold_minimum, threshold_triangle,\
-    threshold_yen
+from skimage.filters import (
+    threshold_li,
+    threshold_multiotsu,
+    threshold_otsu,
+    threshold_isodata,
+    threshold_mean,
+    threshold_minimum,
+    threshold_triangle,
+    threshold_yen,
+)
 
 # all skimage threshold algorithms
-methods = OrderedDict({'isodata': threshold_isodata,
-                       'li': threshold_li,
-                       'mean': threshold_mean,
-                       'minimum': threshold_minimum,
-                       'otsu': threshold_otsu,
-                       'triangle': threshold_triangle,
-                       'yen': threshold_yen,
-                       'multi_otsu': threshold_multiotsu})
+methods = OrderedDict(
+    {
+        "isodata": threshold_isodata,
+        "li": threshold_li,
+        "mean": threshold_mean,
+        "minimum": threshold_minimum,
+        "otsu": threshold_otsu,
+        "triangle": threshold_triangle,
+        "yen": threshold_yen,
+        "multi_otsu": threshold_multiotsu,
+    }
+)
 
 
-def assign_by_threshold(adata,
-                        dist,
-                        by=None,
-                        new_var='Thresh_Assigned',
-                        method='otsu',
-                        max_val=None,
-                        min_val=None,
-                        make_plot=False,
-                        show=True,
-                        save=None,
-                        xlabel=None,
-                        plt_xlim=None,
-                        threshold_colors=None,
-                        threshold_labels=None,
-                        class_colors=None,
-                        class_labels=None,
-                        plt_kwargs=None,
-                        **kwargs):
+def assign_by_threshold(
+    adata,
+    dist,
+    by=None,
+    new_var="Thresh_Assigned",
+    method="otsu",
+    max_val=None,
+    min_val=None,
+    make_plot=False,
+    show=True,
+    save=None,
+    xlabel=None,
+    plt_xlim=None,
+    threshold_colors=None,
+    threshold_labels=None,
+    class_colors=None,
+    class_labels=None,
+    plt_kwargs=None,
+    **kwargs,
+):
     """
     Distinguish populations by finding thresholds in given distributions.
 
@@ -80,9 +93,9 @@ def assign_by_threshold(adata,
     if by is not None:
         if isinstance(by, str):
             by = [by]
-        assert isinstance(by, Iterable), 'by is not iterable'
-        assert (
-            all(var in adata.obs.columns for var in by)
+        assert isinstance(by, Iterable), "by is not iterable"
+        assert all(
+            var in adata.obs.columns for var in by
         ), f"Variables defined in 'by' are not in annotations: {by}"
 
     method = method.lower()
@@ -101,8 +114,9 @@ def assign_by_threshold(adata,
             group_mask = np.in1d(adata.obs.index, sub_df.index)
             group_dist = dist[group_mask]
 
-            thresh, class_annotation = _find_thresh(group_dist, func,
-                                                    min_val, max_val, **kwargs)
+            thresh, class_annotation = _find_thresh(
+                group_dist, func, min_val, max_val, **kwargs
+            )
 
             adata.obs.loc[sub_df.index, new_var] = class_annotation
 
@@ -112,31 +126,52 @@ def assign_by_threshold(adata,
                     group_str = f"{', '.join(groups)}"
                 else:
                     group_str = str(groups)
-                f = _plot_thresh(group_dist, thresh, xlabel, threshold_colors,
-                                 threshold_labels, class_colors, class_labels,
-                                 plt_xlim, group_str, save, show, **plt_kwargs)
+                f = _plot_thresh(
+                    group_dist,
+                    thresh,
+                    xlabel,
+                    threshold_colors,
+                    threshold_labels,
+                    class_colors,
+                    class_labels,
+                    plt_xlim,
+                    group_str,
+                    save,
+                    show,
+                    **plt_kwargs,
+                )
                 fig.append(f)
 
     else:
-        thresh, class_annotation = _find_thresh(dist, func,
-                                                min_val, max_val, **kwargs)
+        thresh, class_annotation = _find_thresh(dist, func, min_val, max_val, **kwargs)
 
         # add annotation to adata
         adata.obs[new_var] = class_annotation
 
         # plot
         if make_plot:
-            fig = _plot_thresh(dist, thresh, xlabel, threshold_colors,
-                               threshold_labels, class_colors, class_labels,
-                               plt_xlim, None, save, show, **plt_kwargs)
+            fig = _plot_thresh(
+                dist,
+                thresh,
+                xlabel,
+                threshold_colors,
+                threshold_labels,
+                class_colors,
+                class_labels,
+                plt_xlim,
+                None,
+                save,
+                show,
+                **plt_kwargs,
+            )
 
     if class_labels is not None:
         if isinstance(class_labels, str):
             class_labels = [class_labels]
         unique_labels = adata.obs[new_var].unique()
         unique_labels = np.sort(unique_labels)
-        assert (
-            len(class_labels) == len(unique_labels)
+        assert len(class_labels) == len(
+            unique_labels
         ), f"{len(class_labels)} class_labels given, but {len(unique_labels)} unique labels assigned."
 
         class_mapping = {ul: cl for ul, cl in zip(unique_labels, class_labels)}
@@ -174,19 +209,23 @@ def _find_thresh(dist, func, min_val=None, max_val=None, **kwargs):
     return thresh, class_annotation
 
 
-def _plot_thresh(dist, thresh, xlabel=None,
-                 threshold_colors=None,
-                 threshold_labels=None,
-                 class_colors=None,
-                 class_labels=None,
-                 plt_xlim=None,
-                 title=None,
-                 save=None,
-                 show=True,
-                 **kwargs):
-    kwargs.setdefault('kde', True)
-    kwargs.setdefault('stat', 'density')
-    kwargs.setdefault('linewidth', 0)
+def _plot_thresh(
+    dist,
+    thresh,
+    xlabel=None,
+    threshold_colors=None,
+    threshold_labels=None,
+    class_colors=None,
+    class_labels=None,
+    plt_xlim=None,
+    title=None,
+    save=None,
+    show=True,
+    **kwargs,
+):
+    kwargs.setdefault("kde", True)
+    kwargs.setdefault("stat", "density")
+    kwargs.setdefault("linewidth", 0)
 
     fig, ax = plt.subplots()
     p = sns.histplot(dist, ax=ax, **kwargs)
@@ -196,7 +235,7 @@ def _plot_thresh(dist, thresh, xlabel=None,
             class_colors = [class_colors]
         assert (
             len(class_colors) == len(thresh) + 1
-        ), f'{len(class_colors)} class_colors provided, but {len(thresh)} thresholds given.'
+        ), f"{len(class_colors)} class_colors provided, but {len(thresh)} thresholds given."
         if class_labels is not None:
             if isinstance(class_labels, str):
                 class_labels = [class_labels]
@@ -227,7 +266,7 @@ def _plot_thresh(dist, thresh, xlabel=None,
     if title is not None:
         ax.set_title(title)
     if threshold_colors is None:
-        threshold_colors = ['k' for _ in thresh]
+        threshold_colors = ["k" for _ in thresh]
     elif isinstance(threshold_colors, str):
         threshold_colors = [threshold_colors]
     if threshold_labels is None:
@@ -236,7 +275,7 @@ def _plot_thresh(dist, thresh, xlabel=None,
         threshold_labels = [threshold_labels]
 
     for t, c, l in zip(thresh, threshold_colors, threshold_labels):
-        ax.axvline(t, color=c, linestyle='dotted', label=l)
+        ax.axvline(t, color=c, linestyle="dotted", label=l)
 
     if plt_xlim is None:
         plt_xlim = (None, None)
@@ -245,15 +284,15 @@ def _plot_thresh(dist, thresh, xlabel=None,
 
     # save
     if save is not None:
-        fname = 'threshold'
+        fname = "threshold"
         i = 0
         while os.path.isfile(os.path.join(save, f"{fname}.png")):
-            fname = f'{fname}_{i}'
+            fname = f"{fname}_{i}"
             i += 1
         try:
             plt.savefig(os.path.join(save, f"{fname}.png"))
         except OSError:
-            print(f'Can not save figure to {save}.')
+            print(f"Can not save figure to {save}.")
 
     if show:
         plt.show()

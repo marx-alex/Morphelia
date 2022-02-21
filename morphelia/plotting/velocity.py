@@ -5,11 +5,7 @@ from morphelia.tools import choose_representation
 from sklearn.metrics import pairwise_distances
 
 
-def get_quiver(adata,
-               X='X_nne',
-               V='X_vect',
-               n_waypoints=50,
-               min_cells=20):
+def get_quiver(adata, X="X_nne", V="X_vect", n_waypoints=50, min_cells=20):
     """
     Get grid parameters to draw a quiver plot.
     Use morphelia.tools.vectorize_emb beforehand.
@@ -24,11 +20,9 @@ def get_quiver(adata,
     assert X in adata.obsm.keys(), f"X not in .obsm: {X}"
     assert V in adata.obsm.keys(), f"V not in .obsm: {V}"
 
-    X = choose_representation(adata,
-                              rep=X)
+    X = choose_representation(adata, rep=X)
     assert len(X.shape) == 2, f"X must be 2-dimensional, instead got shape: {X.shape}"
-    V = choose_representation(adata,
-                              rep=V)
+    V = choose_representation(adata, rep=V)
     assert len(V.shape) == 2, f"V must be 2-dimensional, instead got shape: {V.shape}"
 
     # get waypoints
@@ -36,10 +30,7 @@ def get_quiver(adata,
     waypoints = X[wps, :]
 
     # compute distance waypoints
-    wp_dists = pairwise_distances(
-        X,
-        X[wps, :]
-    )
+    wp_dists = pairwise_distances(X, X[wps, :])
     # closest waypoint for every cell
     wp_ixs = np.argmin(wp_dists, axis=1)
 
@@ -52,14 +43,15 @@ def get_quiver(adata,
     vect_sum = np.sum(wp_vect, axis=1)
     zero_vect = vect_sum != 0
 
-    return waypoints[zero_vect, 0], waypoints[zero_vect, 1], wp_vect[zero_vect, 0], wp_vect[zero_vect, 1]
+    return (
+        waypoints[zero_vect, 0],
+        waypoints[zero_vect, 1],
+        wp_vect[zero_vect, 0],
+        wp_vect[zero_vect, 1],
+    )
 
 
-def get_streamline(adata,
-                   X='X_nne',
-                   V='X_vect',
-                   grid_dim=50,
-                   min_cells=5):
+def get_streamline(adata, X="X_nne", V="X_vect", grid_dim=50, min_cells=5):
     """
     Get grid parameters to draw a streamplot.
     Use morphelia.tools.vectorize_emb beforehand.
@@ -74,11 +66,9 @@ def get_streamline(adata,
     assert X in adata.obsm.keys(), f"X not in .obsm: {X}"
     assert V in adata.obsm.keys(), f"V not in .obsm: {V}"
 
-    X = choose_representation(adata,
-                              rep=X)
+    X = choose_representation(adata, rep=X)
     assert len(X.shape) == 2, f"X must be 2-dimensional, instead got shape: {X.shape}"
-    V = choose_representation(adata,
-                              rep=V)
+    V = choose_representation(adata, rep=V)
     assert len(V.shape) == 2, f"V must be 2-dimensional, instead got shape: {V.shape}"
 
     # get boundary vals
@@ -98,10 +88,7 @@ def get_streamline(adata,
     wp_ix = np.column_stack((wp_X_ix.flatten(), wp_Y_ix.flatten()))
 
     # compute distance waypoints
-    wp_dists = pairwise_distances(
-        X,
-        wps
-    )
+    wp_dists = pairwise_distances(X, wps)
     # closest waypoint for every cell
     wp_nrbs = np.argmin(wp_dists, axis=1)
 
