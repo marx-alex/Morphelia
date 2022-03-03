@@ -2,7 +2,6 @@ import argparse
 import os
 from pathlib import Path
 import logging
-import sys
 
 import anndata as ad
 
@@ -11,7 +10,6 @@ import morphelia
 logger = logging.getLogger("Normalize")
 logging.basicConfig()
 logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler(sys.stdout))
 
 
 def run(
@@ -21,7 +19,7 @@ def run(
     method="standard",
     pop_var="Metadata_Treatment",
     norm_pop=None,
-    drop_outlier=True,
+    drop_outlier=False,
     outlier_thresh=3,
 ):
     """Normalize data."""
@@ -98,7 +96,7 @@ def main(args=None):
     parser.add_argument(
         "--drop_outlier",
         type=bool,
-        default=True,
+        default=False,
         help="Drop outlier values after normalization.",
     )
     parser.add_argument(

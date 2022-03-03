@@ -40,7 +40,7 @@ def thresh_outlier(adata, thresh=15, axis=0, drop=True, verbose=False):
         f"instead got {type(thresh)}"
     )
 
-    mask = np.logical_and((max_values <= thresh), (min_values <= thresh))
+    mask = np.logical_and((max_values < thresh), (min_values < thresh))
 
     if axis == 0:
         dropped_feats = adata.var_names[~mask]
@@ -63,7 +63,7 @@ def thresh_outlier(adata, thresh=15, axis=0, drop=True, verbose=False):
             adata = adata[mask, :].copy()
         if verbose:
             logger.info(
-                f"{n_before - len(adata)} cells removed with feature values >= or <= {thresh}"
+                f"{n_before - len(adata)} cells removed with feature values < -{thresh} or > {thresh}"
             )
 
     return adata

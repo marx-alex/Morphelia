@@ -1,7 +1,6 @@
 import argparse
 import logging
 import os
-import sys
 from pathlib import Path
 import anndata as ad
 from morphelia.preprocessing import pseudostitch
@@ -9,7 +8,6 @@ from morphelia.preprocessing import pseudostitch
 logger = logging.getLogger("Pseudostitch")
 logging.basicConfig()
 logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler(sys.stdout))
 
 
 def run(inp, out, tile_grid=(5, 5), img_overlap=0.2):

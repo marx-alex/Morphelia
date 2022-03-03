@@ -2,7 +2,6 @@ import argparse
 import os
 from pathlib import Path
 import logging
-import sys
 
 import anndata as ad
 
@@ -11,7 +10,6 @@ import morphelia
 logger = logging.getLogger("CleanData")
 logging.basicConfig()
 logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler(sys.stdout))
 
 
 def run(inp, out, nan_frac=0.5):

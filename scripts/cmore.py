@@ -2,7 +2,6 @@ import argparse
 import os
 import logging
 from pathlib import Path
-import sys
 
 import anndata as ad
 
@@ -11,7 +10,6 @@ import morphelia
 logger = logging.getLogger("C-More")
 logging.basicConfig()
 logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler(sys.stdout))
 
 
 def main(
@@ -50,15 +48,24 @@ def main(
     adata = morphelia.pp.drop_invariant(adata, axis=0, verbose=True)
     adata = morphelia.pp.drop_invariant(adata, axis=1, verbose=True)
 
-    logger.info("Quality control.")
-    # aggregate
-    agg = morphelia.pp.aggregate(
-        adata, by=by + [well_var], qc=qc, min_cells=min_cells, drop_qc=False
-    )
-    # quality control
-    morphelia.pl.plot_plate(agg, color="Metadata_Cellnumber", save=out)
     if qc:
+        logger.info("Quality control.")
+        # aggregate
+        agg = morphelia.pp.aggregate(
+            adata, by=by + [well_var], qc=qc, min_cells=min_cells, drop_qc=False
+        )
+        # quality control
         agg, qc_pops = agg
+        selects = list(agg.obs.groupby(by).groups.keys())
+        for sel in selects:
+            fname = [str(item) for item in sel]
+            fname = "_".join(fname)
+            fname = f"{fname}_qc.png"
+            select = dict(zip(by, sel))
+            morphelia.pl.plot_plate(
+                agg, select=select, color="Metadata_Cellnumber", save=out, fname=fname
+            )
+
         pops = adata.obs[by + [well_var]].values
         qc_mask = (pops[:, None] == qc_pops).all(-1).any(-1)
         logger.info(f"Drop following populations after quality control: {qc_pops}")
@@ -83,7 +90,9 @@ def main(
         method="otsu",
         max_val=4,
         threshold_labels="Debris Threshold",
+        subsample=True,
         make_plot=True,
+        show=False,
         plt_xlim=(0, 50),
         class_colors=class_colors,
         class_labels=class_labels,
@@ -106,7 +115,9 @@ def main(
         new_var="Cell_Type",
         method="otsu",
         threshold_labels="Cell Type Threshold",
+        subsample=True,
         make_plot=True,
+        show=False,
         class_colors=class_colors,
         class_labels=class_labels,
         xlabel="Median DAPI Intensity",
@@ -129,7 +140,9 @@ def main(
         new_var="Cell_Cycle",
         method="otsu",
         threshold_labels="Cell Cycle Threshold",
+        subsample=True,
         make_plot=True,
+        show=False,
         plt_xlim=(0, 1000),
         class_labels=class_labels,
         class_colors=class_colors,
@@ -137,9 +150,12 @@ def main(
         save=out,
     )
 
+    logger.info("Continue with aggregated data...")
+    agg = morphelia.pp.aggregate(adata, by=by + [well_var], method="median")
+
     logger.info("Normalize data based on 'ctrl'")
-    adata = morphelia.pp.normalize(
-        adata,
+    agg = morphelia.pp.normalize(
+        agg,
         method="mad_robust",
         by=by,
         pop_var="Metadata_Treatment",
@@ -147,9 +163,6 @@ def main(
         drop_nan=True,
         verbose=True,
     )
-
-    logger.info("Feature selection...")
-    agg = morphelia.pp.aggregate(adata, by=by + [well_var], method="median")
 
     logger.info("LMEM feature selection.")
     agg = morphelia.ft.feature_lmem(

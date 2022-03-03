@@ -2,7 +2,6 @@ import argparse
 import os
 from pathlib import Path
 import logging
-import sys
 
 import anndata as ad
 
@@ -11,7 +10,6 @@ import morphelia
 logger = logging.getLogger("Track")
 logging.basicConfig()
 logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler(sys.stdout))
 
 
 def run(
@@ -44,7 +42,7 @@ def run(
         group_vars=group_vars,
         x_loc=x_loc,
         y_loc=y_loc,
-        filter_tracks=filter_tracks,
+        filter_dummies=filter_tracks,
         allowed_dummies=allowed_dummies,
         min_track_len=min_track_len,
         drop_untracked=drop_untracked,
@@ -78,6 +76,13 @@ def main(args=None):
         type=str,
         default="./",
         help="Output directory.",
+    )
+    parser.add_argument(
+        "-t",
+        "--time_var",
+        type=str,
+        default="Metadata_Time",
+        help="Group data by these variables to get single fields.",
     )
     parser.add_argument(
         "-g",

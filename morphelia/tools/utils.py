@@ -1,4 +1,3 @@
-import warnings
 import logging
 import scanpy as sc
 import numpy as np
@@ -20,27 +19,27 @@ def choose_representation(adata, rep=None, n_pcs=None):
     Returns:
         numpy.ndarray
     """
-    # return .X if rep is None
-    if rep is None and n_pcs == 0:
-        X = adata.X.copy()
-
     # use X_pca by default
     if rep is None:
         if "X_pca" not in adata.obsm.keys():
-            warnings.warn("Found no PC representation. Trying to compute PCA...")
+            logger.warning("Found no PC representation. Trying to compute PCA...")
             sc.tl.pca(adata)
 
         if "X_pca" in adata.obsm.keys():
 
             if n_pcs is not None and n_pcs > adata.obsm["X_pca"].shape[1]:
-                warnings.warn(
+                logger.warning(
                     f"Number n_pcs {n_pcs} is larger than PCs in X_pca, "
                     f"use number of PCs in X_pca instead {adata.obsm['X_pca'].shape[1]}"
                 )
                 n_pcs = adata.obsm["X_pca"].shape[1]
 
-            # return pcs
-            X = adata.obsm["X_pca"][:, :n_pcs].copy()
+            # return .X if rep is None
+            if n_pcs == 0:
+                X = adata.X.copy()
+            else:
+                # return pcs
+                X = adata.obsm["X_pca"][:, :n_pcs].copy()
 
         else:
             raise ValueError("Did not found X_pca in .obsm")
@@ -85,7 +84,7 @@ def get_subsample(adata, sample_size=None, seed=0):
         np.random.seed(seed)
         N = len(adata)
         if sample_size >= N:
-            warnings.warn(
+            logger.warning(
                 "sample_size exceeds available samples, draws all samples instead."
             )
             return adata
@@ -215,20 +214,29 @@ class Adata3D:
         return X_2d
 
 
-def encode_labels(adata, label_var="Metadata_Treatment", sfx="_Enc"):
-    """Encode categorical label in adata.obs."""
-    assert label_var in adata.obs.columns, f"label_var not in .obs: {label_var}"
-    x = adata.obs[label_var].to_numpy()
+def encode_labels(adata, key="Metadata_Treatment", sfx="_Enc"):
+    """Encode categorical label in adata.obs.
+
+    Args:
+        adata (anndata.AnnData): Multidimensional morphological data.
+        key (str): Name of observation in .obs.
+        sfx (str): Suffix for new observation.
+
+    Returns:
+        (anndata.AnnData)
+    """
+    assert key in adata.obs.columns, f"label_var not in .obs: {key}"
+    x = adata.obs[key].to_numpy()
     le = LabelEncoder()
     y = le.fit_transform(x)
     le_name_mapping = dict(zip(le.classes_, le.transform(le.classes_)))
 
-    new_var = label_var + sfx
+    new_var = key + sfx
     adata.obs[new_var] = y
     if "le_map" in adata.uns:
-        adata.uns["le_map"][label_var] = le_name_mapping
+        adata.uns["le_map"][key] = le_name_mapping
     else:
-        adata.uns["le_map"] = {label_var: le_name_mapping}
+        adata.uns["le_map"] = {key: le_name_mapping}
     return adata
 
 

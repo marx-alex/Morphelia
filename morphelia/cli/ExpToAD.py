@@ -1,15 +1,14 @@
 import argparse
 import os
-import pathlib
+from pathlib import Path
+from collections import defaultdict
 import logging
-import sys
 
 from morphelia.tools.load_project import LoadPlate
 
 logger = logging.getLogger("ExpToAD")
 logging.basicConfig()
 logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler(sys.stdout))
 
 
 def run(
@@ -53,7 +52,7 @@ def run(
     if isinstance(files, str):
         files = [files]
 
-    datadict = _create_datadict(inp, files)
+    datadict = _batch_plate_paths(inp, files)
 
     # store plates
     plates = []
@@ -63,7 +62,7 @@ def run(
         logger.info(f"Processing batch {batch}...")
 
         # iterate over plates
-        for plate_i, plate_path in enumerate(sorted(datadict[batch].keys())):
+        for plate_i, plate_path in enumerate(datadict[batch]):
             logger.info(f"Processing plate at location {plate_path}...")
 
             plate = LoadPlate(
@@ -85,16 +84,17 @@ def run(
             plate = plate.to_anndata()  # --> convert to anndata
             plate.obs["BatchNumber"] = batch_i + 1
             plate.obs["PlateNumber"] = plate_i + 1
-            plate.write(os.path.join(out, f"{batch}_plate{plate_i}.h5ad"))
+            plate.write(os.path.join(out, f"{batch}_plate_{plate_i}.h5ad"))
             if merge_plates:
                 plates.append(plate)
 
     # concatenate
     if len(plates) > 0:
+        logger.info(f"Merge {len(plates)} plates.")
         plates = plates[0].concatenate(plates[1:])
         plates.write(os.path.join(out, "adata.h5ad"))
     else:
-        logger.info("Do not merge plates.")
+        logger.warning("No plates found.")
 
 
 def main(args=None):
@@ -122,7 +122,7 @@ def main(args=None):
         "-o",
         "--out",
         type=str,
-        default="./adata/",
+        default="./",
         help="Output directory to Cellprofiler output for a whole experiment.",
     )
     parser.add_argument(
@@ -144,7 +144,7 @@ def main(args=None):
         help="Suffix of treatment file.",
     )
     parser.add_argument(
-        "--obj_sfx", type=str, default=".csv", help="Suffix of object files."
+        "--obj_sfx", type=str, default=".txt", help="Suffix of object files."
     )
     parser.add_argument(
         "--obj_well_var",
@@ -211,37 +211,30 @@ def main(args=None):
     )
 
 
-def _create_datadict(exp_path, files):
-    """Create dictionary with data from a image-based experiment with
-    experiment, trial, plate and object data as keys.
+def _batch_plate_paths(path, files, sfx=".txt"):
+    """Get all batch and plate paths.
 
     Args:
-        exp_path (str): Path to experiment data.
+        path (str): Path to experiment data.
         files (iterable): Object files that store data.
+        sfx (str): Suffix of files.
 
     Returns:
         (dict)
     """
-    datadict = {}
-    for path, subdirs, filenames in os.walk(pathlib.Path(exp_path)):
-        if files is not None:
-            csv_files = [
-                filename
-                for filename in filenames
-                if (filename.endswith(".csv") or filename.endswith(".txt"))
-                and filename in files
-            ]
-        else:
-            csv_files = [
-                filename
-                for filename in filenames
-                if (filename.endswith(".csv") or filename.endswith(".txt"))
-            ]
+    if isinstance(files, str):
+        files = [files]
+    assert isinstance(
+        files, (list, tuple)
+    ), f"File must be string, list or tuple. Instead got {type(files)}."
+    data = defaultdict(list)
+    for file in files:
+        for file_path in Path(path).rglob(f"*{file}*{sfx}"):
+            batch = file_path.parts[-3]
+            data[batch].append(file_path.parent)
 
-        if len(csv_files) != 0:
-            batch = path.split(os.sep)[-2]
-            if batch not in datadict.keys():
-                datadict[batch] = {}
-            datadict[batch][path] = csv_files
+    # make plates unique
+    for batch in data:
+        data[batch] = list(set(data[batch]))
 
-    return datadict
+    return data

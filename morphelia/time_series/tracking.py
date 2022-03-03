@@ -169,13 +169,12 @@ def track(
     x_loc="Cells_Location_Center_X",
     y_loc="Cells_Location_Center_Y",
     parent_id="Metadata_Track_Parent",
-    tree_id="Metadata_Track",
+    track_id="Metadata_Track",
     fate_id="Metadata_Fate",
     root_id="Metadata_Track_Root",
     gen_id="Metadata_Gen",
-    filter_tracks=False,
-    allowed_dummies=0,
-    min_track_len="max",
+    filter_dummies=False,
+    filter_delayed_roots=True,
     drop_untracked=True,
     max_search_radius=100,
     field_size=(2048, 2048),
@@ -200,13 +199,12 @@ def track(
         x_loc (str): Identifier for x location in annotations.
         y_loc (str): Identifier for y location in annotations.
         parent_id (str): Variable name used to store index of parent track.
-        tree_id (str): Variable name used to store unique tree id.
+        track_id (str): Variable name used to store unique track id.
         fate_id (str): Variable name used to store fate of a track.
         root_id (str): Variable name used to store root of a track.
         gen_id (str): Variable name to store generation of a track.
-        filter_tracks (bool): Filter tracks with dummies and minimum length if True.
-        allowed_dummies (int): Max allowed dummies in track.
-        min_track_len (int, str): Min track length. Takes maximum track length if 'max'.
+        filter_dummies (bool): Filter trees with dummies.
+        filter_delayed_roots (bool): Filter roots that initiate after t=0.
         drop_untracked (bool): Drop all false positive tracks from the anndata object.
         max_search_radius (int): Local spatial search radius (pixels)
         field_size (tuple of ints): Height and width in of field.
@@ -240,18 +238,12 @@ def track(
         f"x_loc expected to be different from y_loc, " f"x_loc: {x_loc}, y_loc: {y_loc}"
     )
 
-    # choose track length
-    # TODO: Don't subtract 1 from time points if bug fix is in main repo
-    # https://github.com/quantumjot/BayesianTracker/issues/41
-    if min_track_len == "max":
-        min_track_len = len(adata.obs[time_var].unique()) - 1
-
     field_height, field_width = field_size
 
     # create new column to store index of parent object
     adata.obs[parent_id] = np.nan
     # create new column and store id for every trace tree
-    adata.obs[tree_id] = np.nan
+    adata.obs[track_id] = np.nan
     # store fate, root and generation
     adata.obs[fate_id] = np.nan
     adata.obs[root_id] = np.nan
@@ -265,7 +257,8 @@ def track(
         "HypothesisModel": btrack.optimise.hypothesis.read_hypothesis_model(config),
     }
 
-    tree_start_id = 0
+    # id of first track
+    track_start_id = 0
 
     # iterate over every field and get field at different times
     total_its = np.prod([len(adata.obs[gv].unique()) for gv in group_vars])
@@ -309,62 +302,76 @@ def track(
 
             tracks = tracker.tracks
 
-        if filter_tracks:
-            filtered_tracks = track_filter(
-                tracks,
-                track_len=min_track_len,
-                allowed_dummies=allowed_dummies,
-            )
-        else:
-            filtered_tracks = tracks
-
         t_header = ["ID", "t"] + ["z", "y", "x"][-2:]
-        p_header = ["t", "state", "generation", "root", "parent"]
+        p_header = ["t", "state", "generation", "root", "parent", "dummy"]
 
         header = t_header + p_header
-        dict_tracks = tracks_as_dict(filtered_tracks, header, add_fate=True)
+        dict_tracks = tracks_as_dict(tracks, header, add_fate=True)
 
         cat_tracks = cat_track_dicts(dict_tracks)
         output = pd.DataFrame(cat_tracks)
-        # add convert IDs and parent ids to absolute ids
-        output = add_absolute_ids(output, start_id=tree_start_id)
+
+        # filter delayed roots
+        if filter_delayed_roots:
+            delayed_roots = output.loc[output["ID"] == output["parent"], :]
+            delayed_roots = (
+                delayed_roots.groupby("ID")
+                .filter(lambda x: x["t"].min() != 0)["root"]
+                .unique()
+            )
+            output = output.loc[~output["root"].isin(delayed_roots), :]
+        # filter roots that contain dummies
+        if filter_dummies:
+            dummy_roots = output.loc[output["dummy"], "root"].unique()
+            output = output.loc[~output["root"].isin(dummy_roots), :]
+        # add absolute ids to output
+        output, end_id = add_absolute_ids(
+            output, start_id=track_start_id, return_end_id=True
+        )
         # delete dummies before updating adata
         output = output[output["id"] != "nan"]
 
-        tree_start_id += len(dict_tracks)
+        track_start_id = end_id
 
         # update adata
         if len(output) > 0:
             adata.obs.loc[
-                output["id"], [tree_id, parent_id, fate_id, root_id, gen_id]
-            ] = output[["tree_id", "parent_id", "fate", "root_id", "gen"]].to_numpy()
+                output["id"], [track_id, parent_id, fate_id, root_id, gen_id]
+            ] = output[["track_id", "parent_id", "fate", "root_id", "gen"]].to_numpy()
 
     if drop_untracked:
         len_before = len(adata)
         # drop false positive
-        adata = adata[adata.obs[fate_id] != "false", :].copy()
+        adata = adata[adata.obs[fate_id] != "false", :]
         # drop untracked cells
-        adata = adata[adata.obs[tree_id].notna(), :]
+        adata = adata[adata.obs[track_id].notna(), :]
+        adata = adata[adata.obs[parent_id].notna(), :]
+        adata = adata[adata.obs[root_id].notna(), :]
         if verbose:
             logging.info(
                 f"Dropped {len_before - len(adata)} cells with false positive tracks."
             )
 
-    return adata
+    return adata.copy()
 
 
-def add_absolute_ids(output, start_id=None):
+def add_absolute_ids(output, start_id=None, return_end_id=False):
     track_ids = output["ID"].unique()
     n_tracks = len(track_ids)
+
     if start_id is None:
         start_id = 0
+    end_id = start_id + n_tracks
 
-    ids = list(range(start_id, start_id + n_tracks))
+    ids = list(range(start_id, end_id))
     mapping = {track_id: new_id for track_id, new_id in zip(track_ids, ids)}
-    output["tree_id"] = output["ID"].map(mapping)
+    output["track_id"] = output["ID"].map(mapping)
     output["parent_id"] = output["parent"].map(mapping)
     output["root_id"] = output["root"].map(mapping)
     output["gen"] = output["generation"]
+
+    if return_end_id:
+        return output, end_id
 
     return output
 
@@ -420,26 +427,6 @@ def cat_track_dicts(tracks: list):
         data[key] = np.concatenate(data[key])
 
     return data
-
-
-def track_filter(tracks, allowed_dummies=0, track_len=10):
-    dummy_filtered = []
-    if allowed_dummies is not None:
-        for tr in tracks:
-            if np.sum(tr["dummy"]) <= allowed_dummies:
-                dummy_filtered.append(tr)
-    else:
-        dummy_filtered = tracks
-
-    len_filtered = []
-    if track_len is not None:
-        for tr in dummy_filtered:
-            if len(tr) >= track_len:
-                len_filtered.append(tr)
-    else:
-        len_filtered = dummy_filtered
-
-    return len_filtered
 
 
 def track_nn(

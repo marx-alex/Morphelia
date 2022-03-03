@@ -2,7 +2,6 @@ import argparse
 import os
 from pathlib import Path
 import logging
-import sys
 
 import anndata as ad
 
@@ -11,7 +10,6 @@ import morphelia
 logger = logging.getLogger("Split")
 logging.basicConfig()
 logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler(sys.stdout))
 
 
 def run(
@@ -34,7 +32,7 @@ def run(
     logger.info("Split data...")
     if group is not None:
         adata_train, adata_test = morphelia.tl.group_shuffle_split(
-            adata, group="Metadata_Trace_Tree", stratify=stratify, test_size=test_size
+            adata, group=group, stratify=stratify, test_size=test_size
         )
 
     else:

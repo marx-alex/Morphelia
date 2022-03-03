@@ -174,7 +174,7 @@ def estimate_k(
     if make_plot:
         # lineplot
         sns.set_theme()
-        fig = plt.figure(1)
+        fig = plt.figure()
         sns.lineplot(x=ks, y=sil_coeffs)
         plt.xlabel("k (Number of clusters)")
         plt.axvline(

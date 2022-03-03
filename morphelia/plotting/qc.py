@@ -25,6 +25,7 @@ def plot_plate(
     wells=96,
     show=False,
     save=None,
+    fname="qc_plot.png",
     **kwargs,
 ):
     """Plot data of a 96-well or 384-well plate into a well-shaped plot.
@@ -42,6 +43,7 @@ def plot_plate(
         wells (int): Select type of plate: 96 or 384.
         show (bool): Show and return axes.
         save (str): Path where to save figure.
+        fname (str): Name of plat when saved.
 
     Returns:
         matplotlib.pyplot.figure
@@ -237,7 +239,7 @@ def plot_plate(
     # save
     if save is not None:
         try:
-            plt.savefig(os.path.join(save, "qc_plot.png"))
+            plt.savefig(os.path.join(save, fname))
         except OSError:
             print(f"Can not save figure to {save}.")
 

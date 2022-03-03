@@ -39,8 +39,12 @@ def assign_by_threshold(
     method="otsu",
     max_val=None,
     min_val=None,
+    subsample=False,
+    sample_size=10000,
+    seed=0,
     make_plot=False,
     show=True,
+    return_fig=False,
     save=None,
     xlabel=None,
     plt_xlim=None,
@@ -63,8 +67,12 @@ def assign_by_threshold(
         method (str): Thresholding method. Can be one of: isodata, li, mean, minimum, otsu, triabgle, yen, multi_otsu.
         max_val (int, float): Maximum value to consider to be a threshold.
         min_val (int, float): Minimum value to consider to be a threshold.
+        subsample (bool): Make a subsample before calculating threshold.
+        sample_size (int): Size of subsample.
+        seed (int): Seed for reproducibility.
         make_plot (bool): Make plots for each threshold calculation.
         show (bool): Show plot. Return figure, if false.
+        return_fig (bool): Return anndata object and figure.
         save (str): Path, where to store figure.
         xlabel (str): Label for x-axis in plot.
         plt_xlim (tuple): Limits for x-axis.
@@ -115,7 +123,14 @@ def assign_by_threshold(
             group_dist = dist[group_mask]
 
             thresh, class_annotation = _find_thresh(
-                group_dist, func, min_val, max_val, **kwargs
+                dist=group_dist,
+                func=func,
+                min_val=min_val,
+                max_val=max_val,
+                sample_size=sample_size,
+                subsample=subsample,
+                seed=seed,
+                **kwargs,
             )
 
             adata.obs.loc[sub_df.index, new_var] = class_annotation
@@ -123,7 +138,7 @@ def assign_by_threshold(
             # plot
             if make_plot:
                 if isinstance(groups, (list, tuple)):
-                    group_str = f"{', '.join(groups)}"
+                    group_str = ", ".join([f"{k}: {g}" for k, g in zip(by, groups)])
                 else:
                     group_str = str(groups)
                 f = _plot_thresh(
@@ -143,7 +158,16 @@ def assign_by_threshold(
                 fig.append(f)
 
     else:
-        thresh, class_annotation = _find_thresh(dist, func, min_val, max_val, **kwargs)
+        thresh, class_annotation = _find_thresh(
+            dist=dist,
+            func=func,
+            min_val=min_val,
+            max_val=max_val,
+            sample_size=sample_size,
+            subsample=subsample,
+            seed=seed,
+            **kwargs,
+        )
 
         # add annotation to adata
         adata.obs[new_var] = class_annotation
@@ -177,14 +201,22 @@ def assign_by_threshold(
         class_mapping = {ul: cl for ul, cl in zip(unique_labels, class_labels)}
         adata.obs[new_var] = adata.obs[new_var].map(class_mapping)
 
-    if not show:
-        if fig is not None:
-            return adata, fig
+    if return_fig:
+        return adata, fig
 
     return adata
 
 
-def _find_thresh(dist, func, min_val=None, max_val=None, **kwargs):
+def _find_thresh(
+    dist,
+    func,
+    subsample=False,
+    sample_size=10000,
+    seed=0,
+    min_val=None,
+    max_val=None,
+    **kwargs,
+):
     """Finds threshold in a given distribution by a given function and
     with given constraints. Thresholds and class annotations are returned."""
     dist_window = dist.copy()
@@ -192,6 +224,16 @@ def _find_thresh(dist, func, min_val=None, max_val=None, **kwargs):
         dist_window = dist_window[dist_window < max_val]
     if min_val is not None:
         dist_window = dist_window[dist_window > min_val]
+
+    if subsample and sample_size is not None:
+        # get samples
+        np.random.seed(seed)
+        N = len(dist_window)
+        if sample_size >= N:
+            pass
+        else:
+            sample_ixs = np.random.choice(N, size=sample_size, replace=False)
+            dist_window = dist_window[sample_ixs]
 
     thresh = func(dist_window, **kwargs)
 
@@ -287,7 +329,8 @@ def _plot_thresh(
         fname = "threshold"
         i = 0
         while os.path.isfile(os.path.join(save, f"{fname}.png")):
-            fname = f"{fname}_{i}"
+            fname = fname.split("_")
+            fname = f"{fname[0]}_{i}"
             i += 1
         try:
             plt.savefig(os.path.join(save, f"{fname}.png"))

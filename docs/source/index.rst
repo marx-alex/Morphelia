@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to Morphelia's documentation!
+Morphelia
 =====================================
 
 **Morphelia** is a data analysis toolkit for image-based morphological profiling.
@@ -17,13 +17,7 @@ Welcome to Morphelia's documentation!
    :caption: Contents:
 
    install
-
-.. toctree::
-   :caption: Tutorials
-
-   tutorials/morphelia_intro.ipynb
-   tutorials/cmore_recipe.ipynb
-
+   tutorials/tutorials
 
 
 Indices and tables

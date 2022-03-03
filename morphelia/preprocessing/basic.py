@@ -225,7 +225,7 @@ def drop_invariant(adata, axis=0, verbose=False):
     if axis == 0:
         comp = adata.X[0, :]
         mask = np.all(adata.X == comp[None, :], axis=axis)
-        dropped = adata.var_names[mask]
+        dropped = list(adata.var_names[mask])
 
         if verbose:
             logger.info(f"Dropped {len(dropped)} invariant features: {dropped}")
@@ -238,7 +238,7 @@ def drop_invariant(adata, axis=0, verbose=False):
     elif axis == 1:
         comp = adata.X[:, 0]
         mask = np.all(adata.X == comp[:, None], axis=axis)
-        dropped = adata.obs.index[mask]
+        dropped = list(adata.obs.index[mask])
 
         if verbose:
             logger.info(f"Dropped {len(dropped)} invariant cells: {dropped}")

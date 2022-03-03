@@ -2,7 +2,6 @@
 import numpy as np
 
 # internal libraries
-import warnings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -62,9 +61,8 @@ def pseudostitch(
 
     # check that columns for tile row and column exist
     if tcol_var not in md.obs.columns or trow_var not in md.obs.columns:
-        warnings.warn(
-            "Column variables for tile positions are not in the data frame, trying to add them.",
-            UserWarning,
+        logger.warning(
+            "Column variables for tile positions are not in the data frame, trying to add them."
         )
         # add new columns to morphome
         md.obs[trow_var] = md.obs[tile_var].map(lambda x: tile_grid_dict[x][0])
