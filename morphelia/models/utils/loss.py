@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from morphelia.models import partition
+from .helper import partition
 
 
 class MaskedMSELoss(nn.Module):
