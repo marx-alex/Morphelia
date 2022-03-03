@@ -19,15 +19,14 @@ def run(
     group_vars=("Metadata_Well", "Metadata_Field"),
     x_loc="Cells_Location_Center_X",
     y_loc="Cells_Location_Center_Y",
-    filter_tracks=False,
-    allowed_dummies=0,
-    min_track_len="max",
+    filter_dummies=True,
+    filter_delayed_roots=True,
     drop_untracked=True,
     max_search_radius=100,
     field_size=(2048, 2048),
     approx=False,
 ):
-    """Basic cleaning routine for morphological data."""
+    """Tracking of cells in a time series experiment"""
     if not os.path.exists(out):
         os.makedirs(out)
 
@@ -42,9 +41,8 @@ def run(
         group_vars=group_vars,
         x_loc=x_loc,
         y_loc=y_loc,
-        filter_dummies=filter_tracks,
-        allowed_dummies=allowed_dummies,
-        min_track_len=min_track_len,
+        filter_dummies=filter_dummies,
+        filter_delayed_roots=filter_delayed_roots,
         drop_untracked=drop_untracked,
         max_search_radius=max_search_radius,
         field_size=field_size,
@@ -104,21 +102,16 @@ def main(args=None):
         help="Variable with information about y location.",
     )
     parser.add_argument(
-        "--filter_tracks",
+        "--filter_dummies",
         type=bool,
-        default=False,
-        help="Filter tracks by min_track_len and allowed_dummies.",
+        default=True,
+        help="Filter tracks that contain dummies.",
     )
     parser.add_argument(
-        "--allowed_dummies",
-        type=int,
-        default=0,
-        help="Max allowed dummies in track.",
-    )
-    parser.add_argument(
-        "--min_track_len",
-        default="max",
-        help="Min track length. Takes maximum track length if 'max'.",
+        "--filter_delayed_roots",
+        type=bool,
+        default=True,
+        help="Filter tracks that start late.",
     )
     parser.add_argument(
         "--drop_untracked",
@@ -156,9 +149,8 @@ def main(args=None):
         group_vars=args.group_vars,
         x_loc=args.x_loc,
         y_loc=args.y_loc,
-        filter_tracks=args.filter_tracks,
-        allowed_dummies=args.allowed_dummies,
-        min_track_len=args.min_track_len,
+        filter_dummies=args.filter_dummies,
+        filter_delayed_roots=args.filter_delayed_roots,
         drop_untracked=args.drop_untracked,
         max_search_radius=args.max_search_radius,
         field_size=args.field_size,
