@@ -4,7 +4,7 @@ import math
 import torch
 from torch import nn
 
-from transformation import PermuteAxis, Reshape
+from .transformation import PermuteAxis, Reshape
 from ._utils import ArgSequential
 
 

@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import Dataset
 import torch.nn.functional as F
 
-from . import data_converter
+from ._utils import data_converter
 
 
 class LineageTreeDataset(Dataset):
