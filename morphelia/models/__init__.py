@@ -1,5 +1,4 @@
 from .deepmap import DeepMap
-from .autoagg import AutoAggregation
 from .utils.loss import MaskedMSELoss, MMDLoss
 from .modules.transformation import PermuteAxis, AddLayer, MultLayer, Reshape
 from .modules._utils import ArgSequential, geometric_noise
