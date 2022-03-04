@@ -6,7 +6,7 @@ import logging
 
 from morphelia.tools.load_project import LoadPlate
 
-logger = logging.getLogger("ExpToAD")
+logger = logging.getLogger("StorePlates")
 logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
@@ -15,7 +15,6 @@ def run(
     inp,
     out,
     files=("Cells", "Primarieswithoutborder", "Cytoplasm"),
-    merge_plates=True,
     obj_sfx=".csv",
     obj_well_var="Metadata_Well",
     meta_var="Metadata",
@@ -54,9 +53,6 @@ def run(
 
     datadict = _batch_plate_paths(inp, files)
 
-    # store plates
-    plates = []
-
     # load every plate independently
     for batch_i, batch in enumerate(sorted(datadict.keys())):
         logger.info(f"Processing batch {batch}...")
@@ -84,17 +80,7 @@ def run(
             plate = plate.to_anndata()  # --> convert to anndata
             plate.obs["BatchNumber"] = batch_i + 1
             plate.obs["PlateNumber"] = plate_i + 1
-            plate.write(os.path.join(out, f"{batch}_plate_{plate_i}.h5ad"))
-            if merge_plates:
-                plates.append(plate)
-
-    # concatenate
-    if len(plates) > 0:
-        logger.info(f"Merge {len(plates)} plates.")
-        plates = plates[0].concatenate(plates[1:])
-        plates.write(os.path.join(out, "adata.h5ad"))
-    else:
-        logger.warning("No plates found.")
+            plate.write(os.path.join(out, f"{batch}_plate_{plate_i + 1:04d}.h5ad"))
 
 
 def main(args=None):
@@ -117,19 +103,6 @@ def main(args=None):
         nargs="+",
         default=["Cells", "Primarieswithoutborder", "Cytoplasm"],
         help="Filenames of CellProfiler output files that should be stored.",
-    )
-    parser.add_argument(
-        "-o",
-        "--out",
-        type=str,
-        default="./",
-        help="Output directory to Cellprofiler output for a whole experiment.",
-    )
-    parser.add_argument(
-        "--merge_plates",
-        type=bool,
-        default=True,
-        help="Whether to merge all plates to a single AnnData object.",
     )
     parser.add_argument(
         "--treat_file",
@@ -197,7 +170,6 @@ def main(args=None):
         inp=args.inp,
         out=args.out,
         files=args.files,
-        merge_plates=args.merge_plates,
         obj_sfx=args.obj_sfx,
         obj_well_var=args.obj_well_var,
         meta_var=args.meta_var,
