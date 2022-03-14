@@ -98,6 +98,12 @@ def main(args=None):
         help="Input directory to Cellprofiler output for a whole experiment.",
     )
     parser.add_argument(
+        "-o",
+        "--out",
+        type=str,
+        help="Output directory.",
+    )
+    parser.add_argument(
         "-f",
         "--files",
         nargs="+",

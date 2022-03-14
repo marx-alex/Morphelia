@@ -2,20 +2,10 @@ from typing import Tuple, Optional
 
 import torch
 from torch import nn
-import torch.nn.functional as F
-from torch.distributions import Normal, kl_divergence
+from torch.distributions import Normal
 
-
-def kld(mu: torch.Tensor, log_var: torch.Tensor, eps: float = 1e-5):
-    var = torch.exp(log_var) + eps
-    kld = (
-        kl_divergence(
-            Normal(mu, var.sqrt()), Normal(torch.zeros_like(mu), torch.ones_like(var))
-        )
-        .sum(dim=1)
-        .mean()
-    )
-    return kld
+from . import PermuteAxis
+from ._utils import add_condition
 
 
 def sampling(
@@ -36,10 +26,18 @@ def sampling(
 
 
 class CondLayer(nn.Module):
-    """Implements a conditional layer."""
+    """Implements a conditional layer.
+
+    Args:
+        in_features: Number of input features.
+        out_features: Number of output features.
+        n_conditions: Absolute number of conditions.
+        bias: Learn bias for the layer. Default is True.
+            This das not affect the conditional layer where no additive bias is learned.
+    """
 
     def __init__(
-        self, in_features: int, out_features: int, n_conditions: int, bias: bool
+        self, in_features: int, out_features: int, n_conditions: int, bias: bool = True
     ):
         super().__init__()
         self.n_conditions = n_conditions
@@ -51,7 +49,7 @@ class CondLayer(nn.Module):
             return self.layer(x)
         else:
             x, condition = torch.split(
-                x, [x.shape[1] - self.n_cond, self.n_cond], dim=1
+                x, [x.shape[-1] - self.n_conditions, self.n_conditions], dim=-1
             )
             return self.layer(x) + self.cond_layer(condition)
 
@@ -62,8 +60,10 @@ class Encoder(nn.Module):
 
     Args:
         layer_dims: List with number of hidden features.
+            Last number is number of features in hidden space.
         latent_dim: Number of features in latent space.
         n_conditions: Number of conditions. Vanilla VAE if 0.
+        sequential: Permute Axis before BatchNorm if sequential.
         batch_norm: Add batch normalization.
         layer_norm: Add layer normalization.
         dropout: Add dropout layer.
@@ -74,6 +74,7 @@ class Encoder(nn.Module):
         layer_dims: list,
         latent_dim: int,
         n_conditions: int = 0,
+        sequential: bool = False,
         batch_norm: bool = False,
         layer_norm: bool = True,
         dropout: float = None,
@@ -108,7 +109,11 @@ class Encoder(nn.Module):
                     )
 
                 if batch_norm:
+                    if sequential:
+                        self.encode.append(PermuteAxis([0, 2, 1]))
                     self.encode.append(nn.BatchNorm1d(out_features, affine=True))
+                    if sequential:
+                        self.encode.append(PermuteAxis([0, 2, 1]))
                 if layer_norm:
                     self.encode.append(
                         nn.LayerNorm(out_features, elementwise_affine=False)
@@ -135,8 +140,7 @@ class Encoder(nn.Module):
         """
         # concatenate x and condition
         if c is not None:
-            c = F.one_hot(c, num_classes=self.n_conditions)
-            x = torch.cat((x, c), dim=-1)
+            x = add_condition(x, c, self.n_conditions)
 
         if self.encode is not None:
             x = self.encode(x)
@@ -152,7 +156,7 @@ class VAEEncoder(Encoder):
     """
 
     def __init__(self, **kwargs):
-        super(VAEEncoder, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.mean_encoder = nn.Linear(self.layer_dims[-1], self.latent_dim)
         self.logvar_encoder = nn.Linear(self.layer_dims[-1], self.latent_dim)
 
@@ -166,15 +170,14 @@ class VAEEncoder(Encoder):
         """
         # concatenate x and condition
         if c is not None:
-            c = F.one_hot(c, num_classes=self.n_conditions)
-            x = torch.cat((x, c), dim=1)
+            x = add_condition(x, c, self.n_conditions)
 
         if self.encode is not None:
             x = self.encode(x)
 
         mean = self.mean_encoder(x)
-        logvar = self.logvar_encoder(x)
-        return mean, logvar
+        log_var = self.logvar_encoder(x)
+        return mean, log_var
 
 
 class MMDDecoder(nn.Module):
@@ -186,6 +189,7 @@ class MMDDecoder(nn.Module):
         layer_dims: List with number of hidden features.
         latent_dim: Number of features in latent space.
         n_conditions: Number of conditions. Vanilla VAE if 0.
+        sequential: Permute Axis before BatchNorm if sequential.
         batch_norm: Add batch normalization.
         layer_norm: Add layer normalization.
         dropout: Add dropout layer.
@@ -196,6 +200,7 @@ class MMDDecoder(nn.Module):
         layer_dims: list,
         latent_dim: int,
         n_conditions: int = 0,
+        sequential: bool = False,
         batch_norm: bool = False,
         layer_norm: bool = True,
         dropout: float = None,
@@ -216,7 +221,11 @@ class MMDDecoder(nn.Module):
         )
 
         if batch_norm:
+            if sequential:
+                self.decode1.append(PermuteAxis([0, 2, 1]))
             self.decode1.append(nn.BatchNorm1d(layer_dims[1], affine=True))
+            if sequential:
+                self.decode1.append(PermuteAxis([0, 2, 1]))
         if layer_norm:
             self.decode1.append(nn.LayerNorm(layer_dims[1], elementwise_affine=False))
         self.decode1.append(nn.ReLU())
@@ -242,7 +251,11 @@ class MMDDecoder(nn.Module):
                     )
 
                     if batch_norm:
+                        if sequential:
+                            self.decode2.append(PermuteAxis([0, 2, 1]))
                         self.decode2.append(nn.BatchNorm1d(out_features, affine=True))
+                        if sequential:
+                            self.decode2.append(PermuteAxis([0, 2, 1]))
                     if layer_norm:
                         self.decode2.append(
                             nn.LayerNorm(out_features, elementwise_affine=False)
@@ -269,8 +282,7 @@ class MMDDecoder(nn.Module):
         """
         # concatenate x and condition
         if c is not None:
-            c = F.one_hot(c, num_classes=self.n_conditions)
-            x = torch.cat((x, c), dim=1)
+            x = add_condition(x, c, self.n_conditions)
 
         y_hat = self.decode1(x)
 
@@ -281,3 +293,102 @@ class MMDDecoder(nn.Module):
 
         x_hat = self.output(x_hat)
         return x_hat, y_hat
+
+
+class Decoder(nn.Module):
+    """
+    Decoder Module.
+
+    Args:
+        layer_dims: List with number of hidden features.
+        latent_dim: Number of features in latent space.
+        n_conditions: Number of conditions. Vanilla VAE if 0.
+        sequential: Permute Axis before BatchNorm if sequential.
+        batch_norm: Add batch normalization.
+        layer_norm: Add layer normalization.
+        dropout: Add dropout layer.
+    """
+
+    def __init__(
+        self,
+        layer_dims: list,
+        latent_dim: int,
+        n_conditions: int = 0,
+        sequential: bool = False,
+        batch_norm: bool = False,
+        layer_norm: bool = True,
+        dropout: float = None,
+    ):
+        super().__init__()
+        self.n_conditions = n_conditions
+        layer_dims = [latent_dim] + layer_dims
+
+        # dynamically append modules
+        self.decode = None
+        if len(layer_dims) > 0:
+            self.decode = []
+
+            for i, (in_features, out_features) in enumerate(
+                zip(layer_dims[:-2], layer_dims[1:-1])
+            ):
+                if i == 0:
+                    self.decode.append(
+                        CondLayer(
+                            in_features=layer_dims[0],
+                            out_features=layer_dims[1],
+                            n_conditions=self.n_conditions,
+                            bias=False,
+                        )
+                    )
+
+                else:
+
+                    self.decode.append(
+                        nn.Linear(
+                            in_features=in_features,
+                            out_features=out_features,
+                            bias=False,
+                        )
+                    )
+
+                if batch_norm:
+                    if sequential:
+                        self.decode.append(PermuteAxis([0, 2, 1]))
+                    self.decode.append(nn.BatchNorm1d(out_features, affine=True))
+                    if sequential:
+                        self.decode.append(PermuteAxis([0, 2, 1]))
+                if layer_norm:
+                    self.decode.append(
+                        nn.LayerNorm(out_features, elementwise_affine=False)
+                    )
+
+                self.decode.append(nn.ReLU())
+
+                if dropout is not None:
+                    self.decode.append(nn.Dropout(dropout))
+
+            self.decode = nn.Sequential(*self.decode)
+
+        self.output = nn.Sequential(
+            nn.Linear(layer_dims[-2], layer_dims[-1]), nn.ReLU()
+        )
+
+    def forward(
+        self, x: torch.Tensor, c: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Args:
+            x: Tensor of shape [batch size x feature size]
+            c: Tensor of shape [batch size,]
+        """
+        # concatenate x and condition
+        if c is not None:
+            x = add_condition(x, c, self.n_conditions)
+
+        if self.decode is not None:
+            x_hat = self.decode(x)
+        else:
+            x_hat = x
+
+        x_hat = self.output(x_hat)
+        return x_hat

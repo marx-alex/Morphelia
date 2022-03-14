@@ -11,3 +11,4 @@ from .subsample import subsample
 from .positional_corr import correct_plate_eff
 from .photobleach import correct_bleaching, correct_bleached_var
 from .thresholding import assign_by_threshold
+from .select import select_by_group

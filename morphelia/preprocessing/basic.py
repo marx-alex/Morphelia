@@ -64,7 +64,10 @@ def drop_nan(
 
         # store dropped features in adata.uns
         if "nan_feats" in adata.uns:
-            adata.uns["nan_feats"].append(dropped)
+            if isinstance(adata.uns["nan_feats"], list):
+                adata.uns["nan_feats"].extend(dropped)
+            else:
+                adata.uns["nan_feats"] = dropped
         else:
             adata.uns["nan_feats"] = dropped
 
@@ -79,7 +82,10 @@ def drop_nan(
 
         # store dropped features in adata.uns
         if "nan_cells" in adata.uns:
-            adata.uns["nan_cells"].append(dropped)
+            if isinstance(adata.uns["nan_cells"], list):
+                adata.uns["nan_cells"].extend(dropped)
+            else:
+                adata.uns["nan_cells"] = dropped
         else:
             adata.uns["nan_cells"] = dropped
 

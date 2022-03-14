@@ -1,9 +1,11 @@
 from collections import defaultdict
+from typing import Optional, Union
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 import torch.nn.functional as F
+import anndata as ad
 
 from ._utils import data_converter
 
@@ -16,15 +18,15 @@ class LineageTreeDataset(Dataset):
 
     def __init__(
         self,
-        adata,
-        target_key="Metadata_Treatment",
-        root_key="Metadata_Track_Root",
-        track_key="Metadata_Track",
-        parent_key="Metadata_Track_Parent",
-        time_key="Metadata_Time",
-        batch_key=None,
-        seq_len="max",
-    ):
+        adata: ad.AnnData,
+        target_key: str = "Metadata_Treatment",
+        root_key: str = "Metadata_Track_Root",
+        track_key: str = "Metadata_Track",
+        parent_key: str = "Metadata_Track_Parent",
+        time_key: str = "Metadata_Time",
+        condition_key: Optional[str] = None,
+        seq_len: Union[str, int] = "max",
+    ) -> None:
         self.root = adata.obs[root_key].to_numpy()
         self.track = adata.obs[track_key].to_numpy()
         self.parent = adata.obs[parent_key].to_numpy()
@@ -40,9 +42,10 @@ class LineageTreeDataset(Dataset):
         self.target = data_converter(adata.obs[target_key]).long()
 
         # get condition
-        self.batch_key = batch_key
-        if self.batch_key is not None:
-            self.condition = data_converter(adata.obs[batch_key]).long()
+        self.condition_key = condition_key
+        if self.condition_key is not None:
+            self.conditions = data_converter(adata.obs[condition_key]).long()
+            self.n_conditions = len(self.conditions.unique())
 
         # get time
         self.time = data_converter(adata.obs[time_key])
@@ -90,8 +93,8 @@ class LineageTreeDataset(Dataset):
         target = target[0]
 
         # get condition
-        if self.batch_key is not None:
-            condition = self.condition[data_mask]
+        if self.condition_key is not None:
+            condition = self.conditions[data_mask]
             assert (
                 len(condition.unique()) == 1
             ), "Conditions are not unique for paths, check pathways for uniqueness of conditions."
@@ -108,7 +111,7 @@ class LineageTreeDataset(Dataset):
             padding_1d = (0, self.seq_len - self.n_tps)
             x = F.pad(x, padding_2d, "constant", 0)
             padding_mask = F.pad(padding_mask, padding_1d, "constant", 1)
-            ids = F.pad(ids, padding_1d, "constant", 0)
+            ids = F.pad(ids, padding_1d, "constant", -1)
 
         output["x"] = x
         output["target"] = target

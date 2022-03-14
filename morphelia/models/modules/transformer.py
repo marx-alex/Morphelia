@@ -4,7 +4,7 @@ import math
 import torch
 from torch import nn
 
-from .transformation import PermuteAxis, Reshape
+from . import PermuteAxis, Reshape
 from ._utils import ArgSequential
 
 
@@ -27,72 +27,73 @@ class FixedPositionalEncoding(nn.Module):
     Args:
         dim: Number of features.
         dropout: Dropout value.
-        max_len: Maximum length of the incoming sequence.
+        seq_len: Maximum length of the incoming sequence.
+        scale_factor: Scaling factor.
     """
 
     def __init__(
         self,
         dim: int,
+        seq_len: int,
         dropout: float = 0.1,
-        max_len: int = 1024,
         scale_factor: float = 1.0,
     ) -> None:
         super(FixedPositionalEncoding, self).__init__()
-        self.dropout = nn.Dropout(p=dropout)
 
         # positional encoding
-        pe = torch.zeros(max_len, dim)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        pe = torch.zeros(seq_len, dim)
+        position = torch.arange(0, seq_len, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(
             torch.arange(0, dim, 2).float() * (-math.log(10000.0) / dim)
         )
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        pe = scale_factor * pe.unsqueeze(0).transpose(0, 1)
-        # store encoding in state dict
+        pe = scale_factor * pe.unsqueeze(0)
         self.register_buffer("pe", pe)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Add positional encoding to input tensor.
 
         Args:
-            x: Tensor of shape [S x N x F], where S is the sequence length,
+            x: Tensor of shape [N x S x F], where S is the sequence length,
                 N is the batch size and F is the number of features.
         Returns:
             (torch.Tensor): Tensor of same shape as input tensor.
         """
-
-        x = x + self.pe[: x.size(0), :]
+        x = x + self.pe
         return self.dropout(x)
 
 
-# From https://github.com/gzerveas/mvts_transformer/blob/master/src/models/ts_transformer.py
 class LearnablePositionalEncoding(nn.Module):
     """
     Implements the learnable positional encoding Module.
+
+    Args:
+        dim: Number of features.
+        dropout: Dropout value.
+        seq_len: Maximum length of the incoming sequence.
     """
 
-    def __init__(self, dim: int, dropout: float = 0.1, max_len: int = 1024) -> None:
+    def __init__(self, dim: int, seq_len: int = 1024, dropout: float = 0.1) -> None:
         super(LearnablePositionalEncoding, self).__init__()
-        self.dropout = nn.Dropout(p=dropout)
 
         # positional encoding
-        self.pe = nn.Parameter(torch.empty(max_len, 1, dim))
-        nn.init.uniform_(self.pe, -0.02, 0.02)
+        self.pe = self.pos_embedding = nn.Parameter(torch.randn(1, seq_len, dim))
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Add positional encoding to input tensor.
 
         Args:
-            x: Tensor of shape [S x N x F], where S is the sequence length,
+            x: Tensor of shape [N x S x F], where S is the sequence length,
                 N is the batch size and F is the number of features.
         Returns:
             (torch.Tensor): Tensor of same shape as input tensor.
         """
-
-        x = x + self.pe[: x.size(0), :]
+        x = x + self.pe
         return self.dropout(x)
 
 
@@ -131,14 +132,14 @@ class Attention(nn.Module):
         super(Attention, self).__init__()
 
         self.linear = nn.Sequential(
-            nn.Linear(dim, 3 * dim),  # (B,S,3*F)
-            Reshape(3, dim, fixed=2),  # (B,S,3,F),
-            PermuteAxis(2, 0, 1, 3),  # (3,B,S,F)
-        )  # (B,S,F) -> (3,B,S,F)
+            nn.Linear(dim, 3 * dim),  # [B, S, 3*F]
+            Reshape(3, dim, fixed=2),  # [B, S, 3, F]
+            PermuteAxis(2, 0, 1, 3),  # [3, B, S, F]
+        )  # [B, S, F] -> [3, B, S, F]
 
         self.multi_head_attention = nn.MultiheadAttention(
             embed_dim=dim, num_heads=heads, dropout=dropout, batch_first=True
-        )  # (3,B,S,F) -> (B,S,F)
+        )  # [3, B, S, F] -> [B, S, F]
 
     def forward(
         self,
@@ -234,8 +235,11 @@ class TransformerEncoder(nn.Module):
         input_dim: The number of expected features in the input.
         seq_len: Sequence length.
         nhead: The number of heads in the multihead attention layer.
+            Embedded dimensions must be divisible by number of heads.
         dim_feedforward: The dimension of the feedforward network model.
+            The default dimension is 2 times the input dimensions.
         dropout: The dropout value for the feedforward and attention layer.
+        pos_dropout: The dropout value for the positional encoding.
         norm: Normalization method ('batch' or 'layer').
         pos_encoding: Positional encoding. Can be 'learnable' or 'fixed'
         num_layers: Depth of encoder.
@@ -251,14 +255,15 @@ class TransformerEncoder(nn.Module):
         self,
         input_dim: int,
         seq_len: int,
-        nhead: int = 10,
+        nhead: int = 1,
         dim_feedforward: Optional[int] = None,
         dropout: float = 0.1,
+        pos_dropout: float = 0.1,
         norm: str = "batch",
         pos_encoding: Optional[str] = "learnable",
         num_layers: int = 1,
     ) -> None:
-        super(TransformerEncoder, self).__init__()
+        super().__init__()
 
         self.input_dim = input_dim
         self.seq_len = seq_len
@@ -280,11 +285,8 @@ class TransformerEncoder(nn.Module):
         # positional encoding
         self.forward_emb = None
         if pos_encoding is not None:
-            self.forward_emb = nn.Sequential(
-                get_pos_encoder(pos_encoding)(
-                    input_dim, dropout=dropout, max_len=seq_len
-                ),
-                nn.Dropout(dropout),
+            self.forward_emb = get_pos_encoder(pos_encoding)(
+                input_dim, seq_len=seq_len, dropout=pos_dropout
             )
 
     def forward(
@@ -301,7 +303,7 @@ class TransformerEncoder(nn.Module):
             attn_mask: the mask for the src sequence (optional).
             key_padding_mask: the mask for the src keys per batch (optional).
         """
-        if self.positional_encoder is not None:
+        if self.forward_emb is not None:
             z = self.forward_emb(x)
         else:
             z = x
@@ -309,108 +311,3 @@ class TransformerEncoder(nn.Module):
         z = self.transformers(z, attn_mask=attn_mask, key_padding_mask=key_padding_mask)
 
         return z
-
-
-class TransformerClassifier(nn.Module):
-    """Implements a classification layer on top of a Transformer encoder.
-
-    Args:
-        transformer: Transformer encoder module.
-        n_classes: The number of expected classes.
-    """
-
-    def __init__(self, transformer: nn.Module, n_classes: int):
-        super(TransformerClassifier, self).__init__()
-        self.transformer = transformer
-        input_dim = self.transformer.input_dim
-        seq_len = self.transfromer.seq_len
-        self.classifier = nn.Linear(input_dim * seq_len, n_classes)
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        attn_mask: Optional[torch.Tensor] = None,
-        key_padding_mask: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-        """
-        Passes the input through the encoder and classification modules.
-
-        Args:
-            x: the sequence to the encoder modules (required).
-            attn_mask: the mask for the src sequence (optional).
-            key_padding_mask: the mask for the src keys per batch (optional).
-        """
-        z = self.transformers(x, attn_mask=attn_mask, key_padding_mask=key_padding_mask)
-
-        # classification part
-        y = z * ~key_padding_mask.unsqueeze(-1)
-        y = y.reshape(y.shape[0], -1)  # [N, S x F]
-        y = self.classifier(y)  # [N, n_classes]
-        return y
-
-
-class TransformerTokenClassifier(nn.Module):
-    """
-    This class transforms a sequence
-    B x N x F -> B x F
-    """
-
-    def __init__(
-        self,
-        input_dim,
-        seq_len,
-        n_classes,
-        att_params=None,
-        depth=1,
-        pos_drop=0.0,
-        pos_emb=True,
-    ):
-        super(TransformerTokenClassifier, self).__init__()
-
-        self.num_classes = n_classes
-
-        att_params_default = dict(
-            input_dim=input_dim, dim_feedforward=int(2 * input_dim), nhead=10
-        )
-        if att_params is not None:
-            att_params_default.update(att_params)
-        self.transformers = nn.Sequential(
-            *[TransformerBlock(**att_params_default) for _ in range(depth)]
-        )  # (B,N+1,F) -> (B,N+1,F) ... N + 1 because of the class token
-
-        if pos_emb:
-            self.pos_embedding = nn.Parameter(torch.randn(1, seq_len + 1, input_dim))
-            self.pos_drop = nn.Dropout(pos_drop)
-
-        self.cls_token = nn.Parameter(torch.randn(1, 1, input_dim))
-
-        self.classifier = nn.Sequential(
-            nn.LayerNorm(input_dim), nn.Linear(input_dim, n_classes)
-        )  # (B,F) -> (B,n_classes)
-
-    def forward_emb(self, x: torch.Tensor):
-        """
-        :param x:
-        :return:
-        """
-        b, n, f = x.shape
-        x = torch.cat(
-            (self.cls_token.repeat(b, 1, 1), x), dim=1
-        )  # (B,N,F) -> (B,N+1,F)
-
-        if self.do_pos_emb:
-            x += self.pos_embedding
-            x = self.pos_drop(x)
-
-        return x
-
-    def forward(self, x: torch.Tensor):
-        """
-        Args:
-            x (Tensor): B x N x F
-        """
-        x = self.forward_emb(x)  # (B,N,F) -> (B,N+1,F)
-        x = self.transformers(x)  # (B,N+1,F) -> (B,N+1,F)
-        x = x[:, 0]  # (B,N+1,F) -> (B,F)
-
-        return self.classifier(x)

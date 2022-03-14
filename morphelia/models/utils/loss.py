@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torch.distributions import Normal, kl_divergence
 
 from .helper import partition
 
@@ -38,46 +39,72 @@ class MaskedMSELoss(nn.Module):
         return self.mse_loss(masked_pred, masked_true)
 
 
-def gaussian_kernel(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+# https://github.com/napsternxg/pytorch-practice/blob/master/Pytorch%20-%20MMD%20VAE.ipynb
+def gaussian_kernel(
+    x: torch.Tensor,
+    y: torch.Tensor,
+) -> torch.Tensor:
     """
-    Compute the gaussian kernel between two tensors.
+    Compute the Gaussian kernel between two tensors.
     """
-    x_size, y_size = x.shape[0], y.shape[0]
-    dim = x.shape[1]
-
-    tiled_x = x.view(x_size, 1, dim).repeat(1, y_size, 1)
-    tiled_y = y.view(1, y_size, dim).repeat(x_size, 1, 1)
-
-    return torch.exp(-torch.mean((tiled_x - tiled_y) ** 2, dim=2) / dim)
-
-
-def mmd(x, y):
-    """Compute the Maximum Mean Discrepancy"""
-    x_kernel = gaussian_kernel(x, x)
-    y_kernel = gaussian_kernel(y, y)
-    xy_kernel = gaussian_kernel(x, y)
-    return torch.mean(x_kernel) + torch.mean(y_kernel) - 2 * torch.mean(xy_kernel)
+    x_n, y_n = x.size(0), y.size(0)
+    n_dim = x.size(1)
+    x = x.unsqueeze(1)  # [x_n, 1, n_dim]
+    y = y.unsqueeze(0)  # [1, y_n, n_dim)
+    tiled_x = x.expand(x_n, y_n, n_dim)
+    tiled_y = y.expand(x_n, y_n, n_dim)
+    return torch.exp(-(tiled_x - tiled_y).pow(2).mean(2) / float(n_dim))
 
 
 class MMDLoss(nn.Module):
+    """Maximum Mean Discrepancy Loss."""
+
+    def __init__(self):
+        super().__init__()
+        self.kernel = gaussian_kernel
+
+    def forward(self, source: torch.Tensor, target: torch.Tensor):
+        """
+        Args:
+            source: Source features in Hilbert space.
+            target: Target features in Hilbert space
+
+        Returns:
+            Maximum mean discrepancy between kernel embeddings of source and target.
+        """
+        x_kernel = self.kernel(source, source)
+        y_kernel = self.kernel(target, target)
+        xy_kernel = self.kernel(source, target)
+        return torch.mean(x_kernel) + torch.mean(y_kernel) - 2 * torch.mean(xy_kernel)
+
+
+class ConditionalMMDLoss(nn.Module):
     """Maximum Mean Discrepancy between every different condition."""
 
     def __init__(self, n_conditions: int = None):
         super().__init__()
 
-        self.mmd = mmd
+        self.mmd_loss = MMDLoss()
         self.n_conditions = n_conditions
         self.partition = partition
 
     def forward(
         self,
-        y: torch.Tensor,
+        x: torch.Tensor,
         c: torch.Tensor,
     ) -> torch.Tensor:
+        """
+        Args:
+            x: Tensor of shape [batch size, features].
+            c: Tensor of shape [batch size,]
 
-        loss = torch.tensor(0.0, device=y.device)
+        Returns:
+            Loss
+        """
 
-        partitions = self.partition(y, c, self.n_conditions)
+        loss = torch.tensor(0.0, device=x.device)
+
+        partitions = self.partition(x, c, self.n_conditions)
         for i in range(len(partitions)):
             if partitions[i].shape[0] > 0:
                 for j in range(i):
@@ -85,3 +112,30 @@ class MMDLoss(nn.Module):
                         loss += self.mmd(partitions[i], partitions[j])
 
         return loss
+
+
+class KLDLoss(nn.Module):
+    """
+    Kullback-Leibler Divergence between input distribution and normal distribution.
+    """
+
+    def __init__(self, eps: float = 1e-5):
+        super().__init__()
+        self.eps = eps
+
+    def forward(self, mu: torch.Tensor, log_sigma: torch.Tensor):
+        """
+        Args:
+            mu: Means.
+            log_sigma: Logarithmic variance
+        """
+        var = torch.exp(log_sigma) + self.eps
+        kld = (
+            kl_divergence(
+                Normal(mu, var.sqrt()),
+                Normal(torch.zeros_like(mu), torch.ones_like(var)),
+            )
+            .sum(dim=1)
+            .mean()
+        )
+        return kld
