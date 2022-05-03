@@ -15,6 +15,7 @@ logger.setLevel(logging.DEBUG)
 def run(
     inp,
     out,
+    fname=None,
     by=("BatchNumber", "PlateNumber", "Metadata_Well"),
     method="median",
 ):
@@ -30,8 +31,11 @@ def run(
     adata = morphelia.pp.aggregate(adata, method=method, by=by)
 
     # write file
-    fname = Path(inp).stem
-    new_name = f"{fname}_aggregated.h5ad"
+    if fname is not None:
+        new_name = f"{fname}.h5ad"
+    else:
+        fname = Path(inp).stem
+        new_name = f"{fname}_aggregated.h5ad"
     logger.info(f"Write file as {new_name}")
     adata.write(os.path.join(out, new_name))
 
@@ -55,6 +59,12 @@ def main(args=None):
         help="Output directory.",
     )
     parser.add_argument(
+        "--fname",
+        type=str,
+        default=None,
+        help="File name of new file.",
+    )
+    parser.add_argument(
         "-m",
         "--method",
         type=str,
@@ -73,4 +83,4 @@ def main(args=None):
     args = parser.parse_args(args)
 
     # run
-    run(inp=args.inp, out=args.out, method=args.method, by=args.by)
+    run(inp=args.inp, out=args.out, fname=args.fname, method=args.method, by=args.by)

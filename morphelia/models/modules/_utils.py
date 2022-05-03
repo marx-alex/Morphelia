@@ -3,6 +3,45 @@ from torch import nn
 import torch.nn.functional as F
 
 
+class MultOutSequential(nn.Sequential):
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def forward(self, x: torch.Tensor, **kwargs) -> tuple:
+        outs = []
+        for module in self:
+            output = module(x, **kwargs)
+            if isinstance(output, tuple):
+                x, out = output[0], output[1:]
+                if len(out) == 1:
+                    out = out[0]
+                outs.append(out)
+            else:
+                x = output
+
+        if len(outs) > 0:
+            if all(isinstance(item, tuple) for item in outs):
+                outs = list(zip(*outs))
+            return x, outs
+        return x
+
+
+class PosArgSequential(nn.Sequential):
+    """
+    Pytorch Sequential Module. Optional keyword arguments are passed to every module
+    depending on their position.
+    """
+
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
+        for i, module in enumerate(self):
+            sub_kwargs = {k: v[i] for k, v in kwargs.items()}
+            x = module(x, **sub_kwargs)
+        return x
+
+
 class ArgSequential(nn.Sequential):
     """
     Pytorch Sequential Module. Optional keyword arguments are passed to every module.
@@ -11,7 +50,7 @@ class ArgSequential(nn.Sequential):
     def __init__(self, *args):
         super().__init__(*args)
 
-    def forward(self, x, **kwargs):
+    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
         for module in self:
             x = module(x, **kwargs)
         return x

@@ -84,7 +84,7 @@ class ConditionalMMDLoss(nn.Module):
     def __init__(self, n_conditions: int = None):
         super().__init__()
 
-        self.mmd_loss = MMDLoss()
+        self.mmd = MMDLoss()
         self.n_conditions = n_conditions
         self.partition = partition
 

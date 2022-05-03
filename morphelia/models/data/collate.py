@@ -1,4 +1,5 @@
 from collections import abc
+from typing import Optional
 
 import torch
 import numpy as np
@@ -48,3 +49,28 @@ def collate_concat(batch):
     elif isinstance(elem, abc.Mapping):
         output = {key: collate_concat([d[key] for d in batch]) for key in elem}
         return output
+
+
+class AdataCollator:
+    def __init__(
+        self,
+        target_key: Optional[str] = "Metadata_Treatment",
+        condition_key: Optional[str] = None,
+        time_key: Optional[str] = None,
+    ):
+        self.target_key = target_key
+        self.condition_key = condition_key
+        self.time_key = time_key
+
+    def __call__(self, batch):
+        out = dict()
+
+        out["x"] = batch.X
+        if self.target_key is not None:
+            out["target"] = batch.obs[self.target_key].long()
+        out["ids"] = torch.Tensor(batch.oidx).int()
+        if self.condition_key is not None:
+            out["c"] = batch.obs[self.condition_key].long()
+        if self.time_key is not None:
+            out["t"] = batch.obs[self.time_key].to(torch.float)
+        return out

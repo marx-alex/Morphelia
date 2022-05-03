@@ -2,7 +2,7 @@ import argparse
 import os
 from pathlib import Path
 
-from morphelia.models import cVAET, TSDataModule
+from morphelia.models import CTVAE, LineageTreeDataModule
 
 
 parser = argparse.ArgumentParser(description="cVAET")
@@ -20,9 +20,9 @@ acc_grad = args.acc
 file = args.file
 out = args.out
 
-data = TSDataModule(file, condition_key="PlateNumber")
+data = LineageTreeDataModule(file, condition_key="PlateNumber")
 
-cvaet = cVAET(data)
+cvaet = CTVAE(data)
 
 cvaet.pretrain(wandb_log=True)
 cvaet.train(wandb_log=True)

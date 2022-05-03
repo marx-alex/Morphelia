@@ -7,7 +7,7 @@ def subsample(
     perc=0.1,
     by=("BatchNumber", "PlateNumber", "Metadata_Well"),
     grouped=None,
-    replace=False,
+    with_replacement=False,
     seed=0,
 ):
     """Gives a subsample of the data by selecting objects from given groups.
@@ -15,9 +15,9 @@ def subsample(
     Args:
         adata (anndata.AnnData): Annotated data object.
         perc (float): Percentage of objects to store in subsample.
-        by (list, None): Variables to use for aggregation.
-        grouped (str): Get a subsample of unique groups.
-        replace (bool): Sample with replacement.
+        by (list, None): Group by those variables before sampling.
+        grouped (str): Sample groups, not single instances.
+        with_replacement (bool): Sample with replacement.
         seed (int): Seed for initialization.
 
     Returns:
@@ -45,7 +45,7 @@ def subsample(
         for groups, sub_df in adata.obs.groupby(list(by)):
 
             group_ix = _get_subsample_ixs(
-                sub_df, perc=perc, replace=replace, grouped=grouped
+                sub_df, perc=perc, replace=with_replacement, grouped=grouped
             )
 
             subsample_ixs.append(group_ix)
@@ -55,7 +55,7 @@ def subsample(
 
     else:
         subsample_ix = _get_subsample_ixs(
-            adata.obs, perc=perc, replace=replace, grouped=grouped
+            adata.obs, perc=perc, replace=with_replacement, grouped=grouped
         )
 
     # if with replacement, observation names are not unique

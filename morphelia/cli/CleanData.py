@@ -12,7 +12,7 @@ logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
 
-def run(inp, out, nan_frac=0.5):
+def run(inp, out, fname=None, nan_frac=0.5):
     """Basic cleaning routine for morphological data."""
     if not os.path.exists(out):
         os.makedirs(out)
@@ -43,8 +43,11 @@ def run(inp, out, nan_frac=0.5):
     adata = morphelia.pp.drop_invariant(adata, axis=1, verbose=True)
 
     # write file
-    fname = Path(inp).stem
-    new_name = f"{fname}_clean.h5ad"
+    if fname is not None:
+        new_name = f"{fname}.h5ad"
+    else:
+        fname = Path(inp).stem
+        new_name = f"{fname}_clean.h5ad"
     logger.info(f"Write file as {new_name}")
     adata.write(os.path.join(out, new_name))
 
@@ -68,6 +71,12 @@ def main(args=None):
         help="Output directory.",
     )
     parser.add_argument(
+        "--fname",
+        type=str,
+        default=None,
+        help="File name of new file.",
+    )
+    parser.add_argument(
         "--nan_frac",
         type=float,
         default=0.5,
@@ -78,4 +87,4 @@ def main(args=None):
     args = parser.parse_args(args)
 
     # run
-    run(inp=args.inp, out=args.out, nan_frac=args.nan_frac)
+    run(inp=args.inp, out=args.out, fname=args.fname, nan_frac=args.nan_frac)

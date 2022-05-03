@@ -136,7 +136,7 @@ class Adata3D:
         time_var="Metadata_Time",
         tree_var="Metadata_Trace_Tree",
         use_rep=None,
-        y_var="Metadata_Treatment_Enc",
+        y_var=None,
         n_pcs=50,
     ):
         """Return three dimensional representation of data.
@@ -151,6 +151,8 @@ class Adata3D:
             np.array of shape [samples x timesteps x features]
         """
         adata = adata[np.isfinite(adata.obs[tree_var])]
+        sorted_ix = adata.obs[time_var].argsort()
+        adata = adata[sorted_ix, :]
         self.y = None
         if y_var is not None:
             assert y_var in adata.obs.columns, f"y_var not found in .obs: {y_var}"
@@ -167,7 +169,6 @@ class Adata3D:
     def to_3d(self, return_y=False):
         """
         Convert adata.X of shape [samples x features] to shape [samples x timesteps x features].
-
         Cave: Each sample and timestep should only have one datapoint.
 
         Args:
@@ -246,7 +247,7 @@ def vectorize_emb(
     n_pcs=None,
     vkey="X_vect",
     time_var="Metadata_Time",
-    tree_var="Metadata_Trace_Tree",
+    tree_var="Metadata_Track_Root",
     verbose=False,
 ):
     """
@@ -276,7 +277,7 @@ def vectorize_emb(
     # conver to 3D
     converter = Adata3D(adata, time_var, tree_var, use_rep=use_rep, n_pcs=n_pcs)
 
-    X = converter.to_3d()  # [N x T x F]
+    X = converter.to_3d()  # [N, T, F]
 
     # vectorize
     X[:, :-1, :] = X[:, 1:, :] - X[:, :-1, :]

@@ -13,8 +13,9 @@ from .palantir import (
     plot_branch_distribution,
     plot_trends,
 )
-from .velocity import get_quiver, get_streamline
+from .velocity import get_quiver, get_streamline, plot_velocity
 from .tree import plot_tree
 from .lmem import plot_lmem
 from .cluster import clustermap
 from .volcano import volcano_plot
+from .density import plot_density

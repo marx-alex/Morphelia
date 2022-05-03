@@ -42,7 +42,8 @@ class CondLayer(nn.Module):
         super().__init__()
         self.n_conditions = n_conditions
         self.layer = nn.Linear(in_features, out_features, bias=bias)
-        self.cond_layer = nn.Linear(self.n_conditions, out_features, bias=False)
+        if n_conditions > 0:
+            self.cond_layer = nn.Linear(self.n_conditions, out_features, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.n_conditions == 0:
@@ -135,7 +136,7 @@ class Encoder(nn.Module):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
-            x: Tensor of shape [batch size, feature size]
+            x: Tensor of shape [batch size, sequence length, feature size]
             c: Tensor of shape [batch size,]
         """
         # concatenate x and condition

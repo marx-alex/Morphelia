@@ -1,18 +1,28 @@
-from typing import List
+from typing import List, Union
 
 import torch
 from torch import nn
 
 
-def get_activation_fn(activation: str):
-    activation = activation.lower()
-    if activation == "relu":
-        return nn.ReLU
+def get_activation_fn(activation: str) -> Union[nn.Module, None]:
+    if isinstance(activation, str):
+        activation = activation.lower()
+    avail_act = ["tanhshrink", "tanh", "relu", "gelu", "sigmoid", None]
+    assert (
+        activation in avail_act
+    ), f"'act' must be one of {avail_act}, instead got {activation}"
+
+    if activation == "tanh":
+        return nn.Tanh()
+    elif activation == "relu":
+        return nn.ReLU()
     elif activation == "gelu":
-        return nn.GELU
-    raise NotImplementedError(
-        f"Activation can be either 'relu' or 'gelu', instead got {activation}"
-    )
+        return nn.GELU()
+    elif activation == "tanhshrink":
+        return nn.Tanhshrink()
+    elif activation == "sigmoid":
+        return nn.Sigmoid()
+    return None
 
 
 def partition(x: torch.Tensor, y: torch.Tensor, n_partitions) -> List[torch.Tensor]:

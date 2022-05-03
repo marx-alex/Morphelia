@@ -15,6 +15,7 @@ logger.setLevel(logging.DEBUG)
 def run(
     inp,
     out,
+    fname=None,
     by=("BatchNumber", "PlateNumber"),
     method="standard",
     pop_var="Metadata_Treatment",
@@ -43,8 +44,11 @@ def run(
     )
 
     # write file
-    fname = Path(inp).stem
-    new_name = f"{fname}_norm.h5ad"
+    if fname is not None:
+        new_name = f"{fname}.h5ad"
+    else:
+        fname = Path(inp).stem
+        new_name = f"{fname}_norm.h5ad"
     logger.info(f"Write file as {new_name}")
     adata.write(os.path.join(out, new_name))
 
@@ -68,6 +72,12 @@ def main(args=None):
         help="Output directory.",
     )
     parser.add_argument(
+        "--fname",
+        type=str,
+        default=None,
+        help="File name of new file.",
+    )
+    parser.add_argument(
         "-m",
         "--method",
         type=str,
@@ -85,7 +95,7 @@ def main(args=None):
         "--pop_var",
         type=str,
         default="Metadata_Treatment",
-        help="Variable that stored controle population identifier.",
+        help="Variable that stored control population identifier.",
     )
     parser.add_argument(
         "--norm_pop",
@@ -112,6 +122,7 @@ def main(args=None):
     run(
         inp=args.inp,
         out=args.out,
+        fname=args.fname,
         by=args.by,
         method=args.method,
         pop_var=args.pop_var,

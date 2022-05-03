@@ -605,7 +605,7 @@ def construct_markov_chain(X, wps, pseudotime, n_neighbors=10, n_jobs=None):
     # pseudotime position of all the neighbors
     pt_nbrs = np.take(pseudotime, np.take(wps, ixs))
 
-    # remove edges that point backwargs in pseudotime except for edges that are within
+    # remove edges that point backwards in pseudotime except for edges that are within
     # the computed standard deviation
     pt_margin = pseudotime[wps] - adaptive_std
     rem_edges = pt_nbrs < pt_margin[:, np.newaxis]

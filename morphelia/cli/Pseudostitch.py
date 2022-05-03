@@ -10,7 +10,7 @@ logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
 
-def run(inp, out, tile_grid=(5, 5), img_overlap=0.2):
+def run(inp, out, fname=None, tile_grid=(5, 5), img_overlap=0.2):
     """Pseudostitch."""
     if not os.path.exists(out):
         os.makedirs(out)
@@ -25,9 +25,13 @@ def run(inp, out, tile_grid=(5, 5), img_overlap=0.2):
     )
 
     # write file
-    fname = Path(inp).stem
-    logger.info(f"Write file as {fname}_stitched.h5ad")
-    adata.write(os.path.join(out, f"{fname}_stitched.h5ad"))
+    if fname is not None:
+        new_name = f"{fname}.h5ad"
+    else:
+        fname = Path(inp).stem
+        new_name = f"{fname}_stitched.h5ad"
+    logger.info(f"Write file as {new_name}")
+    adata.write(os.path.join(out, new_name))
 
 
 def main(args=None):
@@ -46,6 +50,12 @@ def main(args=None):
         help="Where to store the stitched AnnData object.",
     )
     parser.add_argument(
+        "--fname",
+        type=str,
+        default=None,
+        help="File name of new file.",
+    )
+    parser.add_argument(
         "--tile_grid",
         nargs="+",
         default=[5, 5],
@@ -62,6 +72,7 @@ def main(args=None):
     run(
         inp=args.inp,
         out=args.out,
+        fname=args.fname,
         tile_grid=args.tile_grid,
         img_overlap=args.img_overlap,
     )

@@ -13,7 +13,12 @@ logger.setLevel(logging.DEBUG)
 
 
 def run(
-    inp, out, by=("BatchNumber", "PlateNumber", "Metadata_Well"), frac=0.1, grouped=None
+    inp,
+    out,
+    fname=None,
+    by=("BatchNumber", "PlateNumber", "Metadata_Well"),
+    frac=0.1,
+    grouped=None,
 ):
     """Subsample data."""
     if not os.path.exists(out):
@@ -27,8 +32,11 @@ def run(
     adata = morphelia.pp.subsample(adata, perc=frac, by=by, grouped=grouped)
 
     # write file
-    fname = Path(inp).stem
-    new_name = f"{fname}_subsample.h5ad"
+    if fname is not None:
+        new_name = f"{fname}.h5ad"
+    else:
+        fname = Path(inp).stem
+        new_name = f"{fname}_subsample.h5ad"
     logger.info(f"Write file as {new_name}")
     adata.write(os.path.join(out, new_name))
 
@@ -50,6 +58,12 @@ def main(args=None):
         type=str,
         default="./",
         help="Output directory.",
+    )
+    parser.add_argument(
+        "--fname",
+        type=str,
+        default=None,
+        help="File name of new file.",
     )
     parser.add_argument(
         "-f",
@@ -76,4 +90,11 @@ def main(args=None):
     args = parser.parse_args(args)
 
     # run
-    run(inp=args.inp, out=args.out, frac=args.frac, by=args.by, grouped=args.grouped)
+    run(
+        inp=args.inp,
+        out=args.out,
+        fname=args.fname,
+        frac=args.frac,
+        by=args.by,
+        grouped=args.grouped,
+    )

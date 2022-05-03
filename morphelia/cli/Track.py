@@ -15,6 +15,7 @@ logger.setLevel(logging.DEBUG)
 def run(
     inp,
     out,
+    fname=None,
     time_var="Metadata_Time",
     group_vars=("Metadata_Well", "Metadata_Field"),
     x_loc="Cells_Location_Center_X",
@@ -51,8 +52,11 @@ def run(
     )
 
     # write file
-    fname = Path(inp).stem
-    new_name = f"{fname}_tracked.h5ad"
+    if fname is not None:
+        new_name = f"{fname}.h5ad"
+    else:
+        fname = Path(inp).stem
+        new_name = f"{fname}_tracked.h5ad"
     logger.info(f"Write file as {new_name}")
     adata.write(os.path.join(out, new_name))
 
@@ -76,11 +80,17 @@ def main(args=None):
         help="Output directory.",
     )
     parser.add_argument(
+        "--fname",
+        type=str,
+        default=None,
+        help="File name of new file.",
+    )
+    parser.add_argument(
         "-t",
         "--time_var",
         type=str,
         default="Metadata_Time",
-        help="Group data by these variables to get single fields.",
+        help="Variable with information about time.",
     )
     parser.add_argument(
         "-g",
@@ -145,6 +155,7 @@ def main(args=None):
     run(
         inp=args.inp,
         out=args.out,
+        fname=args.fname,
         time_var=args.time_var,
         group_vars=args.group_vars,
         x_loc=args.x_loc,
