@@ -1,38 +1,52 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import anndata as ad
 import os
 
 
 def rank_proliferation(
-    adata,
-    rank_by="children",
-    track_id="Metadata_Track",
-    root_id="Metadata_Track_Root",
-    gen_id="Metadata_Gen",
-    show=False,
-    return_fig=False,
-    clip=0.05,
-    save=False,
-):
-    """
-    Rank all available cell tracks by their proliferative activity.
-    Track cells beforehand.
+    adata: ad.AnnData,
+    rank_by: str = "children",
+    track_id: str = "Metadata_Track",
+    root_id: str = "Metadata_Track_Root",
+    gen_id: str = "Metadata_Gen",
+    show: bool = False,
+    return_fig: bool = False,
+    clip: float = 0.05,
+    save: bool = False,
+) -> ad.AnnData:
+    """Rank all available cell tracks by their proliferative activity.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        rank_by (str): Method to rank tracks.
-            gen: Rank by number of generations.
-            children: rank by number of children.
-        track_id (str): Variable name for tracks.
-        root_id (str): Variable name for track roots.
-        gen_id (str): Variable name for generation.
-        show (bool)
-        return_fig (bool)
-        clip (float): Clip ranking until specified percentile for plotting.
-        save (str): Path where to save plot.
+    Notes
+    -----
+    Cells should be tracked along time.
 
-    Returns:
-        adata.uns[f'prolif_rank_{rank_by}']: Ranking.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    rank_by : str
+        Method to rank tracks:
+        `gen`: Rank by number of generations.
+        `children`: rank by number of children.
+    track_id : str
+        Variable name for tracks
+    root_id : str
+        Variable name for track roots
+    gen_id : str
+        Variable name for generation
+    show : bool
+    return_fig : bool
+        Return the figure
+    clip : float
+        Clip ranking until specified percentile for plotting
+    save : str
+        Path where to save plot
+
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object with ranking stored at `adata.uns[f'prolif_rank_{rank_by}']`
     """
     avail_methods = ["gen", "children"]
     rank_by = rank_by.lower()

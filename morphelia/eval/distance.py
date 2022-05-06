@@ -4,43 +4,86 @@ from scipy.spatial.distance import pdist, squareform
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib
-import os
 from dtaidistance import dtw_ndim, dtw
+import anndata as ad
+
+import os
+from typing import Optional, Union, List, Tuple
 
 from morphelia.time_series import HMMSimilarity
 from morphelia.tools.utils import choose_representation
 
 
 def dist_matrix(
-    adata,
-    method="pearson",
-    group_var="Metadata_Treatment",
-    other_group_vars=None,
-    use_rep=None,
-    n_pcs=50,
-    make_plot=False,
-    show=False,
-    save=None,
-    return_array=False,
-):
+    adata: ad.AnnData,
+    method: str = "pearson",
+    group_var: str = "Metadata_Treatment",
+    other_group_vars: Optional[Union[List[str], str]] = None,
+    use_rep: Optional[str] = None,
+    n_pcs: int = 50,
+    make_plot: bool = False,
+    show: bool = False,
+    save: Optional[str] = None,
+    return_array: bool = False,
+) -> Union[
+    Union[pd.DataFrame, np.ndarray],
+    Tuple[Union[pd.DataFrame, np.ndarray], plt.Figure, plt.Axes],
+]:
     """Computes a similarity or distance matrix between different treatments and doses if given.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        method (str): Method for similarity/ distance computation.
-            Should be one of: pearson, spearman, kendall, euclidean, mahalanobis.
-        group_var (str): Find similarity between groups. Could be treatment conditions for example.
-        other_group_vars (list, str): Other variables that define groups that are similar.
-        use_rep (str): Calculate similarity/distance representation of X in .obsm.
-        n_pcs (int): Number principal components to use if use_pcs is 'X_pca'.
-        make_plot (bool): Plot similarity as heatmap.
-        show (bool): Show plot and return figure and axis.
-        save (str): Save plot to a specified location.
-        return_array (bool): Return array instead of dataframe.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    method : str
+        Method for similarity/ distance computation.
+        Should be one of: `pearson`, `spearman`, `kendall`, `euclidean`, `mahalanobis`.
+    group_var : str
+        Find similarity between groups. Could be treatment conditions for example
+    other_group_vars : str or list of str, optional
+        Other variables that define groups that are similar
+    use_rep : str, optional
+        Calculate similarity/distance representation of X in `.obsm`
+    n_pcs : int
+        Number principal components to use if use_pcs is `X_pca`
+    make_plot : bool
+        Plot similarity as heatmap
+    show : bool
+        Show plot and return figure and axis
+    save : str, optional
+        Save plot to a specified location
+    return_array : bool
+        Return array instead of dataframe
 
-    Returns:
-        pandas.DataFrame: similarity/ distance matrix
-        numpy.ndarray: Only if return_array is True
+    Returns
+    -------
+    pandas.DataFrame or numpy.ndarray
+        Similarity/ distance matrix, an array is returned if `return_array` is True
+
+    Raises
+    ------
+    AssertionError
+        If `group_var`, `other_group_vars` are not in `.obs`
+    AssertionError
+        If `method` is unknown
+    OSError
+        If figure can not be saved at specified location
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(4, 4)
+    >>> obs = pd.DataFrame({'group': [0, 1, 2, 3]})
+    >>> adata = ad.AnnData(data, obs=obs)
+    >>> mp.ev.dist_matrix(adata, group_var='group', return_array=True)  # compute similarity matrix
+    array([[ 1.        ,  0.45986997, -0.33670191,  0.89165811],
+           [ 0.45986997,  1.        ,  0.63159387,  0.13840518],
+           [-0.33670191,  0.63159387,  1.        , -0.46441919],
+           [ 0.89165811,  0.13840518, -0.46441919,  1.        ]])
     """
     # check variables
     assert group_var in adata.obs.columns, f"treat_var not in observations: {group_var}"
@@ -127,44 +170,87 @@ def dist_matrix(
 
 
 def dtw_dist_matrix(
-    adata,
-    time_var="Metadata_Time",
-    group_vars="Metadata_Treatment",
-    method="dependent",
-    use_rep=None,
-    n_pcs=50,
-    make_plot=False,
-    show=False,
-    save=None,
-    return_array=False,
-    **kwargs,
-):
-    """
-    Compute distance matrix with time-series data using multivariate dynamic time warping.
+    adata: ad.AnnData,
+    time_var: str = "Metadata_Time",
+    group_vars: Union[str, List[str]] = "Metadata_Treatment",
+    method: str = "dependent",
+    use_rep: Optional[str] = None,
+    n_pcs: int = 50,
+    make_plot: bool = False,
+    show: bool = False,
+    save: Optional[str] = None,
+    return_array: bool = False,
+    **kwargs: dict,
+) -> Union[
+    Union[pd.DataFrame, np.ndarray],
+    Tuple[Union[pd.DataFrame, np.ndarray], plt.Figure, plt.Axes],
+]:
+    """Compute distance matrix with time-series data using multivariate dynamic time warping.
 
-    This functions wraps the DTW implementation by Shokoohi-Yekta et al.:
-    M. Shokoohi-Yekta, B. Hu, H. Jin, J. Wang, and E. Keogh.
-    Generalizing dtw to the multi-dimensional case requires an adaptive approach.
-    Data Mining and Knowledge Discovery, 31:1–31, 2016.
+    Parameters
+    ----------
+    adata : anndata.AnnData)
+        Multidimensional morphological data
+    time_var : str
+        Variable in .obs that stores time points
+    group_vars : str or list of str
+        Variables in `.obs` that define conditions the distance
+        matrix is to be calculated for
+    method : str
+        `dependent` or `independent` DTW distance between two series
+    use_rep : str, optional
+        Calculate similarity/distance representation of X in `.obsm`
+    n_pcs : int
+        Number principal components to use if use_pcs is `X_pca`
+    make_plot : bool
+        Plot distance as heatmap
+    show : bool
+        Show plot and return figure and axis
+    save : str, optional
+        Save plot to a specified location
+    return_array : bool
+        Return array instead of dataframe
+    **kwargs : dict
+        Keyword arguments passed to dtaidistance.dtw_ndim.distance_matrix_fast
+        or dtaidistance.dtw.distance_matrix_fast based on method
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        time_var (str): Variable in .obs that stores time points.
-        group_vars (str or list of str): Variables in .obs that define conditions the distance
-            matrix is to be calculated for.
-        method (str): 'dependent' or 'independent' DTW distance between two series.
-        use_rep (str): Calculate similarity/distance representation of X in .obsm.
-        n_pcs (int): Number principal components to use if use_pcs is 'X_pca'.
-        make_plot (bool): Plot distance as heatmap.
-        show (bool): Show plot and return figure and axis.
-        save (str): Save plot to a specified location.
-        return_array (bool): Return array instead of dataframe.
-        **kwargs (dict): Keyword arguments passed to dtaidistance.dtw_ndim.distance_matrix_fast
-            or dtaidistance.dtw.distance_matrix_fast based on method.
+    Returns
+    -------
+    pandas.DataFrame or numpy.ndarray
+        Similarity/ distance matrix, an array is returned if `return_array` is True
 
-    Returns:
-        pandas.DataFrame: similarity/ distance matrix
-        numpy.ndarray: only if return_array is True
+    Raises
+    ------
+    AssertionError
+        If `group_var` are not in `.obs`
+    AssertionError
+        If `method` is unknown
+    OSError
+        If figure can not be saved at specified location
+
+    References
+    ----------
+    .. [1] M. Shokoohi-Yekta, B. Hu, H. Jin, J. Wang, and E. Keogh.
+       Generalizing dtw to the multi-dimensional case requires an adaptive approach.
+       Data Mining and Knowledge Discovery, 31:1–31, 2016.
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(6, 4)
+    >>> obs = pd.DataFrame({
+    >>>     'group': [0, 0, 0, 1, 1, 1],
+    >>>     'time': [0, 1, 2, 0, 1, 2]
+    >>> })
+    >>> adata = ad.AnnData(data, obs=obs)
+    >>> # dtw distance matrix
+    >>> mp.ev.dtw_dist_matrix(adata, time_var='time', group_vars='group', return_array=True)
+    array([[0.        , 1.29857075],
+           [1.29857075, 0.        ]])
     """
     # check variables
     assert time_var in adata.obs, f"time_var not in .obs: {time_var}"
@@ -249,54 +335,77 @@ def dtw_dist_matrix(
     return dist_df
 
 
-def _series_sep_dim(s, dim):
+def _series_sep_dim(s: List[np.ndarray], dim: int) -> List[np.ndarray]:
     """Return only one dimension from a series of arrays.
 
-    Args:
-        s (list of np.ndarray): Series of multivariate arrays.
-        dim (int): Dimension to return.
+    Parameters
+    ----------
+    s : list of np.ndarray)
+        Series of multivariate arrays
+    dim : int
+        Dimension to return
 
-    Returns:
-        numpy.ndarray
+    Returns
+    -------
+    list of numpy.ndarray
     """
     return [arr[:, dim] for arr in s]
 
 
 def hmm_sim_matrix(
-    adata,
-    time_var="Metadata_Time",
-    group_vars="Metadata_Treatment",
-    comp_range=(1, 10),
-    use_rep=None,
-    n_pcs=50,
-    make_plot=False,
-    show=False,
-    save=None,
-    return_array=False,
+    adata: ad.AnnData,
+    time_var: str = "Metadata_Time",
+    group_vars: str = "Metadata_Treatment",
+    comp_range: Tuple[int, int] = (1, 10),
+    use_rep: Optional[str] = None,
+    n_pcs: int = 50,
+    make_plot: bool = False,
+    show: bool = False,
+    save: Optional[str] = None,
+    return_array: bool = False,
 ):
-    """
-    Compute distance matrix with time-series data using hidden Markov models.
+    """Compute distance matrix with time-series data using hidden Markov models.
 
-    This functions wraps the HMM distance metric by Sahraeian et al., 2011:
-    S. M. E. Sahraeian and B. Yoon, "A Novel Low-Complexity HMM Similarity Measure,"
-    in IEEE Signal Processing Letters, vol. 18, no. 2, pp. 87-90, Feb. 2011, doi: 10.1109/LSP.2010.2096417
+    Parameters
+    ----------
+    adata : anndata.AnnData)
+        Multidimensional morphological data
+    time_var : str
+        Variable in .obs that stores time points
+    group_vars : str or list of str
+        Variables in `.obs` that define conditions the distance
+        matrix is to be calculated for
+    comp_range : tuple
+        Range with number of components to fit HMMs
+    use_rep : str, optional
+        Calculate similarity/distance representation of X in `.obsm`
+    n_pcs : int
+        Number principal components to use if use_pcs is `X_pca`
+    make_plot : bool
+        Plot distance as heatmap
+    show : bool
+        Show plot and return figure and axis
+    save : str, optional
+        Save plot to a specified location
+    return_array : bool
+        Return array instead of dataframe
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        time_var (str): Variable in .obs that stores time points.
-        group_vars (str or list of str): Variables in .obs that define conditions the distance
-            matrix is to be calculated for.
-        comp_range (tuple): Range with number of components to fit HMMs.
-        use_rep (str): Calculate similarity/distance representation of X in .obsm.
-        n_pcs (int): Number principal components to use if use_pcs is 'X_pca'.
-        make_plot (bool): Plot similarity as heatmap.
-        show (bool): Show plot and return figure and axis.
-        save (str): Save plot to a specified location.
-        return_array (bool): Return array instead of dataframe.
+    Returns
+    -------
+    pandas.DataFrame or numpy.ndarray
+        Similarity/ distance matrix, an array is returned if `return_array` is True
 
-    Returns:
-        pandas.DataFrame: similarity/ distance matrix
-        numpy.ndarray: only if return_array is True
+    Raises
+    ------
+    AssertionError
+        If `group_var` are not in `.obs`
+    OSError
+        If figure can not be saved at specified location
+
+    References
+    ----------
+    .. [1] S. M. E. Sahraeian and B. Yoon, "A Novel Low-Complexity HMM Similarity Measure,"
+       in IEEE Signal Processing Letters, vol. 18, no. 2, pp. 87-90, Feb. 2011, doi: 10.1109/LSP.2010.2096417
     """
     # check variables
     assert time_var in adata.obs, f"time_var not in .obs: {time_var}"

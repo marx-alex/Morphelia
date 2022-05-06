@@ -1,43 +1,67 @@
 import numpy as np
 import pandas as pd
+import anndata as ad
 from morphelia.eval import dist_matrix
 from scipy.stats import norm
 
+from typing import Optional, List, Union
+
 
 def repro_effect(
-    adata,
-    group_var="Metadata_Treatment",
-    other_group_vars=None,
-    method="pearson",
-    control_id="ctrl",
-    use_rep=None,
-    n_pcs=50,
-    return_scores=False,
-):
-    """Compute reproducibility and effect metric for every condition described with group_var
-    and other_group_vars.
+    adata: ad.AnnData,
+    group_var: str = "Metadata_Treatment",
+    other_group_vars: Optional[Union[List[str], str]] = None,
+    method: str = "pearson",
+    control_id: str = "ctrl",
+    use_rep: Optional[str] = None,
+    n_pcs: int = 50,
+    return_scores: bool = False,
+) -> Union[ad.AnnData, tuple]:
+    """Compute reproducibility and effect metric for every condition in `group_var`
+    and `other_group_vars`.
+
     Reproducibility is a measure for the within-similarity of certain conditions.
-    Effect is a measure how well certain conditions differ from control conditions.
+    Effect is a measure of how well certain conditions differ from control conditions.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        group_var (str): Find similarity between groups. Could be treatment conditions for example.
-        other_group_vars (list): Other variables that define groups that a similar.
-        method (str): Method for similarity/ distance computation.
-            Should be one of: pearson, spearman, kendall, euclidean, mahalanobis.
-        control_id (str): Name of control wells in group_var.
-        use_rep (str): Calculate similarity/distance representation of X in .obsm.
-        n_pcs (int): Number principal components to use if use_pcs is 'X_pca'.
-        return_scores (bool): If True, no anndata.AnnData object is returned, but the scores directly.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    group_var : str
+        Find similarity between groups. Could be treatment conditions for example
+    other_group_vars : list of str, optional
+        Other variables that define groups that a similar
+    method : str
+        Method for similarity/ distance computation.
+        Should be one of: `pearson`, `spearman`, `kendall`, `euclidean`, `mahalanobis`.
+    control_id : str
+        Name of control wells in group_var
+    use_rep : str, optional
+        Calculate similarity/distance representation of X in `.obsm`
+    n_pcs : int
+        Number principal components to use if use_pcs is `X_pca`
+    return_scores : bool
+        If True, no anndata.AnnData object is returned, but the scores directly
 
-    Returns:
-        anndata.AnnData
-        .uns['eval']['repro']['percentiles']: pandas.DataFrame with reproducibility scores and conditions.
-        .uns['eval']['repro']['method']: Method used to calculate similarity.
-        .uns['eval']['effect']['percentiles']: pandas.DataFrame with effect scores and conditions.
-        .uns['eval']['effect']['method']: Method used to calculate similarity.
-        pandas.Series, pandas.Series: Reproducibility scores and effect scores.
-            Only if return_scores is True.
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object with results stored at `.uns`
+    .uns['eval']['repro']['percentiles'] : pandas.DataFrame
+        Reproducibility scores and conditions
+    .uns['eval']['repro']['method'] : str
+        Method used to calculate similarity
+    .uns['eval']['effect']['percentiles'] : pandas.DataFrame
+        Effect scores and conditions
+    .uns['eval']['effect']['method'] : str
+        Method used to calculate similarity
+    tuple of pandas.Series
+        Reproducibility scores and effect scores. Only if return_scores is True
+
+    Raises
+    ------
+    AssertionError
+        If `method` is not known
     """
     # check method
     avail_methods = [
@@ -96,37 +120,60 @@ def repro_effect(
 
 
 def reproducibility(
-    adata,
-    group_var="Metadata_Treatment",
-    other_group_vars=None,
-    method="pearson",
-    use_rep=None,
-    n_pcs=50,
-    sim_matrix=None,
-    return_scores=False,
-):
+    adata: ad.AnnData,
+    group_var: str = "Metadata_Treatment",
+    other_group_vars: Optional[Union[str, List[str]]] = None,
+    method: str = "pearson",
+    use_rep: Optional[str] = None,
+    n_pcs: int = 50,
+    sim_matrix: Optional[pd.DataFrame] = None,
+    return_scores: bool = False,
+) -> Union[ad.AnnData, tuple]:
     """Computes reproducibility metric for wells with certain treatments and doses for
     different plates and batches.
+
     First, statistics for a null distribution with wells that should not have a high similarity
     are calculated. Then biological replicates that are expected to be very similar are compared
     to that distribution. The percentile of the mean similarity from wells with same treatments/ concentrations
     within the null distribution is returned.
 
-        Args:
-            adata (anndata.AnnData): Multidimensional morphological data.
-            group_var (str): Find similarity between groups. Could be treatment conditions for example.
-            other_group_vars (list): Other variables that define groups that a similar.
-            method (str): Method for similarity/ distance computation.
-                Should be one of: pearson, spearman, kendall, euclidean, mahalanobis.
-            use_rep (str): Calculate similarity/distance representation of X in .obsm.
-            n_pcs (int): Number principal components to use if use_pcs is 'X_pca'.
-            sim_matrix (pandas.DataFrame): Use this matrix to compute reproducibility.
-            return_scores (bool): If True, no anndata.AnnData object is returned, but the scores directly.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    group_var : str
+        Find similarity between groups. Could be treatment conditions for example
+    other_group_vars : list of str or str, optional
+        Other variables that define groups that a similar
+    method : str
+        Method for similarity/ distance computation.
+        Should be one of: `pearson`, `spearman`, `kendall`, `euclidean`, `mahalanobis`
+    use_rep : str
+        Calculate similarity/distance representation of X in `.obsm`
+    n_pcs : int
+        Number principal components to use if use_pcs is `X_pca`
+    sim_matrix : pandas.DataFrame
+        Use this matrix to compute reproducibility
+    return_scores : bool
+        If True, no anndata.AnnData object is returned, but the scores directly
 
-        Returns:
-        anndata.AnnData
-        .uns['eval']['repro']['percentiles']: pandas.DataFrame with reproducibility scores and conditions.
-        .uns['eval']['repro']['method']: Method used to calculate similarity.
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object with results stored at `.uns`
+    .uns['eval']['repro']['percentiles'] : pandas.DataFrame
+        Reproducibility scores and conditions
+    .uns['eval']['repro']['method'] : str
+        Method used to calculate similarity
+
+    Raises
+    -------
+    AssertionError
+        If `group_var` or `other_group_vars` is not in `obs`
+    AssertionError
+        If `group_var` has no biological replicates
+    AssertionError
+        If `method` is unknown
     """
     # check variables
     assert group_var in adata.obs.columns, f"treat_var not in observations: {group_var}"
@@ -137,15 +184,15 @@ def reproducibility(
             "Expected type for other_group_vars is string or list, "
             f"instead got {type(other_group_vars)}"
         )
-        assert all(var in adata.obs.columns for var in other_group_vars), (
-            f"other_group_vars not in " f"observations: {other_group_vars}"
-        )
+        assert all(
+            var in adata.obs.columns for var in other_group_vars
+        ), f"other_group_vars not in observations: {other_group_vars}"
 
     # every treatment/dose pair should have at least one biological replicate
     if other_group_vars is None:
-        assert len(adata.obs[group_var]) != len(adata.obs[group_var].unique()), (
-            "Found no biological " f"replicates for {group_var}"
-        )
+        assert len(adata.obs[group_var]) != len(
+            adata.obs[group_var].unique()
+        ), f"Found no biological replicates for {group_var}"
     else:
         other_group_vars_lst = adata.obs[other_group_vars].values.tolist()
         all_group_vars = [
@@ -212,20 +259,20 @@ def reproducibility(
     ################
     # DELETE
     ################
-    import matplotlib.pyplot as plt
-    import seaborn as sns
+    # import matplotlib.pyplot as plt
+    # import seaborn as sns
 
-    n = null_dist_df.to_numpy().flatten()
-    n = n[~np.isnan(n)]
-    e = repro_df.to_numpy().flatten()
-    e = e[~np.isnan(e)]
-    n = np.random.choice(n, size=len(e), replace=False)
-    data = pd.DataFrame({"null dist": n, "repro dist": e})
+    # n = null_dist_df.to_numpy().flatten()
+    # n = n[~np.isnan(n)]
+    # e = repro_df.to_numpy().flatten()
+    # e = e[~np.isnan(e)]
+    # n = np.random.choice(n, size=len(e), replace=False)
+    # data = pd.DataFrame({"null dist": n, "repro dist": e})
     # bins = np.linspace(-1, 1, 50)
-    fig, axs = plt.subplots()
-    sns.histplot(data=data, ax=axs)
-    axs.set_xlabel("euclidean distance")
-    axs.set_title("Reproducibility")
+    # fig, axs = plt.subplots()
+    # sns.histplot(data=data, ax=axs)
+    # axs.set_xlabel("euclidean distance")
+    # axs.set_title("Reproducibility")
     # axs.hist([n, e], bins=30, alpha=0.5, label=['null dist', 'effect dist'], edgecolor=None)
     # plt.legend()
     # axs.hist(e, bins=100, alpha=0.5)
@@ -247,40 +294,64 @@ def reproducibility(
 
 
 def effect(
-    adata,
-    group_var="Metadata_Treatment",
-    other_group_vars=None,
-    control_id="ctrl",
-    method="pearson",
-    use_rep=None,
-    n_pcs=50,
-    sim_matrix=None,
-    return_scores=False,
-):
+    adata: ad.AnnData,
+    group_var: str = "Metadata_Treatment",
+    other_group_vars: Optional[Union[str, List[str]]] = None,
+    control_id: str = "ctrl",
+    method: str = "pearson",
+    use_rep: Optional[str] = None,
+    n_pcs: int = 50,
+    sim_matrix: Optional[pd.DataFrame] = None,
+    return_scores: bool = False,
+) -> Union[ad.AnnData, tuple]:
     """Computes effect metric for wells with certain treatments and doses for
     different plates and batches.
+
     First, statistics for a null distribution with similarities/distances between control wells are calculated.
     Then the mean distance/similarity of Treatment/Concentration wells to control wells
     is compared to the null distribution.
     The percentile of the mean Treatment/Concentration similarity/distance on the null distribution is returned.
     The metric highly depends on reproducibility of control wells.
 
-        Args:
-            adata (anndata.AnnData): Multidimensional morphological data.
-            group_var (str): Find similarity between groups. Could be treatment conditions for example.
-            other_group_vars (list): Other variables that define groups that a similar.
-            method (str): Method for similarity/ distance computation.
-                Should be one of: pearson, spearman, kendall, euclidean, mahalanobis.
-            use_rep (str): Calculate similarity/distance representation of X in .obsm.
-            n_pcs (int): Number principal components to use if use_pcs is 'X_pca'.
-            control_id (str): Name of control wells in group_var.
-            sim_matrix (pandas.DataFrame): Use this matrix to compute reproducibility.
-            return_scores (bool): If True, no anndata.AnnData object is returned, but the scores directly.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    group_var : str
+        Find similarity between groups. Could be treatment conditions for example
+    other_group_vars : list of str or str, optional
+        Other variables that define groups that a similar
+    method : str
+        Method for similarity/ distance computation.
+        Should be one of: pearson, spearman, kendall, euclidean, mahalanobis.
+    use_rep : str, optional
+        Calculate similarity/distance representation of X in `.obsm`
+    n_pcs : int
+        Number principal components to use if use_pcs is `X_pca`
+    control_id : str
+        Name of control wells in group_var
+    sim_matrix : pandas.DataFrame, optional
+        Use this matrix to compute reproducibility
+    return_scores : bool
+        If True, no anndata.AnnData object is returned, but the scores directly
 
-        Returns:
-        anndata.AnnData
-        .uns['eval']['effect']['percentiles']: pandas.DataFrame with effect scores and conditions.
-        .uns['eval']['effect']['method']: Method used to calculate similarity.
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object with results stored at `.uns`
+    .uns['eval']['repro']['percentiles'] : pandas.DataFrame
+        Effect scores and conditions
+    .uns['eval']['repro']['method'] : str
+        Method used to calculate similarity
+
+    Raises
+    -------
+    AssertionError
+        If `group_var` or `other_group_vars` is not in `obs`
+    AssertionError
+        If `control_id` is not in `group_var`
+    AssertionError
+        If `method` is unknown
     """
     # check variables
     assert group_var in adata.obs.columns, f"treat_var not in observations: {group_var}"
@@ -364,20 +435,20 @@ def effect(
     ################
     # DELETE
     ################
-    import matplotlib.pyplot as plt
-    import seaborn as sns
+    # import matplotlib.pyplot as plt
+    # import seaborn as sns
 
-    n = null_dist_df.to_numpy().flatten()
-    n = n[~np.isnan(n)]
-    e = effect_df.to_numpy().flatten()
-    e = e[~np.isnan(e)]
-    n = np.random.choice(n, size=len(e), replace=False)
-    data = pd.DataFrame({"null dist": n, "effect dist": e})
+    # n = null_dist_df.to_numpy().flatten()
+    # n = n[~np.isnan(n)]
+    # e = effect_df.to_numpy().flatten()
+    # e = e[~np.isnan(e)]
+    # n = np.random.choice(n, size=len(e), replace=False)
+    # data = pd.DataFrame({"null dist": n, "effect dist": e})
     # bins = np.linspace(-1, 1, 50)
-    fig, axs = plt.subplots()
-    sns.histplot(data=data, ax=axs)
-    axs.set_xlabel("euclidean distance")
-    axs.set_title("Effect")
+    # fig, axs = plt.subplots()
+    # sns.histplot(data=data, ax=axs)
+    # axs.set_xlabel("euclidean distance")
+    # axs.set_title("Effect")
     # axs.hist([n, e], bins=30, alpha=0.5, label=['null dist', 'effect dist'], edgecolor=None)
     # plt.legend()
     # axs.hist(e, bins=100, alpha=0.5)
@@ -399,33 +470,55 @@ def effect(
 
 
 def select_concentration(
-    adata,
-    treat_var="Metadata_Treatment",
-    conc_var="Metadata_Concentration",
-    control_id="ctrl",
-    method="pearson",
-    use_rep=None,
-    n_pcs=50,
-    return_scores=False,
-    select=True,
+    adata: ad.AnnData,
+    treat_var: str = "Metadata_Treatment",
+    conc_var: str = "Metadata_Concentration",
+    control_id: str = "ctrl",
+    method: str = "pearson",
+    use_rep: Optional[str] = None,
+    n_pcs: int = 50,
+    return_scores: bool = False,
+    select: bool = True,
 ):
     """Select concentration with best effect.
 
-    Args:
-            adata (anndata.AnnData): Multidimensional morphological data.
-            treat_var (str): Treatment variable in adata.obs.
-            conc_var (list): Concentration variable in adata.obs.
-            method (str): Method for similarity/ distance computation.
-                Should be one of: pearson, spearman, kendall, euclidean, mahalanobis.
-            use_rep (str): Calculate similarity/distance representation of X in .obsm.
-            n_pcs (int): Number principal components to use if use_pcs is 'X_pca'.
-            control_id (str): Name of control wells in group_var.
-            return_scores (bool): If True, no anndata.AnnData object is returned, but the scores directly.
-            select (bool): Return only selected concentrations.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    treat_var : str
+        Treatment variable in `.obs`
+    conc_var : str
+        Concentration variable in `obs`
+    method : str
+        Method for similarity/ distance computation.
+        Should be one of: `pearson`, `spearman`, `kendall`, `euclidean`, `mahalanobis`
+    use_rep : str, optional
+        Calculate similarity/distance representation of X in .obsm.
+    n_pcs : int
+        Number principal components to use if use_pcs is 'X_pca'.
+    control_id : str
+        Name of control wells in group_var.
+    return_scores : bool
+        If True, no anndata.AnnData object is returned, but the scores directly.
+    select : bool
+        Return only selected concentrations.
 
-        Returns:
-        anndata.AnnData
-        .uns['eval']['concentration']: pandas.DataFrame with selected treatments and concentrations.
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object with results stored at `.uns`
+    .uns['eval']['concentration'] : pandas.DataFrame
+        Selected treatments and concentrations.
+
+    Raises
+    ------
+    AssertionError
+        If `treat_var` or `conc_var` is not in `.obs`
+    AssertionError
+        If `control_id` is in in `treat_var`
+    AssertionError
+        If `method` is unknown
     """
     assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"
     assert conc_var in adata.obs.columns, f"conc_var not in .obs: {conc_var}"

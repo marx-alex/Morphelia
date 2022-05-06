@@ -1,7 +1,67 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "morphelia"
 authors = [{name = "Alexander Marx", email = "alexander.marx@stud.uni-heidelberg.de"}]
-dynamic = ["version", "description"]
+description = "Exploratory data analysis for image-based morphological profiling"
+keywords = ["image-based-profiling", "morphological-profiling", "data-analysis"]
+license = {text = "MIT Licence"}
+dynamic = ["version"]
+readme = "README.md"
+dependencies = [
+  "anndata >= 0.7.4",
+  "scanpy",
+  "matplotlib",
+  "networkx",
+  "numpy",
+  "pandas",
+  "scikit-learn",
+  "scikit-learn-intelex",
+  "scikit-image",
+  "torch",
+  "pytorch-lightning",
+  "scipy",
+  "seaborn",
+  "napari",
+  "leidenalg",
+  "umap-learn",
+  "fastcluster",
+  "jupyter",
+  "tables",
+  "fa2",
+  "pygam",
+  "pyyaml",
+  "statsmodels",
+  "dtaidistance",
+  "tqdm",
+  "hmmlearn",
+  "wandb",
+  "btrack"
+]
+
+[tool.setuptools.packages.find]
+include = ["morphelia*"]
+exclude = ["tests"]
+
+[project.scripts]
+cli-name = "mypkg.mymodule:some_func"
+StorePlates = "morphelia.cli.StorePlates:main"
+CollectData = "morphelia.cli.CollectData:main"
+Pseudostitch = "morphelia.cli.Pseudostitch:main"
+Aggregate = "morphelia.cli.Aggregate:main"
+CleanData = "morphelia.cli.CleanData:main"
+Normalize = "morphelia.cli.Normalize:main"
+TrainTestSplit = "morphelia.cli.TrainTestSplit:main"
+Subsample = "morphelia.cli.Subsample:main"
+Track = "morphelia.cli.Track:main"
 
 [tool.black]
 include = '\.pyi?$'
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = ["tests"]
+filterwarnings = "ignore::DeprecationWarning"

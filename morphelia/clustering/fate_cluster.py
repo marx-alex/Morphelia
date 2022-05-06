@@ -4,21 +4,53 @@ from tqdm import tqdm
 from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics.pairwise import euclidean_distances
 
+from typing import Optional
+
 
 class FateCluster:
-    """
-    Find clusters in a fate map by one directional random walks.
+    """Find clusters in a fate map by one directional random walks.
+
+    Given one start cell and several terminal cells, this class calculates
+    random walks from the start cell until a terminal cell is reached.
+    Walks are only possible in one direction (away from the start cell).
+    A fate probability is assigned to each cell for all terminal cells based on the
+    fate of random walks that passed a cell.
+
+    Parameters
+    ----------
+    n_neighbors : int
+        Number of neighbors for the affinity matrix
+    neighbor_params : dict, optional
+        Keyword arguments that are passed to sklearn.neighbors.NearestNeighbors
+    n_iter : int
+        Number of random walks
+    centroid : numpy.ndarray, optional
+        The centroid of the fate map
+    centroid_method : str
+        In case no `centroid` is given, the `mean` or
+        `median` of all data points can be used as centroid
+    centroid_fun_params : dict, optional
+        Keyword arguments that are passed to the `centroid_method`
+        in case no `centroid` is give
+    random_state : int, optional
+        Random initialization
+    verbose : bool
+
+    Raises
+    ------
+    ValueError
+        If `centroid` is None and `centroid_method` is unknown
     """
 
     def __init__(
         self,
         n_neighbors: int = 10,
-        neighbor_params: dict = None,
+        neighbor_params: Optional[dict] = None,
         n_iter: int = 100,
-        centroid: np.array = None,
+        centroid: np.array = Optional[None],
         centroid_method: str = "median",
-        centroid_fun_params: dict = None,
-        random_state: int = None,
+        centroid_fun_params: dict = Optional[None],
+        random_state: int = Optional[None],
         verbose=False,
     ):
         self.n_neighbors = n_neighbors
@@ -57,7 +89,14 @@ class FateCluster:
         np.random.seed(random_state)
 
     @property
-    def result(self):
+    def result(self) -> pd.DataFrame:
+        """Get class results.
+
+        Returns
+        -------
+        pandas.DataFrame
+            DataFrame with fate counts per terminal cell
+        """
         unique, counts = np.unique(self.classes, return_counts=True)
         return pd.DataFrame(
             {
@@ -67,7 +106,17 @@ class FateCluster:
             }
         )
 
-    def fit(self, X):
+    def fit(self, X: np.ndarray):
+        """Compute random walks from centroid to terminal cells.
+
+        This method calculates the fate probability for each cell
+        to end up in a terminal state and the class based on the maximum probability.
+
+        Parameters
+        ----------
+        X : numpy.ndarray
+            Array of shape `[observations, features]`
+        """
 
         # find centroid
         if self.centroid is not None:
@@ -145,8 +194,15 @@ class FateCluster:
         self.fate_prob = fate_prob
         self.classes = np.argmax(fate_prob, axis=1)
 
-        return self
+        return None
 
-    def fit_predict(self, X):
+    def fit_predict(self, X: np.ndarray) -> np.ndarray:
+        """Convenient funtion to fit an array an return the classes (based on fate probabilities).
+
+        Parameters
+        ----------
+        X : numpy.ndarray
+            Array of shape `[observations, features]`
+        """
         self.fit(X)
         return self.classes

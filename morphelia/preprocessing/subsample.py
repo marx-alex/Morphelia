@@ -1,27 +1,78 @@
 # import external libraries
 import numpy as np
+import anndata as ad
+
+from typing import Optional, List, Tuple, Union
 
 
 def subsample(
-    adata,
-    perc=0.1,
-    by=("BatchNumber", "PlateNumber", "Metadata_Well"),
-    grouped=None,
-    with_replacement=False,
-    seed=0,
+    adata: ad.AnnData,
+    perc: float = 0.1,
+    by: Optional[Union[List[str], Tuple[str], str]] = (
+        "BatchNumber",
+        "PlateNumber",
+        "Metadata_Well",
+    ),
+    grouped: Optional[str] = None,
+    with_replacement: bool = False,
+    seed: Union[float, int] = 0,
 ):
-    """Gives a subsample of the data by selecting objects from given groups.
+    """Draw subsamples from data.
 
-    Args:
-        adata (anndata.AnnData): Annotated data object.
-        perc (float): Percentage of objects to store in subsample.
-        by (list, None): Group by those variables before sampling.
-        grouped (str): Sample groups, not single instances.
-        with_replacement (bool): Sample with replacement.
-        seed (int): Seed for initialization.
+    Gives a subsample of the data by selecting objects from given groups.
 
-    Returns:
-        anndata.AnnData
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Annotated data object
+    perc : float
+        Percentage of objects to store in subsample
+    by : list of str or tuple of str or str
+        Sample from groups specified with `by`
+    grouped : str, optional
+        Sample groups, not single instances
+    with_replacement : bool
+        Sample with replacement
+    seed : int
+        Seed for initialization
+
+    Returns
+    -------
+    anndata.AnnData
+        Subsampled AnnData object
+
+    Raises
+    -------
+    AssertionError
+        If `perc` is not between `0` and `1`
+    AssertionError
+        If `grouped` is not in `.obs`
+    AssertionError
+        If any variable in `by` is not in `.obs`
+
+    Examples
+    ________
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(10, 5)
+    >>> obs = pd.DataFrame({
+    >>>     'treatment': [
+    >>>         0, 0, 0, 0, 0, 1, 1, 1, 1, 1
+    >>>     ],
+    >>> })
+    >>> adata = ad.AnnData(data, obs=obs)
+
+    >>> adata = mp.pp.subsample(
+    >>>     adata,
+    >>>     perc=0.5,
+    >>>     by='treatment'
+    >>> )
+    >>> adata
+    AnnData object with n_obs × n_vars = 5 × 5
+        obs: 'treatment'
     """
     assert 0 <= perc <= 1, f"Use a float between 0 and 1 for perc: {perc}"
     if grouped is not None:
@@ -34,6 +85,9 @@ def subsample(
 
     if by is not None:
         # check that variables in by are in anndata
+        if isinstance(by, str):
+            by = [by]
+
         assert all(
             var in adata.obs.columns for var in by
         ), f"Variables defined in 'by' are not in annotations: {by}"

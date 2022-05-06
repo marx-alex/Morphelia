@@ -1,10 +1,13 @@
 import numpy as np
+import anndata as ad
 from scipy.spatial import cKDTree
 from tqdm import tqdm
 import btrack
 from btrack.constants import BayesianUpdates
 import pandas as pd
+
 import logging
+from typing import Union, Tuple, List, Optional
 
 logger = logging.getLogger("worker_process")
 logger.setLevel(level=logging.WARN)
@@ -163,56 +166,82 @@ fate_dict = {
 
 
 def track(
-    adata,
-    time_var="Metadata_Time",
-    group_vars=("Metadata_Well", "Metadata_Field"),
-    x_loc="Cells_Location_Center_X",
-    y_loc="Cells_Location_Center_Y",
-    parent_id="Metadata_Track_Parent",
-    track_id="Metadata_Track",
-    fate_id="Metadata_Fate",
-    root_id="Metadata_Track_Root",
-    gen_id="Metadata_Gen",
-    filter_dummies=False,
-    filter_delayed_roots=True,
-    drop_untracked=True,
-    max_search_radius=100,
-    field_size=(2048, 2048),
-    approx=False,
-    verbose=False,
-):
+    adata: ad.AnnData,
+    time_var: str = "Metadata_Time",
+    group_vars: Union[Tuple[str], List[str], str] = ("Metadata_Well", "Metadata_Field"),
+    x_loc: str = "Cells_Location_Center_X",
+    y_loc: str = "Cells_Location_Center_Y",
+    parent_id: str = "Metadata_Track_Parent",
+    track_id: str = "Metadata_Track",
+    fate_id: str = "Metadata_Fate",
+    root_id: str = "Metadata_Track_Root",
+    gen_id: str = "Metadata_Gen",
+    filter_dummies: bool = False,
+    filter_delayed_roots: bool = True,
+    drop_untracked: bool = True,
+    max_search_radius: int = 100,
+    field_size: Tuple[int, int] = (2048, 2048),
+    approx: bool = False,
+    verbose: bool = False,
+) -> ad.AnnData:
     """Wrapper for Bayesian Tracker.
 
     Tracks objects per field of view defined by group_vars.
     Objects can be filtered for trajectory length and dummy objects.
 
-    Reference:
-        Automated deep lineage tree analysis using a Bayesian single cell tracking approach
-        Ulicna K, Vallardi G, Charras G and Lowe AR.
-        bioRxiv (2020)
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Morphological data from cells with different time stamps
+    time_var : str
+        Variable name for time point in annotations
+    group_vars : str, list of str, tuple of str
+        Variables in annotations.
+        Should point to specific wells/ or fields on plates that can be compared over time
+    x_loc : str
+        Identifier for x location in annotations
+    y_loc : str
+        Identifier for y location in annotations
+    parent_id : str
+        Variable name used to store index of parent track
+    track_id : str
+        Variable name used to store unique track id
+    fate_id : str
+        Variable name used to store fate of a track
+    root_id : str
+        Variable name used to store root of a track
+    gen_id : str
+        Variable name to store generation of a track
+    filter_dummies : bool
+        Filter trees with dummies
+    filter_delayed_roots : bool
+        Filter roots that initiate after t=0
+    drop_untracked : bool
+        Drop all false positive tracks from the anndata object
+    max_search_radius : int
+        Local spatial search radius (pixels)
+    field_size : tuple of ints
+        Height and width in of field
+    approx : bool
+        Speed up processing on very large datasets
+    verbose : bool
 
-    Args:
-        adata (anndata.AnnData): Morphological data from cells with different time stamps.
-        time_var (str): Variable name for time point in annotations.
-        group_vars (iterable): Variables in annotations.
-            Should point to specific wells/ or fields on plates that can be compared over time.
-        x_loc (str): Identifier for x location in annotations.
-        y_loc (str): Identifier for y location in annotations.
-        parent_id (str): Variable name used to store index of parent track.
-        track_id (str): Variable name used to store unique track id.
-        fate_id (str): Variable name used to store fate of a track.
-        root_id (str): Variable name used to store root of a track.
-        gen_id (str): Variable name to store generation of a track.
-        filter_dummies (bool): Filter trees with dummies.
-        filter_delayed_roots (bool): Filter roots that initiate after t=0.
-        drop_untracked (bool): Drop all false positive tracks from the anndata object.
-        max_search_radius (int): Local spatial search radius (pixels)
-        field_size (tuple of ints): Height and width in of field.
-        approx (bool): Speed up processing on very large datasets.
-        verbose (bool)
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object with track information
 
-    Returns:
-        adata (anndata.AnnData)
+    Raises
+    -------
+    AssertionError
+        If `group_vars`, `time_var`, `x_loc` or `y_loc` not in `.obs`
+    AssertionError
+        If `x_loc` equals `y_loc`
+
+    References
+    ----------
+    .. [1] Automated deep lineage tree analysis using a Bayesian single cell tracking approach
+       Ulicna K, Vallardi G, Charras G and Lowe AR. bioRxiv (2020)
     """
     # check variables
     if isinstance(group_vars, str):
@@ -231,7 +260,6 @@ def track(
         )
 
     assert time_var in adata.obs.columns, f"time_var not in .obs.columns: {time_var}"
-    assert x_loc in adata.obs.columns, f"x_loc not in .obs.columns: {x_loc}"
     assert x_loc in adata.obs.columns, f"x_loc not in .obs.columns: {x_loc}"
     assert y_loc in adata.obs.columns, f"y_loc not in .obs.columns: {y_loc}"
     assert x_loc != y_loc, (
@@ -306,9 +334,9 @@ def track(
         p_header = ["t", "state", "generation", "root", "parent", "dummy"]
 
         header = t_header + p_header
-        dict_tracks = tracks_as_dict(tracks, header, add_fate=True)
+        dict_tracks = _tracks_as_dict(tracks, header, add_fate=True)
 
-        cat_tracks = cat_track_dicts(dict_tracks)
+        cat_tracks = _cat_track_dicts(dict_tracks)
         output = pd.DataFrame(cat_tracks)
 
         # filter delayed roots
@@ -325,7 +353,7 @@ def track(
             dummy_roots = output.loc[output["dummy"], "root"].unique()
             output = output.loc[~output["root"].isin(dummy_roots), :]
         # add absolute ids to output
-        output, end_id = add_absolute_ids(
+        output, end_id = _add_absolute_ids(
             output, start_id=track_start_id, return_end_id=True
         )
         # delete dummies before updating adata
@@ -355,7 +383,12 @@ def track(
     return adata.copy()
 
 
-def add_absolute_ids(output, start_id=None, return_end_id=False):
+def _add_absolute_ids(
+    output: Union[pd.DataFrame, dict],
+    start_id: Optional[int] = None,
+    return_end_id: bool = False,
+):
+    """Change track ids to absolute ids."""
     track_ids = output["ID"].unique()
     n_tracks = len(track_ids)
 
@@ -376,7 +409,8 @@ def add_absolute_ids(output, start_id=None, return_end_id=False):
     return output
 
 
-def tracks_as_dict(tracks: list, properties: list, add_fate: bool = False):
+def _tracks_as_dict(tracks: list, properties: list, add_fate: bool = False):
+    """Convert tracks to dictionaries."""
     # ensure lexicographic ordering of tracks
     tracks = sorted(list(tracks), key=lambda t: t.ID)
     dict_tracks = []
@@ -407,7 +441,8 @@ def tracks_as_dict(tracks: list, properties: list, add_fate: bool = False):
     return dict_tracks
 
 
-def cat_track_dicts(tracks: list):
+def _cat_track_dicts(tracks: list):
+    """Concatenate tracks."""
     data = {}
 
     for ix, trk in enumerate(tracks):
@@ -430,34 +465,54 @@ def cat_track_dicts(tracks: list):
 
 
 def track_nn(
-    adata,
-    time_var="Metadata_Time",
-    group_vars=("Metadata_Well", "Metadata_Field"),
-    x_loc="Cells_Location_Center_X",
-    y_loc="Cells_Location_Center_Y",
-    parent_id="Metadata_Trace_Parent",
-    tree_id="Metadata_Trace_Tree",
-    start_tp=0,
-):
+    adata: ad.AnnData,
+    time_var: str = "Metadata_Time",
+    group_vars: Union[str, List[str], Tuple[str]] = ("Metadata_Well", "Metadata_Field"),
+    x_loc: str = "Cells_Location_Center_X",
+    y_loc: str = "Cells_Location_Center_Y",
+    parent_id: str = "Metadata_Trace_Parent",
+    tree_id: str = "Metadata_Trace_Tree",
+    start_tp: int = 0,
+) -> ad.AnnData:
     """Neares neighbor tracking.
 
     Iterates over every well or field that can be traced over time.
     Fore every object and time point calculate the nearest neighbor from
     the previous time point.
 
-    Args:
-        adata (anndata.AnnData): Morphological data from cells with different time stamps.
-        time_var (str): Variable name for time point in annotations.
-        group_vars (iterable): Variables in annotations.
-            Should point to specific wells/ or fields on plates that can be compared over time.
-        x_loc (str): Identifier for x location in annotations.
-        y_loc (str): Identifier for y location in annotations.
-        parent_id (str): Variable name used to store index of parent cell.
-        tree_id (str): Variable name used to store unique branch number for a certain field.
-        start_tp (int): Start time point.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Morphological data from cells with different time stamps
+    time_var : str
+        Variable name for time point in annotations
+    group_vars : str or list of str or tuple of str
+        Variables in annotations.
+        Should point to specific wells/ or fields on plates that can be compared over time.
+    x_loc : str
+        Identifier for x location in annotations
+    y_loc : str
+        Identifier for y location in annotations
+    parent_id : str
+        Variable name used to store index of parent cell
+    tree_id : str
+        Variable name used to store unique branch number for a certain field
+    start_tp : int
+        Start time point
 
-    Returns:
-        adata (anndata.AnnData)
+    Raises
+    -------
+    AssertionError
+        If `group_vars`, `time_var`, `x_loc` or `y_loc` is not in `.obs`
+    AssertionError
+        If `x_loc` equals `y_loc`
+    ValueError
+        If AnnData has no data with a given `start_tp`
+
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object with track information
     """
 
     # check variables
@@ -477,7 +532,6 @@ def track_nn(
         )
 
     assert time_var in adata.obs.columns, f"time_var not in .obs.columns: {time_var}"
-    assert x_loc in adata.obs.columns, f"x_loc not in .obs.columns: {x_loc}"
     assert x_loc in adata.obs.columns, f"x_loc not in .obs.columns: {x_loc}"
     assert y_loc in adata.obs.columns, f"y_loc not in .obs.columns: {y_loc}"
     assert x_loc != y_loc, (

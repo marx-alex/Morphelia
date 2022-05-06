@@ -8,21 +8,67 @@ def select_by_group(
     by: str = "Metadata_Treatment",
     method: str = "median",
 ) -> ad.AnnData:
-    """
+    """Select specified subgroups.
+
     Iteratively select experimental subgroups.
     For every group in 'by' a group in 'var' is selected based on a specified method.
+    Thereby, for example only the treatments with highest concentrations can be selected.
 
-    Args:
-        adata: Multidimensional morphological data.
-        var: Variable in .obs to use for selection.
-        by: Variable in .obs to use group grouping.
-        method:
-            median: Selects the median group.
-            max: Selects the maximum group.
-            min: Selects the minimum group.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    var : str
+        Variable in .obs to use for selection
+    by : str
+        Variable in .obs to use group grouping
+    method: str
+        `median`: Selects the median group
+        `max`: Selects the maximum group
+        `min`: Selects the minimum group
 
-    Returns:
-        Selected AnnData object.
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object with selected subgroups
+
+    Raises
+    -------
+    AssertionError
+        If `var` or `by` is not in `.obs`
+    AssertionError
+        If `method` is unknown
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(9, 5)
+    >>> obs = pd.DataFrame({
+    >>>     'treatment': [
+    >>>         0, 0, 0, 1, 1, 1, 2, 2, 2
+    >>>     ],
+    >>>     'concentration': [
+    >>>         0, 1, 2, 0, 1, 2, 0, 1, 2
+    >>>     ]
+    >>> })
+    >>> adata = ad.AnnData(data, obs=obs)
+
+    >>> adata = mp.pp.select_by_group(
+    >>>     adata,
+    >>>     by='treatment',
+    >>>     var='concentration',
+    >>>     method='max'
+    >>> )  # select the highest concentration per treatment
+
+    >>> adata.obs['concentration']
+                concentration	treatment
+    2-0	0	    2	            0
+    5-1	1	    2	            1
+    8-2	2	    2	            2
     """
     assert var in adata.obs.columns, f"var is not in .obs: {var}"
     assert by in adata.obs.columns, f"by is not in .obs: {by}"

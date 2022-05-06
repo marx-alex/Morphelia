@@ -1,46 +1,93 @@
+from typing import Union, Optional
+
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
+import anndata as ad
+
 from morphelia.tools import RobustMAD
 from morphelia.preprocessing import drop_nan as drop_nan_feats
 from morphelia.features import thresh_outlier
 
 
 def normalize(
-    adata,
-    by=("BatchNumber", "PlateNumber"),
-    method="standard",
-    pop_var="Metadata_Treatment",
-    norm_pop=None,
-    drop_outlier=False,
-    outlier_thresh=3,
-    drop_nan=True,
-    verbose=False,
+    adata: ad.AnnData,
+    by: Union[str, list, tuple] = ("BatchNumber", "PlateNumber"),
+    method: str = "standard",
+    pop_var: str = "Metadata_Treatment",
+    norm_pop: Optional[str] = None,
+    drop_outlier: bool = False,
+    outlier_thresh: Union[int, float] = 3,
+    drop_nan: bool = True,
+    verbose: bool = False,
     **kwargs,
 ):
-    """
+    """Feature normalization.
+
     Normalizes features of an experiment with one ore more batches and
     one or more plates.
     Several methods are available for normalization such as standard scaling,
     robust scaling, robust MAD scaling and min-max scaling.
-    If a normalization population is given scaling statistics are calculated only
+    If a normalization population is given, scaling statistics are calculated only
     in this population, i.g. negative controls.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        by (iterable, str or None): Groups to apply function to.
-            If None, apply to whole anndata.AnnData object.
-        method (str): One of the following method to use for scaling:
-            standard: removing the mean and scaling to unit variance.
-            robust: removing the median and scaling according to the IQR (interquartile range).
-            mad_robust: removing the median and scaling to MAD (meand absolute deviation).
-            min_max: scaling features to given range (typically 0 to 1).
-        pop_var (str): Variable that denotes populations.
-        norm_pop (str): Population to use for calculation of statistics.
-            This is not used if norm_pop is None.
-        drop_nan (bool): Drop feature containing nan values after transformation.
-        drop_outlier (bool): Drop outlier values.
-        outlier_thresh (int, float): Values above are considered outliers and will be removed.
-        verbose (bool)
-        ** kwargs: Arguments passed to scaler.
+    Parameters
+    ----------
+    adata : anndata.AnnData)
+        Multidimensional morphological data
+    by : str or tuple or list
+        Groups to apply function to.
+        If None, apply to whole anndata.AnnData object
+    method : str
+        One of the following method to use for scaling:
+        `standard`: removing the mean and scaling to unit variance
+        `robust`: removing the median and scaling according to the IQR (interquartile range)
+        `mad_robust`: removing the median and scaling to MAD (meand absolute deviation)
+        `min_max`: scaling features to given range (typically 0 to 1)
+    pop_var : str
+        Population variable
+    norm_pop : str, optional
+        Normalization population to use to calculate statistics
+        This is not used if norm_pop is None
+    drop_nan : bool
+        Drop feature containing nan values after transformation
+    drop_outlier : bool
+        Drop outlier values
+    outlier_thresh : int or float
+        Values above are considered outliers and will be removed
+    verbose : bool
+    **kwargs
+        Arguments passed to scaler
+
+    Returns
+    -------
+    anndata.AnnData
+        Normalized AnnData object
+
+    Raises
+    -------
+    AssertionError
+        If any variable in `by` is not in `.var`
+    AssertionError
+        If `pop_var` is not in `.obs.columns`
+    AssertionError
+        If method is not valid
+    AssertionError
+        If `outlier_thresh` is 0
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(5, 5)
+    >>> obs = pd.DataFrame({'group': [0, 0, 1, 1, 1]})
+    >>> adata = ad.AnnData(data, obs=obs)
+
+    >>> mp.pp.normalize(adata, by='group')
+    AnnData object with n_obs × n_vars = 5 × 5
+        obs: 'group'
+        uns: 'nan_feats'
     """
     # check that variables in by are in anndata
     if by is not None:

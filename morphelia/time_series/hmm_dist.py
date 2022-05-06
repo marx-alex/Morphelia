@@ -1,36 +1,54 @@
 import numpy as np
 from hmmlearn import hmm
+
 import warnings
+from typing import Callable, Tuple, List
 
 
-def bic(X, k, likelihood_func):
+def bic(X: np.ndarray, k: int, likelihood_func: Callable) -> float:
     """Bayesian information criterion.
 
-    Args:
-        X (np.ndarray): Data to fit on.
-        k (int): Free parameters.
-        likelihood_func (function): Likelihood function that takes X as input.
+    Parameters
+    ----------
+    X : numpy.ndarray
+        Data to fit on.
+    k : int
+        Free parameters
+    likelihood_func : callable
+        Likelihood function that takes X as input
+
+    Returns
+    -------
+    float
+        Bayesian information criterion
     """
     return k * np.log(len(X)) - 2 * likelihood_func(X)
 
 
-def aic(X, k, likelihood_func):
+def aic(X: np.ndarray, k: int, likelihood_func: Callable) -> float:
     """Akaike information criterion.
 
-    Args:
-        X (np.ndarray): Data to fit on.
-        k (int): Free parameters.
-        likelihood_func (function): Log likelihood function that takes X as input.
+    Parameters
+    ----------
+    X : numpy.ndarray
+        Data to fit on
+    k : int
+        Free parameters
+    likelihood_func : callable
+        Log likelihood function that takes X as input
+
+    Returns
+    -------
+    float
+        Akaike information criterion
     """
     return 2 * k - 2 * likelihood_func(X)
 
 
 class HMMSimilarity:
-    """Implementation of the distance metric for hidden Markov models by Sahraeian et al., 2011:
-    S. M. E. Sahraeian and B. Yoon, "A Novel Low-Complexity HMM Similarity Measure,"
-    in IEEE Signal Processing Letters, vol. 18, no. 2, pp. 87-90, Feb. 2011, doi: 10.1109/LSP.2010.2096417
+    """Implementation of the distance metric for hidden Markov models.
 
-    The algorithm applies the following steps.
+    The algorithm works through the following steps:
 
         1. Find the hidden markov models lambda_i with lowest bayesian information criterion for timeseries t_i
         2. Compute stationary distributions pi_i for lambda_i
@@ -40,15 +58,28 @@ class HMMSimilarity:
         5. Estimate the state correspondence matrix Q
         6. Compute the HMM similarity measure S(lambda||lambda') based on the normalized gini index as a measure
             for sparsity
+
+    Parameters
+    ----------
+    state_range : tuple of int
+        Calculate a range of states and choose best state by using a criterion
+    criterion : str
+        Use Bayesian (`bic`) or Akaike (`aic`) information criterion
+    seed : int
+        Seed for reproduction
+
+    References
+    ----------
+    .. [1] S. M. E. Sahraeian and B. Yoon, "A Novel Low-Complexity HMM Similarity Measure"
+       in IEEE Signal Processing Letters, vol. 18, no. 2, pp. 87-90, Feb. 2011, doi: 10.1109/LSP.2010.2096417
     """
 
-    def __init__(self, state_range=(2, 10), criterion="bic", seed=42):
-        """
-        Args:
-            state_range (tuple): Calculate states in specified range.
-            criterion (str): AIC or BIC
-            seed (int)
-        """
+    def __init__(
+        self,
+        state_range: Tuple[int, int] = (2, 10),
+        criterion: str = "bic",
+        seed: int = 42,
+    ):
         np.random.seed(seed)
         self.state_range = state_range
         self.hmm_models = []
@@ -62,12 +93,16 @@ class HMMSimilarity:
         )
         self.criterion = criterion
 
-    def fit(self, s):
-        """
-        Model each time series as a hidden Markov model with bayesian model selection.
+    def fit(self, s: List[np.ndarray]) -> None:
+        """Fit Markov Models.
 
-        Args:
-            s (list of np.ndarray): List of time series data with observation x features.
+        Model each time series as a hidden Markov model and
+        select number of components based on a criterion.
+
+        Parameters
+        ----------
+        s : list of numpy.ndarray
+            List of time series data, each of shape `[observations, features]`
         """
         hmm_models = []
         for ts in s:
@@ -78,11 +113,18 @@ class HMMSimilarity:
         self.s = s
         return None
 
-    def criterion_select(self, X):
-        """Select best hmmlearn model.
+    def criterion_select(self, X: np.ndarray) -> hmm.GaussianHMM:
+        """Estimate number of components based on criterion.
 
-        Args:
-            X (np.ndarray): Data to fit on.
+        Parameters
+        ----------
+        X : numpy.ndarray
+            Data to fit
+
+        Returns
+        -------
+        hmm.GaussianHMM
+            Gaussian Hidden Markov Model
         """
         criterion_ceil = np.inf
         best_model = None
@@ -124,8 +166,14 @@ class HMMSimilarity:
             # take last model instead
             return hmm_model
 
-    def similarity(self):
-        """Similarity between all models"""
+    def similarity(self) -> np.ndarray:
+        """Calculate similarity between all HMMs.
+
+        Returns
+        -------
+        numpy.ndarray
+            Similarity matrix between all models
+        """
         n = len(self.hmm_models)
         sim_matrix = np.zeros((n, n))
         n_ix, m_ix = np.triu_indices(n)
@@ -140,8 +188,23 @@ class HMMSimilarity:
         return sim_matrix
 
 
-def fisher_rao(params_1, params_2):
-    """Univariate Fisher-Rao distance."""
+def fisher_rao(
+    params_1: Tuple[np.ndarray, np.ndarray], params_2: Tuple[np.ndarray, np.ndarray]
+) -> np.ndarray:
+    """Univariate Fisher-Rao distance.
+
+    Parameters
+    ----------
+    params_1 : tuple of numpy.ndarray
+        mean and standard deviation of first distribution
+    params_2 : tuple of numpy.ndarray
+        mean and standard deviation of second distribution
+
+    Returns
+    -------
+    numpy.ndarray
+        Fisher-Rao distance
+    """
     mu_1, sig_1 = params_1
     mu_2, sig_2 = params_2
     l1 = (mu_1 - mu_2) ** 2 + 2 * (sig_1 - sig_2) ** 2
@@ -154,13 +217,31 @@ def fisher_rao(params_1, params_2):
     return dist
 
 
-def multivariate_fisher_rao(params_1, params_2):
+def multivariate_fisher_rao(
+    params_1: Tuple[np.ndarray, np.ndarray], params_2: Tuple[np.ndarray, np.ndarray]
+) -> np.ndarray:
     """Multivariate Fisher-Rao distance with given diagonal covariance matrix and means.
 
-    We consider the parameters theta = (mu_1, sig_1, mu_2, sig_2, ... mu_n, sig_n).
+    We consider the parameters :math:`\\theta = (\\mu_1, \\sigma_1, \\mu_2, \\sigma_2, ... \\mu_n, \\sigma_n)`.
     The distance is given by:
-        d(theta_1, theta_2) = sqrt(sum(d((mu_1, sig_1), (mu_2, sig_2) ** 2)
-        where d is the Fisher-Rao distance in the univariate case.
+
+    .. math::
+
+        d(\\theta_1, \\theta_2) = \\sqrt{ \\sum{d((\\mu_1, \\sigma_1), (\\mu_2, \\sigma_2))^2}}
+
+    where d is the Fisher-Rao distance in the univariate case.
+
+    Parameters
+    ----------
+    params_1 : tuple of numpy.ndarray
+        mean and standard deviation of first distribution
+    params_2 : tuple of numpy.ndarray
+        mean and standard deviation of second distribution
+
+    Returns
+    -------
+    numpy.ndarray
+        Fisher-Rao distance
     """
     mu_1, sig_1 = params_1
     mu_2, sig_2 = params_2
@@ -171,26 +252,35 @@ def multivariate_fisher_rao(params_1, params_2):
     return np.sqrt(np.sum(dist))
 
 
-def kl_multi_div(params_1, params_2):
+def kl_multi_div(
+    params_1: Tuple[np.ndarray, np.ndarray], params_2: Tuple[np.ndarray, np.ndarray]
+) -> np.ndarray:
     """Kullback-Leibler divergence for multivariate diagonal-covariance gaussians.
 
     The divergence is defined as:
 
-    D( (mu_1, sig_1) || (mu_2, sig_2) )
-        = .5 * ( Spur(sig_2**(-1) * sig_1) + (mu_2 - mu_1).T * sig_2**(-1)
-            * (mu_2 - mu_1) - k + ln(det(sig_2) / det(sig_1)))
+    .. math::
+
+        D( (\\mu_1, \\sigma_1) || (\\mu_2, \\sigma_2) )
+        = .5 * ( Spur(\\sigma_2^{-1} * \\sigma_1) + (\\mu_2 - \\mu_1).T * \\sigma_2^{-1}
+            * (\\mu_2 - \\mu_1) - k + ln(det(\\sigma_2) / det(\\sigma_1)))
 
     with:
-        mu_1, mu_2 as means
-        sig_1, sig_2 as diagonal covariance matrices
-        k as number of dimensions
+    :math:`\\mu_1, \\mu_2` as means,
+    :math:`\\sigma_1, \\sigma_2` as diagonal covariance matrices and
+    :math:`k` as number of dimensions
 
-    Args:
-        params_1 (np.ndarray, np.ndarray): mu_1, sig_1
-        params_2 (np.ndarray, np.ndarray): mu_2, sig_2
+    Parameters
+    ----------
+    params_1 : tuple of numpy.ndarray
+        mean and standard deviation of first distribution
+    params_2 : tuple of numpy.ndarray
+        mean and standard deviation of second distribution
 
-    Returns:
-        float: KL divergence
+    Returns
+    -------
+    numpy.ndarray
+        Kullback-Leibler divergence
     """
     mu_1, sig_1 = params_1
     mu_2, sig_2 = params_2
@@ -206,17 +296,34 @@ def kl_multi_div(params_1, params_2):
     return kl
 
 
-def js_multi_div(params_1, params_2):
+def js_multi_div(
+    params_1: Tuple[np.ndarray, np.ndarray], params_2: Tuple[np.ndarray, np.ndarray]
+) -> float:
     """Jensen-Shannon divergence for multivariate gaussians.
 
     The divergence is defined as:
 
-    D = .5 * Dkl(P || M) + .5 * Dkl(Q || M)
-    where P and Q are two probability distributions and M is the average of the two distributions:
-    M = .5 * (P + Q)
+    .. math::
 
-    Returns:
-        float: JS divergence
+        D = .5 * Dkl(P || M) + .5 * Dkl(Q || M)
+
+    where P and Q are two probability distributions and M is the average of the two distributions:
+
+    .. math::
+
+        M = .5 * (P + Q)
+
+    Parameters
+    ----------
+    params_1 : tuple of numpy.ndarray
+        mean and standard deviation of first distribution
+    params_2 : tuple of numpy.ndarray
+        mean and standard deviation of second distribution
+
+    Returns
+    -------
+    float
+        Jensen-Shannon divergence
     """
     mu_1, sig_1 = params_1
     mu_2, sig_2 = params_2
@@ -227,7 +334,21 @@ def js_multi_div(params_1, params_2):
     )
 
 
-def gini(x, epsilon=1e-8):
+def gini(x: np.ndarray, epsilon: float = 1e-8) -> float:
+    """Gini coefficient.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Array
+    epsilon : float
+        Avoid zero-division
+
+    Returns
+    -------
+    float
+        Gini coefficient
+    """
     # mean absolute difference
     mad = np.abs(np.subtract.outer(x, x)).mean()
     # relative mean absolute difference
@@ -237,8 +358,30 @@ def gini(x, epsilon=1e-8):
     return g
 
 
-def HMM_similarity(hmm_1, hmm_2, method="js", epsilon=0.01):
-    """HMM similarity"""
+def HMM_similarity(
+    hmm_1: hmm.GaussianHMM,
+    hmm_2: hmm.GaussianHMM,
+    method: str = "js",
+    epsilon: float = 0.01,
+) -> float:
+    """Simmilarity between Hidden Markov Models.
+
+    Parameters
+    ----------
+    hmm_1 : hmm.GaussianHMM
+        First HMM
+    hmm_2 : hmm.GaussianHMM
+        Second HMM
+    method : str
+        Calculate distance with Jensen-Shannon (`js`) or Fisher-Rao (`fisher`) distance
+    epsilon : float
+        Avoid zero-division
+
+    Returns
+    -------
+    float
+        Similarity measure between two Hidden Markov Models
+    """
     n = hmm_1.n_components
     m = hmm_2.n_components
     stationary_1 = hmm_1.get_stationary_distribution()
@@ -268,11 +411,4 @@ def HMM_similarity(hmm_1, hmm_2, method="js", epsilon=0.01):
     gini_cols = np.mean(np.apply_along_axis(lambda x: m * gini(x) / max(m, 1), 1, Q))
     similarity = 0.5 * (gini_rows + gini_cols)
 
-    # if hmm_1 == hmm_2:
-    #     print(np.round(Se_matrix, 2))
-    #     print(stationary_1, stationary_2)
-    #     # print(np.round(np.outer(stationary_1, stationary_2), 2))
-    #     print(Q)
-    #     print(gini_rows, gini_cols)
-    #     print(f"Sim: {similarity}")
     return similarity

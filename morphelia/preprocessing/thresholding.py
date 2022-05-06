@@ -1,9 +1,11 @@
 from collections import OrderedDict
 from collections.abc import Iterable
 import os
+from typing import Union, List, Optional, Tuple
 
 import numpy as np
 import seaborn as sns
+import anndata as ad
 import matplotlib.pyplot as plt
 from skimage.filters import (
     threshold_li,
@@ -32,59 +34,123 @@ methods = OrderedDict(
 
 
 def assign_by_threshold(
-    adata,
-    dist,
-    by=None,
-    new_var="Thresh_Assigned",
-    method="otsu",
-    max_val=None,
-    min_val=None,
-    subsample=False,
-    sample_size=10000,
-    seed=0,
-    make_plot=False,
-    show=True,
-    return_fig=False,
-    save=None,
-    xlabel=None,
-    plt_xlim=None,
-    threshold_colors=None,
-    threshold_labels=None,
-    class_colors=None,
-    class_labels=None,
-    plt_kwargs=None,
+    adata: ad.AnnData,
+    dist: Union[np.ndarray, str],
+    by: Union[List[str], str] = None,
+    new_var: str = "Thresh_Assigned",
+    method: str = "otsu",
+    max_val: Optional[Union[int, float]] = None,
+    min_val: Optional[Union[int, float]] = None,
+    subsample: bool = False,
+    sample_size: int = 10000,
+    seed: int = 0,
+    make_plot: bool = False,
+    show: bool = True,
+    return_fig: bool = False,
+    save: Optional[str] = None,
+    xlabel: Optional[str] = None,
+    plt_xlim: Optional[Tuple[float, int]] = None,
+    threshold_colors: Optional[Union[str, List[str]]] = None,
+    threshold_labels: Optional[Union[str, List[str]]] = None,
+    class_colors: Optional[Union[str, List[str]]] = None,
+    class_labels: Optional[Union[str, List[str]]] = None,
+    plt_kwargs: dict = None,
     **kwargs,
 ):
-    """
-    Distinguish populations by finding thresholds in given distributions.
+    """Assign new population labels by thresholding.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        dist (np.ndarray, str): Distribution to find thresholds for. Can be array-like, a variable or
-            an observation in the anndata object.
-        by (str, list): Find thresholds by given groups. Should be observation variables in .obs.
-        new_var (str): Name of new variable.
-        method (str): Thresholding method. Can be one of: isodata, li, mean, minimum, otsu, triabgle, yen, multi_otsu.
-        max_val (int, float): Maximum value to consider to be a threshold.
-        min_val (int, float): Minimum value to consider to be a threshold.
-        subsample (bool): Make a subsample before calculating threshold.
-        sample_size (int): Size of subsample.
-        seed (int): Seed for reproducibility.
-        make_plot (bool): Make plots for each threshold calculation.
-        show (bool): Show plot. Return figure, if false.
-        return_fig (bool): Return anndata object and figure.
-        save (str): Path, where to store figure.
-        xlabel (str): Label for x-axis in plot.
-        plt_xlim (tuple): Limits for x-axis.
-        threshold_colors (list, str): Colors to use for threshold lines in plot.
-        threshold_labels (list, str): Labels for threshold lines in plot.
-        class_colors (list, str): Class-specific colors to use for histogram patches in plot.
-        class_labels (list, str): Class-specific labels. Integer labels are mapped to the given ones.
-        plt_kwargs (dict): Keyword arguments that are passed to seaborn.histplot.
-        kwargs (dict): Keyword arguments that are passed to the scikit-image threshold function.
+    Given a distribution (a single feature vector), this functions finds
+    sub-distributions by applying thesholding methods.
+    Subpopulations can be labeled and plotted.
 
-    Returns:
-        (anndata.AnnData): AnnData object with new labels stores in .obs.
+    Parameters
+    ----------
+    adata : anndata.AnnData)
+        Multidimensional morphological data
+    dist : np.ndarray or str
+        Distribution to find thresholds for. Can be array-like, a variable or
+        an observation in the anndata object
+    by : str or list of str
+        Find thresholds by given groups. Should be observation variables in `.obs`
+    new_var : str
+        Name of new variable
+    method : str
+        Thresholding method. Can be one of: `isodata`, `li`, `mean`, `minimum`, `otsu`, `triabgle`, `yen`, `multi_otsu`.
+        Scikit-image thesholding methods are used.
+    max_val : int or float, optional
+        Maximum value to consider to be a threshold
+    min_val : int or float, optional
+        Minimum value to consider to be a threshold
+    subsample : bool
+        Make a subsample before calculating threshold
+    sample_size : int
+        Size of subsample
+    seed : int
+        Seed for reproducibility
+    make_plot : bool
+        Make plots for each threshold calculation
+    show : bool, optional
+        Show plot. Return figure, if false
+    return_fig : bool
+        Return anndata object and figure
+    save : str, optional
+        Path, where to store figure
+    xlabel : str, optional
+        Label for x-axis in plot
+    plt_xlim : tuple, optional
+        Limits for x-axis.
+    threshold_colors : list of str or str, optional
+        Colors to use for threshold lines in plot
+    threshold_labels : list or str or str, optional
+        Labels for threshold lines in plot
+    class_colors : list of str or str, optional
+        Class-specific colors to use for histogram patches in plot
+    class_labels : list of str or str, optional
+        Class-specific labels. Integer labels are mapped to the given ones
+    plt_kwargs : dict
+        Keyword arguments that are passed to seaborn.histplot
+    **kwargs
+        Keyword arguments that are passed to the scikit-image threshold function
+
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object with new population labels stores in `.obs`
+
+    Raises
+    -------
+    AssertionError
+        If any variable in `by` is not in `.obs`
+    AssertionError
+        If `class_labels` do not match new labels
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+
+    >>> data = np.random.rand(10, 5)
+    >>> data[:5, 0] = data[:5, 0] + 2  # define new population
+    >>> adata = ad.AnnData(data)
+
+    >>> adata = mp.pp.assign_by_threshold(
+    >>>     adata,
+    >>>     dist='0'
+    >>> )
+
+    >>> adata.obs  # first five instances are correctly assigned
+        Thresh_Assigned
+    0	1.0
+    1	1.0
+    2	1.0
+    3	1.0
+    4	1.0
+    5	0.0
+    6	0.0
+    7	0.0
+    8	0.0
+    9	0.0
     """
     # dist can be a variable, observation or array
     if isinstance(dist, str):

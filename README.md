@@ -38,12 +38,12 @@ conda activate morphelia
 Install morphelia.
 
 ```
-python setup.py install
+python -m pip install .
 ```
 
 
 
 ## References
-Most methods were implemented based on this review on image-based profiling:
+This package started as a one-in-all solution for image-based profiling methods described here:
   * Caicedo, J., Cooper, S., Heigwer, F. et al. Data-analysis strategies for image-based cell profiling.
     Nat Methods 14, 849–863 (2017). https://doi.org/10.1038/nmeth.4397

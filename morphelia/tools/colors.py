@@ -1,7 +1,29 @@
 from matplotlib.colors import ListedColormap, to_rgb
 
 
-def get_cmap(name):
+def get_cmap(name: str):
+    """Get Morphelia-colormaps.
+
+    Available colormaps are:
+        zeileis26, wandb16, kelly20, gothenburg16
+
+    Parameters
+    ----------
+    name : str
+        Name of the colormap
+
+    Returns
+    -------
+    matplotlib.colors.ListedColormap
+        Custom colormap
+
+    Examples
+    --------
+    >>> import morphelia as mp
+    >>> cmap = mp.tl.get_cmap('gothenburg16')
+    >>> type(cmap)
+    matplotlib.colors.ListedColormap
+    """
     assert name in globals(), f"Colormap with name {name} unknown."
     hex_colors = globals()[name]
 
@@ -90,7 +112,7 @@ kelly20 = [
 
 # gothenburg palette
 # https://eleanormaclure.files.wordpress.com/2011/03/colour-coding.pdf
-gothenburg = [
+gothenburg16 = [
     "#DC8F8F",
     "#4A8992",
     "#A5BA39",

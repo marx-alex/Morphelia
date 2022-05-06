@@ -1,5 +1,6 @@
 from .basic import (
     drop_nan,
+    filter_std,
     filter_thresh,
     drop_duplicates,
     drop_invariant,
@@ -12,3 +13,4 @@ from .positional_corr import correct_plate_eff
 from .photobleach import correct_bleaching, correct_bleached_var
 from .thresholding import assign_by_threshold
 from .select import select_by_group
+from .transformation import transform

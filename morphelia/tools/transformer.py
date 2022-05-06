@@ -2,38 +2,75 @@ import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from scipy.stats import median_abs_deviation as mad
 
+from typing import Union
+
 
 class RobustMAD(BaseEstimator, TransformerMixin):
-    """
-    Class to perform a "Robust" normalization with respect to median and mad
-        scaled = (x - median) / mad
+    """Robust data transformation.
 
-    Class is adopted from pycytominer:
-    https://github.com/cytomining/pycytominer/blob/master/pycytominer/operations/transform.py
+    Class to perform a "Robust" normalization by using
+    the median and median absolute deviation.
+
+    .. math::
+
+        scaled = \\frac{(x - median)}{mad}
+
+    Parameters
+    ----------
+    scale : str
+        Scale passed to scipy.stats.median_abs_deviation
+    eps : float or int
+        Avoids division by zero
+
+    References
+    ----------
+    .. [1] Caicedo, J., Cooper, S., Heigwer, F. et al. Data-analysis strategies for image-based cell profiling.
+       Nat Methods 14, 849–863 (2017). https://doi.org/10.1038/nmeth.4397
+    .. [2] https://github.com/cytomining/pycytominer/blob/master/pycytominer/operations/transform.py
+
+    Examples
+    --------
+    >>> import morphelia as mp
+    >>> import numpy as np
+
+    >>> data = np.random.rand(3, 3)
+    >>> scaler = mp.tl.RobustMAD()
+    >>> scaler.fit(data)
+    >>> scaled = scaler.transform(data)
+    >>> scaled
+    array([[ 0.90040852, -4.05326241,  0.        ],
+           [-0.67448975,  0.67448975,  0.67448975],
+           [ 0.        ,  0.        , -0.7910895 ]])
     """
 
-    def __init__(self, scale="normal", eps=0):
+    def __init__(self, scale: str = "normal", eps: Union[float, int] = 0) -> None:
         self.scale = scale
         self.eps = eps
 
-    def fit(self, X):
-        """
-        Compute the median and mad to be used for later scaling.
+    def fit(self, X: np.ndarray) -> None:
+        """Computes the median and mad for every feature.
 
-        Args:
-        X (numpy.ndarray): Array to fit with transform by RobustMAD
+        Parameters
+        ----------
+        X : numpy.ndarray
+            Array to fit
+
+        Returns
+        -------
+        None
         """
         # Get the mean of the features (columns) and center if specified
         self.median = np.nanmedian(X, axis=0)
         self.mad = mad(X, axis=0, nan_policy="omit", scale=self.scale)
-        return self
+        return None
 
-    def transform(self, X):
-        """
-        Apply the RobustMAD calculation.
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        """Applies RobustMAD and transforms the data
 
-        Args:
-        X (numpy.ndarray): Array to apply RobustMAD scaling.
+        Parameters
+        ----------
+        X : numpy.ndarray
+            Array that will be transformed
         """
         with np.errstate(divide="ignore", invalid="ignore"):
             return (X - self.median) / (self.mad + self.eps)
@@ -41,18 +78,41 @@ class RobustMAD(BaseEstimator, TransformerMixin):
 
 class MedianPolish:
     """Fits an additive model using Tukey's median polish algorithm.
-    This class is taken from borisvish: https://github.com/borisvish/Median-Polish
+
+    Parameters
+    ----------
+    max_iterations : int
+        Maximum number of iterations
+    method : str
+        Uses either `mean` or `median` to aggregate the data
+
+    References
+    ----------
+    .. [1] https://github.com/borisvish/Median-Polish
     """
 
-    def __init__(self, max_iterations=10, method="median"):
-        """Store values for maximum iterations and method."""
+    def __init__(self, max_iterations: int = 10, method: str = "median") -> None:
         self.max_iterations = max_iterations
+        avail_methods = ["median", "mean"]
+        method = method.lower()
+        assert method in avail_methods, f"method not in {avail_methods}: {method}"
         self.method = method
 
-    def median_polish(self, X):
-        """
-        Implements Tukey's median polish alghoritm for additive models
-        method - default is median, alternative is mean. That would give us result equal ANOVA.
+    def median_polish(self, X: np.ndarray):
+        """Implements Tukey's median polish alghoritm for additive models
+
+        The default is median aggregation, alternative is mean aggregation can be used.
+        The latter would give results equal ANOVA.
+
+        Parameters
+        ----------
+        X : numpy.ndarray
+            Data to be transformed
+
+        Returns
+        -------
+        int, int, int, numpy.ndarray, numpy.ndarray
+            Grand effect, row effect, column effect, transformed data, original data
         """
 
         if isinstance(X, np.ndarray):
@@ -62,35 +122,35 @@ class MedianPolish:
             raise TypeError("Expected the argument to be a numpy.ndarray.")
 
         grand_effect = 0
-        median_row_effects = 0
-        median_col_effects = 0
+        avg_row_effects = 0
+        avg_col_effects = 0
         row_effects = np.zeros(shape=X.shape[0])
         col_effects = np.zeros(shape=X.shape[1])
 
         for i in range(self.max_iterations):
             if self.method == "median":
-                row_medians = np.median(X, 1)
-                row_effects += row_medians
-                median_row_effects = np.median(row_effects)
-            elif self.method == "average":
-                row_medians = np.average(X, 1)
-                row_effects += row_medians
-                median_row_effects = np.average(row_effects)
-            grand_effect += median_row_effects
-            row_effects -= median_row_effects
-            X -= row_medians[:, np.newaxis]
+                row_avg = np.median(X, 1)
+                row_effects += row_avg
+                avg_row_effects = np.median(row_effects)
+            elif self.method == "mean":
+                row_avg = np.mean(X, 1)
+                row_effects += row_avg
+                avg_row_effects = np.mean(row_effects)
+            grand_effect += avg_row_effects
+            row_effects -= avg_row_effects
+            X -= row_avg[:, np.newaxis]
 
             if self.method == "median":
-                col_medians = np.median(X, 0)
-                col_effects += col_medians
-                median_col_effects = np.median(col_effects)
-            elif self.method == "average":
-                col_medians = np.average(X, 0)
-                col_effects += col_medians
-                median_col_effects = np.average(col_effects)
+                col_avg = np.median(X, 0)
+                col_effects += col_avg
+                avg_col_effects = np.median(col_effects)
+            elif self.method == "mean":
+                col_avg = np.mean(X, 0)
+                col_effects += col_avg
+                avg_col_effects = np.mean(col_effects)
 
-            X -= col_medians
+            X -= col_avg
 
-            grand_effect += median_col_effects
+            grand_effect += avg_col_effects
 
         return grand_effect, col_effects, row_effects, X, X_org

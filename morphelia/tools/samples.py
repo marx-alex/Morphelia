@@ -2,11 +2,13 @@
 import os
 import re
 import logging
+from typing import Tuple
 
 # import external libraries
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
+import anndata as ad
 from skimage import io
 from skimage import color
 from skimage import exposure
@@ -18,47 +20,84 @@ logger.setLevel(logging.DEBUG)
 
 
 def group_samples(
-    adata,
-    file_path,
-    identifier,
-    group_var="leiden",
-    out_path="./samples",
-    loc_x_var="Primarieswithoutborder_Location_Center_X",
-    loc_y_var="Primarieswithoutborder_Location_Center_Y",
-    img_meta="^(?P<Row>[A-H]).*(?P<Column>[0-9]{2}).*(?P<Field>[0-9]{2}).*",
-    img_suffix=".tif",
-    channel_dict={"TexasRed": "red", "DAPI": "blue"},
-    well_var="Metadata_Well",
-    field_var="Metadata_Field",
-    max_patches_per_group=30,
-    patch_size=(300, 300),
-    enhance_contrast=True,
-    verbose=False,
-):
-    """Collects information about images from a given experiment and stores patches
-    from cells for different groups.
+    adata: ad.AnnData,
+    file_path: str,
+    identifier: dict,
+    group_var: str = "leiden",
+    out_path: str = "./samples",
+    loc_x_var: str = "Primarieswithoutborder_Location_Center_X",
+    loc_y_var: str = "Primarieswithoutborder_Location_Center_Y",
+    img_meta: str = "^(?P<Row>[A-H]).*(?P<Column>[0-9]{2}).*(?P<Field>[0-9]{2}).*",
+    img_suffix: str = ".tif",
+    channel_dict: dict = {"TexasRed": "red", "DAPI": "blue"},
+    well_var: str = "Metadata_Well",
+    field_var: str = "Metadata_Field",
+    max_patches_per_group: int = 30,
+    patch_size: Tuple[int] = (300, 300),
+    enhance_contrast: bool = True,
+    verbose: bool = False,
+) -> None:
+    """Collect cell patches by groups.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        file_path (str): Path to file with images from a single plate.
-        identifier (dict): Identifier for adata query to get view on adata object
-            with relevant cells. Should point to a single plate.
-        group_var (str): Variables to use for grouping.
-        out_path (str): Location to use for saving cell patches.
-        loc_x_var (str): Variable with x location of cells/ objects.
-        loc_y_var (str): Variable with y location of cells/ objects.
-        img_meta (str): Regular expression to use for parsing file names.
-            Should contain the groups: Row, Column and Field.
-        img_suffix (str): Format of images.
-        channel_dict (dict): Channels with colors to use for patches.
-        well_var (str): Variable from adata object that stores wells.
-        field_var (str): Variable from adata object that stores fields.
-        max_patches_per_group (int): Maximum number of patches to be stored per group.
-            If None, stores all cell that are found.
-        patch_size (tuple): Size of cell patches.
-        enhance_contrast (bool): Use skimage.exposure.equalize_adapthist to enhance contrast
-            of patches.
-        verbose (bool)
+    This function takes information about cells from an AnnData object and a directory
+    with related microscopy images.
+    Based on the group information, cells are cropped from the image and stored in new directories
+    based on their group. The contrast of cell crops can be enhanced before saving them.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    file_path : str
+        Path to file with images from a single plate
+    identifier : dict
+        Identifier for adata query to get view on adata object
+        with relevant cells. Should point to a single plate
+    group_var : str
+        Variables to use for grouping
+    out_path : str
+        Location to use for saving cell patches
+    loc_x_var : str
+        Variable with x location of cells/ objects
+    loc_y_var : str
+        Variable with y location of cells/ objects
+    img_meta : str
+        Regular expression to use for parsing file names
+        Should contain the groups: Row, Column and Field
+    img_suffix : str
+        Format of images
+    channel_dict : dict
+        Channels with colors to use for patches
+    well_var : str
+        Variable from adata object that stores wells
+    field_var : str
+        Variable from adata object that stores fields
+    max_patches_per_group : int
+        Maximum number of patches to be stored per group
+        If None, stores all cell that are found
+    patch_size : tuple of int
+        Size of cell patches
+    enhance_contrast : bool
+        Use skimage.exposure.equalize_adapthist to enhance contrast
+        of patches
+    verbose : bool
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    AssertionError
+        If `group_var`, `well_var`, `field_var`, `loc_x_var` or `loc_y_var` is not in `.obs`
+    AssertionError
+        If `file_path` does not exist
+    ValueError
+        If identifier points to an empty AnnData object
+    ValueError
+        If wells and fields are not unique
+    ValueError
+        If directory does not contain any images
     """
     # checking variables
     assert (

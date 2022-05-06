@@ -1,7 +1,9 @@
 # import external libraries
 import numpy as np
+import anndata as ad
 
 import logging
+from typing import Optional, Union
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
@@ -9,26 +11,55 @@ logger.setLevel(logging.DEBUG)
 
 
 def drop_nan(
-    adata,
-    axis=0,
-    drop_inf=True,
-    drop_dtype_max=True,
-    min_nan_frac=None,
-    verbose=False,
+    adata: ad.AnnData,
+    axis: int = 0,
+    drop_inf: bool = True,
+    drop_dtype_max: bool = True,
+    min_nan_frac: Optional[Union[float, int]] = None,
+    verbose: bool = False,
 ):
     """Drop rows or columns that contain invalid values.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        axis (int): Drop features (0) or cells (1).
-        drop_inf (bool): Drop also infinity values.
-        drop_dtype_max (bool): Drop values to large for dtype.
-        min_nan_frac (float): Minimum fraction of column/ or row that has to be invalid to be dropped.
-        verbose (bool)
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    axis : int
+        Drop features (0) or cells (1)
+    drop_inf : bool
+        Drop infinite values
+    drop_dtype_max : bool
+        Drop values to large for dtype
+    min_nan_frac : float or int, optional
+        Minimum fraction of column/ or row that has to be invalid to be dropped
+    verbose : bool
 
-    Returns:
-        anndata.AnnData
-        .uns['nan_feats']: Dropped features that contain nan values.
+    Returns
+    -------
+    anndata.AnnData
+        Filtered AnnData object
+        .uns['nan_feats']: Dropped features that contain nan values
+
+    Raises
+    ------
+    AssertionError
+        If axis if neither `0` nor `1`
+    AssertionError
+        If min_nan_frac is not between `0` and `1`
+
+    Examples
+    --------
+    >>> import morphelia as mp
+    >>> import anndata as ad
+    >>> import numpy as np
+
+    >>> data = np.random.rand(5, 5)
+    >>> data[0, 0] = np.nan
+
+    >>> adata = ad.AnnData(data)
+    >>> mp.pp.drop_nan(adata)
+    AnnData object with n_obs × n_vars = 5 × 4
+        uns: 'nan_feats'
     """
     assert axis in [0, 1], f"axis should be either 0 or 1, but got {axis}"
     n_vals = adata.X.shape[axis]
@@ -92,19 +123,46 @@ def drop_nan(
     return adata
 
 
-def filter_std(adata, var, std_thresh=3, side="both"):
-    """Filter cells by identifying outliers in a distribution
-    of a single value.
+def filter_std(
+    adata: ad.AnnData, var: str, std_thresh: Union[int, float] = 3, side: str = "both"
+):
+    """Filter by standard deviation.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        var (str): Variable to use for filtering.
-        std_thresh (int): Threshold to use for outlier identification.
-            x-fold of standard deviation in both or one directions.
-        side (str): 'left', 'right' or 'both'
+    Filter cells that are below or above a multiple of the standard deviation.
+    Any variable can be used.
 
-    Returns:
-        anndata.AnnData
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    var : str
+        Variable to use for filtering
+    std_thresh : int or float
+        Threshold to use for outlier identification.
+        x-fold of standard deviation on both or a single side.
+    side : str
+        `left`, `right` or `both`
+
+    Returns
+    -------
+    anndata.AnnData
+        Filtered AnnData object
+
+    Raises
+    -------
+    ValueError
+        If side is neither `left`, `right` nor `both`.
+
+    Examples
+    --------
+    >>> import morphelia as mp
+    >>> import anndata as ad
+    >>> import numpy as np
+
+    >>> data = np.random.rand(5, 5)
+    >>> adata = ad.AnnData(data)
+    >>> mp.pp.filter_std(adata, var='0', std_thresh=2)
+    AnnData object with n_obs × n_vars = 3 × 5
     """
     # get standard deviation and mean
     std = np.nanstd(adata[:, var].X)
@@ -121,19 +179,45 @@ def filter_std(adata, var, std_thresh=3, side="both"):
     return adata
 
 
-def filter_thresh(adata, var, thresh, side="right"):
+def filter_thresh(
+    adata: ad.AnnData, var: str, thresh: Union[float, int], side: str = "right"
+):
     """Filter cells by thresholding.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        var (str): Variable to use for filtering.
-        thresh (int): Threshold.
-        side (str):
-            'right': Drop values above threshold.
-            'left': Drop values below threshold.
+    Parameters
+    ----------
+    adata : anndata.AnnData)
+        Multidimensional morphological data
+    var : str
+        Variable in .var to use for filtering
+    thresh : int or float
+        Threshold value
+    side : str
+        `right`: Drop values above threshold
+        `left`: Drop values below threshold
 
-    Returns:
-        anndata.AnnData
+    Returns
+    -------
+    anndata.AnnData
+        Filtered AnnData object
+
+    Raises
+    -------
+    AssertionError
+        If `side` is neither `right` nor `left`
+    KeyError
+        If `var` is not in .var_names
+
+    Examples
+    --------
+    >>> import morphelia as mp
+    >>> import anndata as ad
+    >>> import numpy as np
+
+    >>> data = np.random.rand(5, 5)
+    >>> adata = ad.AnnData(data)
+    >>> mp.pp.filter_thresh(adata, var='0', thresh=2)
+    AnnData object with n_obs × n_vars = 3 × 5
     """
     sides = ["right", "left"]
     assert (
@@ -157,17 +241,44 @@ def filter_thresh(adata, var, thresh, side="right"):
     return adata
 
 
-def drop_duplicates(adata, axis=1, verbose=False):
-    """Drops all feature vectors or cells that are duplicates.
+def drop_duplicates(
+    adata: ad.AnnData, axis: Union[int, float] = 1, verbose: bool = False
+):
+    """Drop duplicated features.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        axis (int): Drop duplicated features (1) or cells (0).
-        verbose (bool)
+    Drops all feature vectors or cells that are duplicates.
 
-    Returns:
-        anndata.AnnData
-        .uns['duplicated_feats']: Dropped duplicated features.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    axis : int or float
+        Drop duplicated features (1) or cells (0)
+    verbose : bool
+
+    Returns
+    -------
+    anndata.AnnData
+        Filtered AnnData object
+        .uns['duplicated_feats']: Dropped duplicated features
+
+    Raises
+    -------
+    AssertionError
+        If `axis` is neither `0` nor `1`
+
+    Examples
+    --------
+    >>> import morphelia as mp
+    >>> import anndata as ad
+    >>> import numpy as np
+
+    >>> data = np.random.rand(5, 5)
+    >>> data[:, 4] = data[:, 0]  # last column is a duplicate of the first column
+    >>> adata = ad.AnnData(data)
+    >>> mp.pp.drop_duplicates(adata)
+    AnnData object with n_obs × n_vars = 5 × 4
+        uns: 'duplicated_feats'
     """
     assert axis in [0, 1], f"axis should be either 0 or 1, but got {axis}"
 
@@ -209,18 +320,43 @@ def drop_duplicates(adata, axis=1, verbose=False):
     return adata
 
 
-def drop_invariant(adata, axis=0, verbose=False):
-    """Drops rows (cells) or columns (features)
+def drop_invariant(adata: ad.AnnData, axis: int = 0, verbose: bool = False):
+    """Drop invariant features.
+
+    Drops rows (cells) or columns (features)
     if all values are equal.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        axis (int): 0 for columns, 1 for rows.
-        verbose (bool)
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    axis : int
+        `0` for columns, `1` for rows
+    verbose : bool
 
-    Returns:
-        anndata.AnnData
-        .uns['invariant_feats']: Dropped invariant features.
+    Returns
+    -------
+    anndata.AnnData
+        Filtered AnnData object
+        .uns['invariant_feats']: Dropped invariant features
+
+    Raises
+    -------
+    AssertionError
+        If `axis` is neither `0` nor `1`
+
+    Examples
+    --------
+    >>> import morphelia as mp
+    >>> import anndata as ad
+    >>> import numpy as np
+
+    >>> data = np.random.rand(5, 5)
+    >>> data[:, 4] = 0  # last column is invariant
+    >>> adata = ad.AnnData(data)
+    >>> mp.pp.drop_invariant(adata)
+    AnnData object with n_obs × n_vars = 5 × 4
+        uns: 'invariant_feats'
     """
     # check if axis exists
     assert (

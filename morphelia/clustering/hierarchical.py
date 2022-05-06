@@ -1,42 +1,69 @@
 from dtaidistance import dtw_ndim, dtw, clustering
 import numpy as np
 import matplotlib.pyplot as plt
+import anndata as ad
+
 import os
+from typing import Optional, Union, Tuple, List
 
 from morphelia.tools.utils import choose_representation
 
 
 def linkage_tree(
-    adata,
-    time_var="Metadata_Time",
-    group_vars="Metadata_Treatment",
-    dtw_method="dependent",
-    use_rep=None,
-    n_pcs=50,
-    show=False,
-    save=None,
-    plot_kwargs={},
+    adata: ad.AnnData,
+    time_var: str = "Metadata_Time",
+    group_vars: Union[str, List[str]] = "Metadata_Treatment",
+    dtw_method: str = "dependent",
+    use_rep: Optional[str] = None,
+    n_pcs: int = 50,
+    show: bool = False,
+    save: Optional[str] = None,
+    plot_kwargs: dict = {},
     **kwargs,
-):
-    """
-    Wrapper for scipy.cluster.hierarchy.linkage with a DTW distance matrix.
+) -> Union[clustering.LinkageTree, Tuple[clustering.LinkageTree, plt.Figure, plt.Axes]]:
+    """Wrapper for scipy.cluster.hierarchy.linkage with a DTW distance matrix.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        time_var (str): Variable in .obs that stores time points.
-        group_vars (str or list of str): Variables in .obs that define conditions the distance
-            matrix is to be calculated for.
-        dtw_method (str): 'dependent' or 'independent' DTW distance between two series.
-        use_rep (str): Calculate similarity/distance representation of X in .obsm.
-        n_pcs (int): Number principal components to use if use_pcs is 'X_pca'.
-        show (bool): Show plot.
-        save (str): Save plot to a specified location.
-        plot_kwargs (dict): Keyword arguments passed to plot.
-        **kwargs (dict): Keyword arguments passed to dtaidistance.clustering.LinkageTree
+    This function calculates the Dynamic Time Warping distance between groups.
+    Based on the distance, the groups are hierarchical clustered and connected through a linkage tree.
 
-    Returns:
-        model
-        model, fig, ax: if show is True
+    Parameters
+    ----------
+    adata :anndata.AnnData): Multidimensional morphological data.
+    time_var : str
+        Variable in .obs that stores time points
+    group_vars : str or list of str
+        Variables in .obs that define conditions the distance
+        matrix is to be calculated for.
+    dtw_method : str
+        `dependent` or `independent` DTW distance between two series
+    use_rep : str, optional
+        Calculate similarity/distance representation of X in `.obsm`
+    n_pcs : int
+        Number principal components to use if use_pcs is `X_pca`
+    show : bool
+        Show plot
+    save : str, optional
+        Save plot to a specified location
+    plot_kwargs : dict
+        Keyword arguments passed to plot
+    **kwargs : dict
+        Keyword arguments passed to dtaidistance.clustering.LinkageTree
+
+    Returns
+    -------
+    clustering.LinkageTree or tuple
+        Linkage tree with clustered groups
+
+    Raises
+    -------
+    AssertionError
+        If `time_var` or `group_vars` are not in `.obs`
+    AssertionError
+        If `dtw_method` is unknown
+    AssertionError
+        If time series are of different lengths
+    OSError
+        If figure can not be saved at specified location
     """
     # check variables
     assert time_var in adata.obs, f"time_var not in .obs: {time_var}"
@@ -89,7 +116,7 @@ def linkage_tree(
     if dtw_method == "dependent":
         dists_fun = dtw_ndim.distance_matrix_fast
     elif dtw_method == "independent":
-        dists_fun = distance_matrix_fast_indipendent
+        dists_fun = _distance_matrix_fast_indipendent
 
     model = clustering.LinkageTree(
         dists_fun=dists_fun, dists_options={"ndim": ndim}, **kwargs
@@ -125,14 +152,20 @@ def linkage_tree(
     return model
 
 
-def distance_matrix_fast_indipendent(s, ndim):
+def _distance_matrix_fast_indipendent(s: List[np.ndarray], ndim: int) -> np.ndarray:
     """Indipendent DTW distance matrix.
 
-    Args:
-        s (list of np.ndarray): list of arrays with shape time-points x features representing conditions.
-        ndim (int): feature dimensions
-    Returns:
-        numpy.ndarray: distance matrix
+    Parameters
+    ----------
+    s : list of numpy.ndarray
+        List of arrays with shape `[time-points, features]` representing different conditions
+    ndim : int
+        Feature dimensions
+
+    Returns
+    -------
+    numpy.ndarray
+        Distance matrix
     """
     dist = dtw.distance_matrix_fast(_series_sep_dim(s, 0))
     for dim in range(1, ndim):
@@ -141,14 +174,19 @@ def distance_matrix_fast_indipendent(s, ndim):
     return dist
 
 
-def _series_sep_dim(s, dim):
+def _series_sep_dim(s: List[np.ndarray], dim: int) -> list:
     """Return only one dimension from a series of arrays.
 
-    Args:
-        s (list of np.ndarray): Series of multivariate arrays.
-        dim (int): Dimension to return.
+    Parameters
+    ----------
+    s : list of numpy.ndarray
+        Series of multivariate arrays
+    dim : int
+        Feature dimensions
 
-    Returns:
-        numpy.ndarray
+    Returns
+    -------
+    numpy.ndarray
+        List of arrays
     """
     return [arr[:, dim] for arr in s]

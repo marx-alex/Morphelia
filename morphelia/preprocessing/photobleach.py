@@ -1,8 +1,10 @@
 import warnings
 import logging
+from typing import List, Optional, Union, Tuple
 
 import numpy as np
 import pandas as pd
+import anndata as ad
 from scipy.optimize import curve_fit
 
 logger = logging.getLogger(__name__)
@@ -11,35 +13,92 @@ logger.setLevel(logging.DEBUG)
 
 
 def correct_bleaching(
-    adata,
-    channels,
-    treat_var="Metadata_Treatment",
-    time_var="Metadata_Time",
-    exp_curve="mono",
-    ctrl="ctrl",
-    correct_X=True,
-    ignore_weak_fits=None,
-    verbose=False,
+    adata: ad.AnnData,
+    channels: Union[str, List[str], Tuple[str]],
+    treat_var: str = "Metadata_Treatment",
+    time_var: str = "Metadata_Time",
+    exp_curve: str = "mono",
+    ctrl: str = "ctrl",
+    correct_X: bool = True,
+    ignore_weak_fits: Optional[float] = None,
+    verbose: bool = False,
 ):
-    """
+    """Photobleaching Correction.
+
     Correction of Photobleaching as described by Vicente et al 2007 J. Phys.: Conf. Ser. 90 012068.
-    Every intensity dependend feature is fit to a mono- or bi-exponential curve using
+    Every intensity-dependent feature is fit to a mono- or bi-exponential curve using
     non-linear least squares. The bleaching curve is then normalized.
     Each measured value is then divided by its corresponding value from the bleaching curve.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        channels (list): List of channel names that are in variable names.
-        treat_var (str): Treatment variable.
-        time_var (str): Time variable.
-        exp_curve (str): Exponential curve to use for curve fitting. One of:
-            'bi': bi-exponential curve
-            'mono': mono-exponential curve
-        ctrl (str): Name for control condition in treat_var
-        correct_X (bool): Return anndata object with corrected .X
-        ignore_weak_fits (float): Don't correct features with fits that have a R-squared value
-            below a given value.
-        verbose (bool)
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    channels : str or list of str or tuple of str
+        List of channel labels that are in variable names
+    treat_var : str
+        Treatment variable
+    time_var : str
+        Time variable
+    exp_curve : str
+        Exponential curve to use for curve fitting. One of:
+        `bi`: bi-exponential curve
+        `mono`: mono-exponential curve
+    ctrl : str
+        Name for control condition in `treat_var`
+    correct_X : bool
+        Return anndata object with corrected `.X`
+    ignore_weak_fits : float, optional
+        Don't correct features with fits that have a R-squared value
+        below a given value.
+    verbose : bool
+
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object with corrected features
+
+    Raises
+    -------
+    AssertionError
+        If `treat_var` is not in `.obs`
+    AssertionError
+        If `time_var` is not in `.obs`
+    AssertionError
+        If `exp_curve` is not available
+    AssertionError
+        If no control instances are found
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(5, 5)
+    >>> obs = pd.DataFrame({
+    >>>     'group': [0, 0, 0, 0, 0],
+    >>>     'time': [0, 1, 2, 3, 4]
+    >>> })
+    >>> adata = ad.AnnData(data, obs=obs)
+    >>> adata.var.rename(index={'0': 'bleached'}, inplace=True)
+    >>> adata[:, 'bleached'].X = [20, 10, 5, 2.5, 1.25]  # add a bleached feature
+
+    >>> adata = mp.pp.correct_bleaching(
+    >>>     adata,
+    >>>     channels='bleach',
+    >>>     time_var='time',
+    >>>     treat_var='group',
+    >>>     ctrl=0
+    >>> )
+
+    >>> adata[:, "bleached"].X  # bleached column is corrected
+    ArrayView([[20.],
+               [20.],
+               [20.],
+               [20.],
+               [20.]])
     """
     min_vals = None
     if (adata.X < 0).any():
@@ -60,9 +119,9 @@ def correct_bleaching(
         f"exp_curve must be one of {avail_exp_curves}, " f"instead got {exp_curve}"
     )
     if exp_curve == "mono":
-        func = mono_exp
+        func = _mono_exp
     elif exp_curve == "bi":
-        func = bi_exp
+        func = _bi_exp
 
     if isinstance(channels, str):
         channels = [channels]
@@ -158,37 +217,90 @@ def correct_bleaching(
 
 
 def correct_bleached_var(
-    adata,
-    var_name,
-    treat_var="Metadata_Treatment",
-    time_var="Metadata_Time",
-    exp_curve="mono",
-    ctrl="ctrl",
-    correct_adata=False,
-    ignore_weak_fit=None,
-    return_r_squared=False,
-    verbose=False,
+    adata: ad.AnnData,
+    var_name: str,
+    treat_var: str = "Metadata_Treatment",
+    time_var: str = "Metadata_Time",
+    exp_curve: str = "mono",
+    ctrl: str = "ctrl",
+    correct_adata: bool = False,
+    ignore_weak_fit: Optional[float] = None,
+    return_r_squared: bool = False,
+    verbose: bool = False,
 ):
-    """
+    """Photobleaching Correction of a single feature.
+
     Correction of Photobleaching as described by Vicente et al 2007 J. Phys.: Conf. Ser. 90 012068.
     A given variable is fit to a mono- or bi-exponential curve using
     non-linear least squares. The bleaching curve is then normalized.
-    Each measured value is then divided by its corresponding value from the bleaching curve.
+    The feature vector is then divided by its corresponding value from the bleaching curve.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        var_name (list): Name of variable to correct.
-        treat_var (str): Treatment variable.
-        time_var (str): Time variable.
-        exp_curve (str): Exponential curve to use for curve fitting. One of:
-            'bi': bi-exponential curve
-            'mono': mono-exponential curve
-        ctrl (str): Name for control condition in treat_var
-        correct_adata (bool): Return anndata object with corrected variable.
-        ignore_weak_fit (float): Don't correct features with fits that have a R-squared value
-            below a given value.
-        return_r_squared: Return corrected object and the R-squared value.
-        verbose (bool)
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    var_name : list
+        Name of variable to correct
+    treat_var : str
+        Treatment variable
+    time_var : str
+        Time variable
+    exp_curve : str
+        Exponential curve to use for curve fitting. One of:
+        `bi`: bi-exponential curve
+        `mono`: mono-exponential curve
+    ctrl : str
+        Name for control condition in treat_var
+    correct_adata : bool
+        Return anndata object with corrected variable
+    ignore_weak_fit : float, optional
+        Don't correct features with fits that have a R-squared value
+        below a given value
+    return_r_squared : bool
+        Return corrected object and the R-squared value
+    verbose : bool
+
+    Returns
+    -------
+    numpy.ndarray
+        The corrected feature vector
+
+    Raises
+    -------
+    AssertionError
+        If `treat_var` is not in `.obs`
+    AssertionError
+        If `time_var` is not in `.obs`
+    AssertionError
+        If `exp_curve` is not available
+    AssertionError
+        If no control instances are found
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(5, 5)
+    >>> obs = pd.DataFrame({
+    >>>     'group': [0, 0, 0, 0, 0],
+    >>>     'time': [0, 1, 2, 3, 4]
+    >>> })
+    >>> adata = ad.AnnData(data, obs=obs)
+    >>> adata.var.rename(index={'0': 'bleached'}, inplace=True)
+    >>> adata[:, 'bleached'].X = [20, 10, 5, 2.5, 1.25]  # add a bleached feature
+
+    >>> vect = mp.pp.correct_bleached_var(
+    >>>     adata,
+    >>>     var_name='bleached',
+    >>>     time_var='time',
+    >>>     treat_var='group',
+    >>>     ctrl=0
+    >>> )
+    >>> vect
+    array([20., 20., 20., 20., 20.])
     """
     if var_name in adata.obs.columns:
         x = adata.obs[var_name].to_numpy().flatten()
@@ -212,9 +324,9 @@ def correct_bleached_var(
     # choose exponential curve
     avail_exp_curves = ["mono", "bi"]
     if exp_curve == "mono":
-        func = mono_exp
+        func = _mono_exp
     elif exp_curve == "bi":
-        func = bi_exp
+        func = _bi_exp
     else:
         raise ValueError(
             f"exp_curve must be one of {avail_exp_curves}, instead got {exp_curve}"
@@ -285,9 +397,11 @@ def correct_bleached_var(
     return f
 
 
-def mono_exp(x, a, b):
+def _mono_exp(x, a, b):
+    """Mono-exponential curve."""
     return b * np.exp(-a * x)
 
 
-def bi_exp(x, a1, b1, a2, b2):
+def _bi_exp(x, a1, b1, a2, b2):
+    """Bi-exponential curve."""
     return (b1 * np.exp(-a1 * x)) + (b2 * np.exp(-a2 * x))
