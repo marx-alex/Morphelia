@@ -19,23 +19,25 @@ class LoadPlate:
 
     The file structure might be as following:
 
-    |----plate
-    |      |----Cells.csv
-    |      |----Primarieswithoutborder.csv
-    |      |----Cytoplasm.csv
-    |      |----Treatment.csv
+    plate
+        Cells.csv
+
+        Primarieswithoutborder.csv
+
+        Cytoplasm.csv
+
+        Treatment.csv
 
     Parameters
     ----------
-    path : str, pathlib.Path
+    path : str or pathlib.Path
         Path to plate directory
     filenames : str or list of str or tuple of str
         Files in plate directory to load
     obj_sfx : str
         File extension of object files (filenames)
     merge_method : str
-        Chose one of the two merge methods:
-        `object`: Merge by object number
+        Chose one of the two merge methods. `object`: Merge by object number.
         `relation`: Merge by object relations
     obj_well_var : str
         Name of well variable in object files
@@ -188,7 +190,7 @@ class LoadPlate:
     def add_annotation(self, plate_df: pd.DataFrame):
         """Add annotations defined by `treat_file` to `plate`.
 
-        Parameter
+        Parameters
         ---------
         plate_df : pandas.DataFrame
             Open dataframe

@@ -1,4 +1,4 @@
-morphelia
+API
 =========
 
 .. toctree::

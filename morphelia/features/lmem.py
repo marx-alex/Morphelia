@@ -51,7 +51,7 @@ def feature_lmem(
 
     .. math::
 
-        R^{2} = 1 - \\frac{\\sum(y - \\hat{y}^2}{y - \\bar{y}}
+        R^{2} = 1 - \\frac{\\sum(y - \\hat{y}^2)}{y - \\bar{y}}
 
     R-squared values are then combined by mean-aggregation.
 

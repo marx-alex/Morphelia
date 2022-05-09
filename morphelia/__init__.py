@@ -3,8 +3,9 @@
 morphelia
 ~~~~~~~~~~~~
 Exploratory data analysis for image-based morphological profiling.
+
 :author: Alexander Marx
-:copyright: Copyright 2021 Alexander Marx and others.
+:copyright: Copyright 2022 Alexander Marx and others.
 :license: MIT License, see LICENSE for details.
 """
 from . import external as ext

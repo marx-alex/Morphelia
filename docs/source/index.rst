@@ -18,6 +18,7 @@ Morphelia
 
    install
    tutorials/tutorials
+   modules
 
 
 Indices and tables

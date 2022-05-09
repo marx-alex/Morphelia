@@ -15,7 +15,7 @@ def train_test_split(
 
     If needed, the split can be stratified by a group-variable.
 
-    Parameters:
+    Parameters
     ----------
     adata : anndata.AnnData
         Multidimensional morphological data

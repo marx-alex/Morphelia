@@ -177,7 +177,7 @@ class Adata3D:
         Convert representation of shape `[samples, features]`
         to shape `[samples, time, features]`.
 
-        Warnings
+        Notes
         --------
         Each sample and time point should only have one datapoint.
 
@@ -218,7 +218,7 @@ class Adata3D:
         3D-representation of the AnnData object with shape `[samples, time, features]`
         is converted back to shape `[samples x features]` with this method.
 
-        Warnings
+        Notes
         --------
         Each sample and time point should only have one datapoint.
 
