@@ -1,24 +1,65 @@
 # import external libraries
 import matplotlib.pyplot as plt
 import seaborn as sns
+import anndata as ad
+
+from typing import Optional, Union, List
 
 __all__ = ["boxplot", "violin", "barplot"]
 
 
-def boxplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
-    """Plot one or more variables of single or
-    aggregated cells for different time points.
+def boxplot(
+    adata: ad.AnnData,
+    x: str,
+    y: Union[str, List[str]],
+    hue: Optional[str] = None,
+    y_label: Optional[Union[str, List[str]]] = None,
+    x_label: Optional[str] = None,
+    **kwargs,
+):
+    """Boxplot.
 
-    Args:
-        adata (anndata.AnnData): Annotated data matrix with multiple measurements for single objects over time.
-        x (str): Variable name from md.obs.
-        y (str or list of str): Name of variables to show.
-        hue (str): Variable name from md.obs.
-        y_label (str or list of str): Labels for y axis.
-        x_label (str): Label for x axis.
+    Convenient function to plot a boxplot directory from an AnnData object.
 
-    Returns:
-        matplotlib.pyplot.figure
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Annotated data matrix with multiple measurements for single objects over time
+    x : str
+        Variable name from `.obs`
+    y : str or list of str, optional
+        Name of variables to show
+    hue : str, optional
+        Variable name from `.obs`
+    y_label : str or list of str, optional
+        Labels for y axis
+    x_label : str, optional
+        Label for x axis
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure and Axes
+
+    Raises
+    ------
+    KeyError
+        If `y` is not in `.obs` or `.var_names`
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(4, 4)
+    >>> obs = pd.DataFrame(
+    >>>     {'cell': [0, 0, 1, 1],
+    >>>      'protein': [0, 1, 2, 3]}
+    >>> )
+    >>> adata = ad.AnnData(data, obs=obs)
+    >>> mp.pl.boxplot(adata, x='cell', y='protein')
     """
     y_data = []
     if not isinstance(y, list):
@@ -31,7 +72,7 @@ def boxplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
     elif all(y in adata.var_names for y in ys):
         sub_arr = adata[:, ys].X
     else:
-        raise KeyError(f"Variable for time not in AnnData object: f{ys}")
+        raise KeyError(f"Variable for time not in AnnData object: {ys}")
     # store y variables as vectors
     for column in sub_arr.T:
         y_data.append(column.flatten())
@@ -93,20 +134,58 @@ def boxplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
     return fig, axs
 
 
-def barplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
-    """Plot one or more variables of single or
-    aggregated cells for different time points.
+def barplot(
+    adata: ad.AnnData,
+    x: str,
+    y: Union[str, List[str]],
+    hue: Optional[str] = None,
+    y_label: Optional[Union[str, List[str]]] = None,
+    x_label: Optional[str] = None,
+    **kwargs,
+):
+    """Barplot.
 
-    Args:
-        adata (anndata.AnnData): Annotated data matrix with multiple measurements for single objects over time.
-        x (str): Variable name from md.obs.
-        y (str or list of str): Name of variables to show.
-        hue (str): Variable name from md.obs.
-        y_label (str or list of str): Labels for y axis.
-        x_label (str): Label for x axis.
+    Convenient function to plot a barplot directory from an AnnData object.
 
-    Returns:
-        matplotlib.pyplot.figure
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Annotated data matrix with multiple measurements for single objects over time
+    x : str
+        Variable name from `.obs`
+    y : str or list of str, optional
+        Name of variables to show
+    hue : str, optional
+        Variable name from `.obs`
+    y_label : str or list of str, optional
+        Labels for y axis
+    x_label : str, optional
+        Label for x axis
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure and Axes
+
+    Raises
+    ------
+    KeyError
+        If `y` is not in `.obs` or `.var_names`
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(4, 4)
+    >>> obs = pd.DataFrame(
+    >>>     {'cell': [0, 0, 1, 1],
+    >>>      'protein': [0, 1, 2, 3]}
+    >>> )
+    >>> adata = ad.AnnData(data, obs=obs)
+    >>> mp.pl.barplot(adata, x='cell', y='protein')
     """
     y_data = []
     if not isinstance(y, list):
@@ -119,7 +198,7 @@ def barplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
     elif all(y in adata.var_names for y in ys):
         sub_arr = adata[:, ys].X
     else:
-        raise KeyError(f"Variable for time not in AnnData object: f{ys}")
+        raise KeyError(f"Variable for time not in AnnData object: {ys}")
     # store y variables as vectors
     for column in sub_arr.T:
         y_data.append(column.flatten())
@@ -180,21 +259,61 @@ def barplot(adata, x, y, hue=None, y_label=None, x_label=None, **kwargs):
     return fig, axs
 
 
-def violin(adata, x, y, hue=None, jitter=False, y_label=None, x_label=None, **kwargs):
-    """Plot one or more variables of single or
-    aggregated cells for different time points.
+def violin(
+    adata: ad.AnnData,
+    x: str,
+    y: Union[str, List[str]],
+    hue: Optional[str] = None,
+    jitter: bool = False,
+    y_label: Optional[Union[str, List[str]]] = None,
+    x_label: Optional[str] = None,
+    **kwargs,
+):
+    """Violin Plot.
 
-    Args:
-        adata (anndata.AnnData): Annotated data matrix with multiple measurements for single objects over time.
-        x (str): Variable name from md.obs.
-        y (str or list of str): Name of variables to show.
-        hue (str): Variable name from md.obs.
-        jitter (bool): Draw strips of observations.
-        y_label (str or list of str): Labels for y-axis.
-        x_label (str): Label for x-axis.
+    Convenient function to plot a violin plot directory from an AnnData object.
 
-    Returns:
-        matplotlib.pyplot.figure
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Annotated data matrix with multiple measurements for single objects over time
+    x : str
+        Variable name from `.obs`
+    y : str or list of str, optional
+        Name of variables to show
+    hue : str, optional
+        Variable name from `.obs`
+    jitter : bool
+        Draw strips of observations
+    y_label : str or list of str, optional
+        Labels for y axis
+    x_label : str, optional
+        Label for x axis
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure and Axes
+
+    Raises
+    ------
+    KeyError
+        If `y` is not in `.obs` or `.var_names`
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(4, 4)
+    >>> obs = pd.DataFrame(
+    >>>     {'cell': [0, 0, 1, 1],
+    >>>      'protein': [0, 1, 2, 3]}
+    >>> )
+    >>> adata = ad.AnnData(data, obs=obs)
+    >>> mp.pl.violin(adata, x='cell', y='protein')
     """
     # store y variables as vectors
     y_data = []

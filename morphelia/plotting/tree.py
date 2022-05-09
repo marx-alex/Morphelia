@@ -1,13 +1,16 @@
 import os
+from typing import Optional, Union, Tuple
+
 import numpy as np
 import pandas as pd
 import networkx as nx
+import anndata as ad
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from morphelia.tools import get_cmap
 
 
-def recursive_tree_pos(G, root, pos=None, t=0, vert_loc=0.5, width=1):
+def _recursive_tree_pos(G, root, pos=None, t=0, vert_loc=0.5, width=1):
 
     if pos is None:
         pos = {root: (t, vert_loc)}
@@ -29,7 +32,7 @@ def recursive_tree_pos(G, root, pos=None, t=0, vert_loc=0.5, width=1):
         for ix, neighbor in enumerate(neighbors):
             t = G.nodes[neighbor]["t"]
             vert_loc = neighbors_y[ix]
-            pos = recursive_tree_pos(
+            pos = _recursive_tree_pos(
                 G, neighbor, pos=pos, t=t, vert_loc=vert_loc, width=dy
             )
 
@@ -37,37 +40,56 @@ def recursive_tree_pos(G, root, pos=None, t=0, vert_loc=0.5, width=1):
 
 
 def plot_tree(
-    adata,
-    root,
-    time_var="Metadata_Time",
-    track_var="Metadata_Track",
-    parent_var="Metadata_Track_Parent",
-    root_var="Metadata_Track_Root",
-    gen_var="Metadata_Gen",
-    cmap="wandb16",
-    edges_width=3,
-    show=False,
-    save=None,
-):
-    """
-    Plot a lineage tree after tracking.
+    adata: ad.AnnData,
+    root: int,
+    time_var: str = "Metadata_Time",
+    track_var: str = "Metadata_Track",
+    parent_var: str = "Metadata_Track_Parent",
+    root_var: str = "Metadata_Track_Root",
+    gen_var: str = "Metadata_Gen",
+    cmap: str = "wandb16",
+    edges_width: int = 3,
+    show: bool = False,
+    save: Optional[str] = None,
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
+    """Plot a lineage tree after tracking.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        root (int): Root number as given by root_var.
-        time_var (str): Variable with time information.
-        track_var (str): Variable with track information.
-        parent_var (str): Variable with parent information.
-        root_var (str): Variable with root information.
-        gen_var (str): Variable with generation information.
-        cmap (str): Matplotlib or morphelia colormap.
-        edges_width (int): Width of edges.
-        show (bool): Show and return axis object.
-        save (str): Path where to save as 'lineage_tree.png'
+    Parameters
+    ----------
+        adata : anndata.AnnData
+            Multidimensional morphological data
+        root : int
+            Root number as given by `root_var`
+        time_var : str
+            Variable with time information
+        track_var : str
+            Variable with track information
+        parent_var : str
+            Variable with parent information
+        root_var : str
+            Variable with root information
+        gen_var : str
+            Variable with generation information
+        cmap : str
+            Matplotlib or morphelia colormap
+        edges_width : int
+            Width of edges
+        show : bool
+            Show and return axis object
+        save : str, optional
+            Path where to save as `lineage_tree.png`
 
-    Returns:
-        fig, ax
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
 
+    Raises
+    ------
+    AssertionError
+        If lineage is not a direct acyclic graph
+    OSError
+        If figure can not be saved at specified path
     """
     # subset adata
     tree = adata.obs.loc[
@@ -124,7 +146,7 @@ def plot_tree(
 
     # get positions
     root_str = str(root) + "_start"
-    pos = recursive_tree_pos(G_tree, root=root_str)
+    pos = _recursive_tree_pos(G_tree, root=root_str)
 
     # get color
     if cmap in plt.colormaps():

@@ -1,11 +1,13 @@
 import warnings
 import logging
 import os
+from typing import Optional, Union, Tuple, List
 
 import statsmodels.formula.api as smf
 import seaborn as sns
 import numpy as np
 import pandas as pd
+import anndata as ad
 import matplotlib.pyplot as plt
 
 from morphelia.tools.utils import get_subsample
@@ -17,42 +19,66 @@ logger.setLevel(logging.DEBUG)
 
 
 def plot_lmem(
-    adata,
-    var,
-    treat_var="Metadata_Treatment",
-    ctrl_id="ctrl",
-    fixed_var="Metadata_Concentration",
-    rand_var="BatchNumber",
-    palette="Set3",
-    subsample=False,
-    sample_size=10000,
-    seed=0,
-    show=False,
-    save=None,
+    adata: ad.AnnData,
+    var: str,
+    treat_var: str = "Metadata_Treatment",
+    ctrl_id: str = "ctrl",
+    fixed_var: str = "Metadata_Concentration",
+    rand_var: Union[str, List[str]] = "BatchNumber",
+    palette: str = "Set3",
+    subsample: bool = False,
+    sample_size: int = 10000,
+    seed: int = 0,
+    show: bool = False,
+    save: Optional[str] = None,
     **kwargs,
-):
-    """
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
+    """Plot result from a linear mixed model.
+
     Visually evaluate linear mixed models for specific features.
-    A model is fitted with var as dependent variable, fixed_var as dependent variable and
-    rand_var as random variable.
+    A model is fitted with `var` as dependent variable, `fixed_var` as dependent variable and
+    `rand_var` as random variable.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        var (str): Variable in .var_names.
-        treat_var (str): Treatment variable in .obs.
-        ctrl_id (str): Name of control condition stored in treat_var.
-        fixed_var (str): Name of variable with fixed effect.
-        rand_var (list, str): Name or list of variables with random effects.
-        palette (str): Matplotlib or morphelia palette.
-        subsample (bool): Use method on subsample of the data.
-        sample_size (int): Size of subsample.
-        seed (int): Seed for reproducibility.
-        show (bool): Show and return axis object.
-        save (str): Path where to save as 'lmem.png'
-        **kwargs: Keyword arguments passed to seaborn.boxplot.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    var : str
+        Variable in `.var_names`
+    treat_var : str
+        Treatment variable in `.obs`
+    ctrl_id : str
+        Name of control condition stored in `treat_var`
+    fixed_var : str
+        Name of variable with fixed effect
+    rand_var : str or list of str
+        Name or list of variables with random effects
+    palette : str
+        Matplotlib or morphelia palette
+    subsample : bool
+        Use method on subsample of the data
+    sample_size : int
+        Size of subsample
+    seed : int
+        Seed for reproducibility
+    show : bool
+        Show and return axis object
+    save : str, optional
+        Path where to save as `lmem.png`
+    **kwargs
+        Keyword arguments passed to `seaborn.boxplot`
 
-    Returns:
-        fig, ax
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
+
+    Raises
+    ------
+    AssertionError
+        If `treat_var`, `fixed_var` or `rand_var` are not in `.obs`
+    OSError
+        If figure can not be saved at specified location
     """
     # check variables
     assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"
@@ -139,8 +165,6 @@ def plot_lmem(
         axs[ix, 0].set_xlabel(fixed_var)
         axs[ix, 0].legend(title="Group")
         axs[ix, 0].set_xticklabels(plt_x_mapping.values())
-
-        print(plt_x_mapping)
         axs[0, ix].set_title(treat)
 
     if save is not None:

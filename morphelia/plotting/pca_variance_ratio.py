@@ -1,21 +1,49 @@
 # import internal libraries
 import os
+from typing import Optional
 
 # import external libraries
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import anndata as ad
 
 
-def pca_variance_ratio(adata, n_pcs=100, show=False, save=False, **kwargs):
+def pca_variance_ratio(
+    adata: ad.AnnData,
+    n_pcs: Optional[int] = 100,
+    show: bool = False,
+    save: Optional[str] = None,
+    **kwargs,
+):
     """Plots cumulative percentage variance explained by each principal component.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        n_pcs (int): Number of PCAs to plot.
-        show (bool): Show and return axes.
-        save (str): Path where to save figure.
-        kwargs (dict): Keyword passed to matplotlib.pyplot.plot
+    Use scanpy.pp.pca beforehand.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    n_pcs : int, optional
+        Number of PCAs to plot
+    show : bool
+        Show and return axes
+    save : str, optional
+        Path where to save figure
+    **kwargs
+        Keyword passed to `matplotlib.pyplot.plot`
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
+
+    Raises
+    -------
+    TypeError
+        If `n_pcs` is not of type int or None
+    OSError
+        If figure can not be saved at specified path
     """
     if isinstance(n_pcs, int):
         if n_pcs > adata.shape[1]:
@@ -43,7 +71,7 @@ def pca_variance_ratio(adata, n_pcs=100, show=False, save=False, **kwargs):
     ax.set_xlabel("number of principal components")
 
     # save
-    if save:
+    if save is not None:
         try:
             plt.savefig(os.path.join(save, "pca_variance_ratio.png"))
         except OSError:

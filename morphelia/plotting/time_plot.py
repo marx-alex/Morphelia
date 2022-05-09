@@ -2,37 +2,76 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+import anndata as ad
 
 # import internal libraries
 from morphelia.preprocessing import aggregate
 import os
+from typing import Optional, Union, Tuple, List
 
 
 def time_plot(
-    adata,
-    var,
-    hue=None,
-    units=None,
-    time_var="Metadata_Time",
-    time_unit="h",
-    show=False,
-    save=False,
-    aggregate_data=True,
+    adata: ad.AnnData,
+    var: str,
+    hue: Optional[str] = None,
+    units: Optional[str] = None,
+    time_var: str = "Metadata_Time",
+    time_unit: str = "h",
+    show: bool = False,
+    save: Optional[str] = None,
+    aggregate_data: bool = True,
     **kwargs,
-):
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
     """Plot temporal course of a variable in wells/ cells.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morpholigical data.
-        var (str): Variable from adata.
-        hue (str): Color time courses by other variable from adata.
-        units (str): Plot units separately.
-        time_var (str): Variable from adata for time.
-        time_unit (str): Time unit.
-        show (bool): Show and return axes.
-        save (str): Path to save.
-        aggregate_data (bool): True to aggregate data over time.
-        kwargs (dict): Keyword arguments passed to seaborn.lineplot
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morpholigical data
+    var : str
+        Variable from `.obs`
+    hue : str, optional
+        Color time courses by other variable from `.obs`
+    units : str, optional
+        Plot units separately
+    time_var : str
+        Variable from `.obs` for time
+    time_unit : str
+        Time unit
+    show : bool
+        Show and return axes
+    save : str
+        Location to save the figure
+    aggregate_data : bool
+        If True, aggregate data over time
+    **kwargs
+        Keyword arguments passed to `seaborn.lineplot`
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
+
+    Raises
+    ------
+    KeyError
+        If `time_var`, `var`, `hue` or `units` is not in `.obs`
+    OSError
+        If figure can not be saved at specified path
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(5, 5)
+    >>> obs = pd.DataFrame(
+    >>>     {'time': [0, 1, 2, 3, 4]}
+    >>> )
+    >>> adata = ad.AnnData(data, obs=obs)
+    >>> mp.pl.time_plot(adata, var='0', time_var='time')
     """
     if aggregate_data:
         by = [time_var]
@@ -97,7 +136,7 @@ def time_plot(
     ax.set_title(var)
 
     # save
-    if save:
+    if save is not None:
         try:
             plt.savefig(os.path.join(save, "time_plot.png"))
         except OSError:
@@ -111,32 +150,71 @@ def time_plot(
 
 
 def time_heatmap(
-    adata,
-    time_var="Metadata_Time",
-    treat_var="Metadata_Treatment",
-    feats=None,
-    conc_var=None,
-    aggregate_data=True,
-    share_cbar=True,
-    show=False,
-    save=False,
+    adata: ad.AnnData,
+    time_var: str = "Metadata_Time",
+    treat_var: str = "Metadata_Treatment",
+    feats: Optional[Union[str, List[str]]] = None,
+    conc_var: Optional[str] = None,
+    aggregate_data: bool = True,
+    share_cbar: bool = True,
+    show: bool = False,
+    save: Optional[str] = None,
     **kwargs,
-):
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
     """Heatmap representation of median fold change in given features over time.
 
     First aggregate features for treatments and concetrations if given.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morpholigical data.
-        time_var (str): Time variable.
-        treat_var (str): Treatment variable.
-        feats (list): List of features to show.
-        conc_var (str): Concentration variable.
-        aggregate_data (bool): True if data has to be aggreagated over time.
-        share_cbar (bool): True to share color bar among all subplots.
-        show (bool): Show and return axes.
-        save (str): Path to save figure.
-        kwargs (dict): Keyword arguments passed to seaborn.heatmap.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morpholigical data
+    time_var : str
+        Time variable in `.obs`
+    treat_var : str
+        Treatment variable in `.obs`
+    feats : str or list of str, optional
+        List of features to show
+    conc_var : str, optional
+        Concentration variable in `.obs`
+    aggregate_data : bool
+        If True, data is aggreagated over time
+    share_cbar : bool
+        True to share color bar among all subplots
+    show : bool
+        Show and return axes
+    save : str, optional
+        Path to save figure
+    **kwargs
+        Keyword arguments passed to `seaborn.heatmap`
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
+
+    Raises
+    ------
+    KeyError
+        If `time_var`, `treat_var`, `conc_var` or `feats` is not in `.obs`
+    OSError
+        If figure can not be saved at specified path
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(6, 5)
+    >>> obs = pd.DataFrame(
+    >>>     {'time': [0, 1, 2, 0, 1, 2],
+    >>>      'treatment': [0, 0, 0, 1, 1, 1]}
+    >>> )
+    >>> adata = ad.AnnData(data, obs=obs)
+    >>> mp.pl.time_heatmap(adata, time_var='time', treat_var='treatment')
+
     """
     # check variables
     if time_var not in adata.obs.columns:
@@ -230,10 +308,8 @@ def time_heatmap(
             j = 0
             i += 1
 
-    plt.tight_layout(rect=[0, 0, 0.9, 1])
-
     # save
-    if save:
+    if save is not None:
         try:
             plt.savefig(os.path.join(save, "time_heatmap.png"))
         except OSError:

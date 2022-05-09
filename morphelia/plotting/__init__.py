@@ -1,7 +1,6 @@
 from .qc import plot_plate, plot_batch_effect
 from .feat_plot import boxplot, violin, barplot
 from .pca_variance_ratio import pca_variance_ratio
-from .cell_annotation import annotate_cells
 from .time_plot import time_plot, time_heatmap
 from .corr_matrix import plot_corr_matrix
 from .trace import show_trace
@@ -13,7 +12,7 @@ from .palantir import (
     plot_branch_distribution,
     plot_trends,
 )
-from .velocity import get_quiver, get_streamline, plot_velocity
+from .velocity import plot_velocity
 from .tree import plot_tree
 from .lmem import plot_lmem
 from .cluster import clustermap

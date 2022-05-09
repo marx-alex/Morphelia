@@ -1,9 +1,12 @@
+import matplotlib.pyplot as plt
 import numpy as np
+import anndata as ad
 from morphelia.plotting import plot_corr_matrix
 from morphelia.tools.utils import get_subsample
 
 import warnings
 import logging
+from typing import Optional, Union, Tuple
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
@@ -11,48 +14,84 @@ logger.setLevel(logging.DEBUG)
 
 
 def drop_highly_correlated(
-    adata,
-    thresh=0.95,
-    subsample=False,
-    sample_size=1000,
-    seed=0,
-    verbose=False,
-    neg_corr=False,
-    drop=True,
-    make_plot=True,
-    show=True,
-    save=False,
+    adata: ad.AnnData,
+    thresh: float = 0.95,
+    subsample: bool = False,
+    sample_size: int = 1000,
+    seed: int = 0,
+    verbose: bool = False,
+    neg_corr: bool = False,
+    drop: bool = True,
+    make_plot: bool = True,
+    show: bool = True,
+    save: Optional[bool] = None,
     **kwargs,
-):
-    """Drops features that have a Pearson correlation coefficient
-    with another feature above a certain threshold.
-    Only one feature in a highly correlated group is kept.
+) -> Union[ad.AnnData, Tuple[ad.AnnData, plt.Figure]]:
+    """Drop highly correlated features
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        thresh (float): Correlated features with Pearson correlation coefficient
-            above threshold get dropped.
-        save (str): Path where to save figure.
-        subsample (bool): If True, fit models on subsample of data.
-        sample_size (int): Size of supsample.
-            Only if subsample is True.
-        seed (int): Seed for subsample calculation.
-            Only if subsample is True.
-        verbose (bool)
-        neg_corr (bool): Drop negative correlated features.
-        drop (bool): Drop features. If false add information to .var.
-        make_plot (bool): Make plot to test results.
-        show (bool): Show figure if True, else return anndata object and figure.
-        **kwargs: Keyword arguments for sns.clustermap
+    This function calculates correlation coefficients
+    between all features. Highly correlated features with a coefficient above
+    are certain threshold are dropped (only the first feature is kept).
 
-    Returns:
-        anndata.Anndata
-        .uns['highly_correlated']: Highly correlated features.
-        .uns['nan_feats']: Features with nan values.
-        .var['highly_correlated']: True for highly correlated features.
-            Only if drop is False.
-        .var['contains_nan']: True for features that contain nan values.
-            Only if drop is Fals.
+    The following information is stored:
+        .uns['highly_correlated']: Highly correlated features
+
+        .uns['nan_feats']: Features with nan values
+
+        .var['highly_correlated']: True for highly correlated features
+            Only if drop is False
+
+        .var['contains_nan']: True for features that contain nan values
+            Only if drop is False
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    thresh : float
+        Correlated features with Pearson correlation coefficient
+        above threshold are dropped
+    save : str, optional
+        Path where to save figure
+    subsample : bool
+        If True, fit models on subsample of data
+    sample_size : int
+        Size of supsample. Only if subsample is True.
+    seed : int
+        Seed for subsample calculation. Only if subsample is True.
+    verbose : bool
+    neg_corr : bool
+        Drop negative correlated features
+    drop : bool
+        Drop features. If false add information to `.var`
+    make_plot : bool
+        Make plot to test results
+    show : bool
+        Show figure if True, else return AnnData object and figure
+    **kwargs
+        Keyword arguments for `seaborn.clustermap`
+
+    Returns
+    -------
+    anndata.Anndata
+        AnnData object without dropped features and information stored at `.uns` or `.var`
+
+    Raises
+    -------
+    TypeError
+        If `neg_corr` is not of type bool
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+
+    >>> data = np.random.rand(6, 5)
+    >>> adata = ad.AnnData(data)
+    >>> mp.ft.drop_highly_correlated(adata)
+    AnnData object with n_obs × n_vars = 6 × 5
+        uns: 'highly_correlated'
     """
 
     # get subsample

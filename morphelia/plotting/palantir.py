@@ -5,10 +5,47 @@ from matplotlib.colors import ListedColormap
 import seaborn as sns
 import numpy as np
 import scanpy as sc
+import anndata as ad
+import pandas as pd
+
+from collections import OrderedDict
+from typing import Optional, Union, Tuple
 
 
-def plot_palantir_results(adata, emb="X_tsne", cmap=None, show=True):
-    """Plot Palantir results on embedding"""
+def plot_palantir_results(
+    adata: ad.AnnData,
+    emb: str = "X_tsne",
+    cmap: Optional[str] = None,
+    show: bool = True,
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
+    """Plot Palantir results on embedding.
+
+    This functions plots the pseudotime, differentiation potential
+    and branch probability, which was calculated by palantir.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    emb : str
+        Embedding in `.obsm`
+    cmap : str, optional
+        Valid matplotlib cmap to use for plots
+    show : bool
+        If True, the figure is shown and only the axes are returned
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
+
+    Raises
+    ------
+    AssertionError
+        If `emb` is not in `.obsm`
+    AssertionError
+        If palantir was not used before
+    """
     assert emb in adata.obsm, f"emb not found in .obsm: {emb}"
 
     annotations = ["pseudotime", "entropy", "branch"]
@@ -78,31 +115,57 @@ def plot_palantir_results(adata, emb="X_tsne", cmap=None, show=True):
 
 
 def plot_branches(
-    adata,
-    emb="X_tsne",
-    treat_var="Metadata_Treatment",
-    dist=None,
-    cutoff=0.7,
-    pie_explode=True,
-    pie_labels=False,
-    pie_pct=True,
-    cmap=None,
-    show=True,
-):
-    """
-    Plot branches.
+    adata: ad.AnnData,
+    emb: str = "X_tsne",
+    treat_var: str = "Metadata_Treatment",
+    dist: Optional[pd.DataFrame] = None,
+    cutoff: float = 0.7,
+    pie_explode: bool = True,
+    pie_labels: bool = False,
+    pie_pct: bool = True,
+    cmap: Optional[str] = None,
+    show: bool = True,
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
+    """Plot branches.
 
-    :param dist:
-    :param cutoff:
-    :param pie_pct:
-    :param pie_labels:
-    :param cmap:
-    :param show:
-    :param pie_explode:
-    :param treat_var:
-    :param adata:
-    :param emb:
-    :return:
+    This function plots the branches in different subplots.
+    A custom branch distribution calculated by morphelia.external.Palantir.branch_dist
+    can be added to the plots as a pie chart.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    emb : str
+        Embedding in `.obsm`
+    treat_var : str
+        Treatment variable in `.obs`
+    dist : pandas.DataFrame, optional
+        Branch distribution calculated by morphelia.external.Palantir.branch_dist
+    cutoff : float
+        Plot branches only if cell have a branch probability above a cutoff
+    pie_explode : bool
+        Explode pie chart
+    pie_labels : bool
+        Add labels to pie chart
+    pie_pct : bool
+        Add percentage values to pie chart
+    cmap : str, optional
+        Valid matplotlib cmap to use for plots
+    show : bool
+        If True, the figure is shown and only the axes are returned
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
+
+    Raises
+    ------
+    AssertionError
+        If `emb` is not in `.obsm` or `treat_var` not in `.obs`
+    AssertionError
+        If palantir was not used before
     """
     assert emb in adata.obsm, f"emb not found in .obsm: {emb}"
 
@@ -234,19 +297,41 @@ def plot_branches(
 
 
 def plot_branch_distribution(
-    adata, dist, emb="X_tsne", treat_var="Metadata_Treatment", show=True
-):
-    """
+    adata: ad.AnnData,
+    dist: pd.DataFrame,
+    emb: str = "X_tsne",
+    treat_var: str = "Metadata_Treatment",
+    show: bool = True,
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
+    """Plot branch distribution.
+
     Plot Treatment distribution for every branch as precalculated with
     morphlia.external.Palantir.branch_dist.
 
-    :param adata:
-    :param dist:
-    :param emb:
-    :param treat_var:
-    :param count:
-    :param show:
-    :return:
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    emb : str
+        Embedding in `.obsm`
+    treat_var : str
+        Treatment variable in `.obs`
+    dist : pandas.DataFrame, optional
+        Branch distribution calculated by morphelia.external.Palantir.branch_dist
+    show : bool
+        If True, the figure is shown and only the axes are returned
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
+
+    Raises
+    ------
+    AssertionError
+        If `emb` is not in `.obsm` or `treat_var` not in `.obs`
+    AssertionError
+        If palantir was not used before
     """
 
     assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"
@@ -282,15 +367,25 @@ def plot_branch_distribution(
     return fig, ax
 
 
-def plot_trends(trends, cmap="Set2", show=True):
-    """
+def plot_trends(
+    trends: OrderedDict, cmap: str = "Set2", show: bool = True
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
+    """Plot trends.
+
     Plot precomputed feature trends.
     Use morphelia.ext.Palantir.compute_trends beforehand.
 
-    :param trends:
-    :param cmap:
-    :param show:
-    :return:
+    trends : collections.OrderedDict
+        Feature trends precomputed with morphelia.ext.Palantir.compute_trends
+    cmap : str
+        Valid matplotlib colormap
+    show : bool
+        If True, the figure is shown and only the axes are returned
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
     """
     branches = list(trends.keys())
     feats = list(trends[branches[0]].keys())

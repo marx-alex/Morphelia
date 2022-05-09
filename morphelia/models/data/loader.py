@@ -399,6 +399,8 @@ class AnnDataModule(BaseDataModule):
         num_workers: int = 0,
         test_size: float = 0.2,
         val_size: float = 0.2,
+        split_by: Optional[str] = None,
+        split_by_groups: Optional[dict] = None,
         train_dataloader_opts: dict = None,
         valid_dataloader_opts: dict = None,
     ):
@@ -413,6 +415,10 @@ class AnnDataModule(BaseDataModule):
             num_workers: Number of subprocesses.
             test_size: Size for test set.
             val_size: Size of validation set.
+            split_by: A variable in .obs that should be used to split data
+                into train, validation and test set.
+            split_by_groups: If `split_by` is not None, a dictionary with `train`,
+            `valid` and `test` as keys should indicate the labels per group.
             train_dataloader_opts: Additional arguments for training dataloader.
             valid_dataloader_opts: Additional arguments for validation dataloader.
         """
@@ -449,8 +455,27 @@ class AnnDataModule(BaseDataModule):
         else:
             self.t_max = None
 
-        train_val, self.test = train_test_split(adata, test_size=test_size)
-        self.train, self.valid = train_test_split(train_val, test_size=val_size)
+        if split_by is None:
+            train_val, self.test = train_test_split(adata, test_size=test_size)
+            self.train, self.valid = train_test_split(train_val, test_size=val_size)
+        else:
+            assert split_by in adata.obs, f"split_by is not in .obs: {split_by}"
+            assert isinstance(
+                split_by_groups, dict
+            ), f"split_by_groups should be of type dict, instead got {type(split_by_groups)}"
+            self.train, self.valid, self.test = None, None, None
+            if "train" in split_by_groups:
+                self.train = adata[
+                    adata.obs[split_by].isin(split_by_groups["train"]), :
+                ].copy()
+            if "valid" in split_by_groups:
+                self.valid = adata[
+                    adata.obs[split_by].isin(split_by_groups["valid"]), :
+                ].copy()
+            if "test" in split_by_groups:
+                self.test = adata[
+                    adata.obs[split_by].isin(split_by_groups["test"]), :
+                ].copy()
 
         self.condition_key = condition_key
         self.target_key = target_key

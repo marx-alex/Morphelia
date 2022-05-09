@@ -1,31 +1,69 @@
 import numpy as np
 import logging
+from typing import Union
 
 from sklearn.ensemble import IsolationForest
+import anndata as ad
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
 
-def thresh_outlier(adata, thresh=15, axis=0, drop=True, verbose=False):
-    """Drop all features or cells with a min or max absolute value that is greater than a threshold.
+def thresh_outlier(
+    adata: ad.AnnData,
+    thresh: Union[int, float] = 15,
+    axis: int = 0,
+    drop: bool = True,
+    verbose: bool = False,
+) -> ad.AnnData:
+    """Drop outlier features or cells.
 
-    Only use with normally distributed data.
+    This function drops all features or cells with
+    a min or max absolute value that is greater than a threshold.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        thresh (int): Threshold for outlier identification.
-        axis (int): 0 means along features, 1 means along cells.
-        drop (bool): Drop features/ cells with outliers if True.
-        verbose (bool)
+    Scale the data beforehand.
 
-    Returns:
-        anndata.AnnData
-        Only if axis is 0:
+    The following information is stored if `axis` is 0:
         .uns['outlier_feats']: Dropped features with outliers.
-        .var['outlier_feats']: True for features that contain outliers.
-            Only if drop is False.
+
+        .var['outlier_feats']: True for features that contain outliers. Only if drop is False.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data.
+    thresh : int
+        Threshold for outlier identification.
+    axis : int
+        0 means along features, 1 means along cells.
+    drop : bool
+        Drop features/ cells with outliers if True.
+    verbose : bool
+
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object without dropped features if `drop` is True
+
+    Raises
+    -------
+    AssertionError
+        If `axis` is neither 0 nor 1
+    AssertionError
+        If `thresh` is not of type int or float
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+
+    >>> data = np.random.rand(10, 5)
+    >>> adata = ad.AnnData(data)
+    >>> mp.ft.thresh_outlier(adata, thresh=3)
+    AnnData object with n_obs × n_vars = 10 × 5
+        uns: 'outlier_feats'
     """
     assert axis in [
         0,
@@ -69,15 +107,36 @@ def thresh_outlier(adata, thresh=15, axis=0, drop=True, verbose=False):
     return adata
 
 
-def isolation_forest(adata, drop=True, verbose=False, **kwargs):
-    """
-    Simple wrapper for sklearn's IsolationForest.
+def isolation_forest(
+    adata: ad.AnnData, drop: bool = True, verbose: bool = False, **kwargs
+) -> ad.AnnData:
+    """Simple wrapper for sklearn's IsolationForest.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        drop (bool): Drop outliers.
-        verbose (bool)
-        kwargs (dict): Keyword arguments for sklearn.ensemble.IsolationForest
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    drop : bool
+        Drop outliers
+    verbose : bool
+    kwargs
+        Keyword arguments for `sklearn.ensemble.IsolationForest`
+
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object without dropped features if `drop` is True
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+
+    >>> data = np.random.rand(10, 5)
+    >>> adata = ad.AnnData(data)
+    >>> mp.ft.isolation_forest(adata)
+    AnnData object with n_obs × n_vars = 5 × 5
     """
     kwargs.setdefault("random_state", 0)
     clf = IsolationForest(**kwargs)

@@ -2,6 +2,7 @@
 import math
 import string
 import os
+from typing import Optional, Union, Tuple
 
 # import external libraries
 import matplotlib.pyplot as plt
@@ -10,6 +11,7 @@ from matplotlib.lines import Line2D
 import matplotlib
 import numpy as np
 import seaborn as sns
+import anndata as ad
 
 from morphelia.eval import dist_matrix
 
@@ -17,36 +19,79 @@ sns.set_theme()
 
 
 def plot_plate(
-    adata,
-    well_var="Metadata_Well",
-    color=None,
-    size=None,
-    select=None,
-    wells=96,
-    show=False,
-    save=None,
-    fname="qc_plot.png",
+    adata: ad.AnnData,
+    well_var: str = "Metadata_Well",
+    color: Optional[str] = None,
+    size: Optional[str] = None,
+    select: Optional[str] = None,
+    wells: int = 96,
+    show: bool = False,
+    save: Optional[str] = None,
+    fname: str = "qc_plot.png",
     **kwargs,
-):
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
     """Plot data of a 96-well or 384-well plate into a well-shaped plot.
 
     Can be used for quality control after (microscopy) experiments with
     96-well or 384-well plates.
 
-    Args:
-        adata (anndata.AnnData): Annotated dataset with multidimensional morphological data.
-            Annotations should include information about batch, plate and well.
-        well_var (str): Name of variable that contains well.
-        color (str): Variable to use for color representations.
-        size (str): Variable to use for size representations.
-        select (dict): Masks data by annotations.
-        wells (int): Select type of plate: 96 or 384.
-        show (bool): Show and return axes.
-        save (str): Path where to save figure.
-        fname (str): Name of plat when saved.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Annotated dataset with multidimensional morphological data.
+        Annotations should include information about batch, plate and well.
+    well_var : str
+        Name of variable that contains wells
+    color : str, optional
+        Variable to use for color representations
+    size : str, optional
+        Variable to use for size representations
+    select : dict, optional
+        Masks data by annotations
+    wells : int
+        Select type of plate: `96` or `384`
+    show : bool
+        Show and return axes
+    save : str, optional
+        Path where to save figure
+    fname : str
+        Name of plat when saved
+    **kwargs
+        Keyword arguments are passed to matplotlib.pyplot.scatter
 
-    Returns:
-        matplotlib.pyplot.figure
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
+
+    Raises
+    ------
+    ValueError
+        If `select` is not properly configured
+    KeyError
+        If `well_var` is not in `.obs`
+    KeyError
+        If `size` is not in `.obs`
+    ValueError
+        If wells are not unique
+    ValueError
+        If wells is neither `96` nor `384`
+    OSError
+        If figure can not be saved at specified path
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(4, 4)
+    >>> obs = pd.DataFrame(
+    >>>     {'well': ['A1', 'A2', 'A3', 'A4']}
+    >>> )
+    >>> adata = ad.AnnData(data, obs=obs)
+    >>> mp.pl.plot_plate(adata, well_var='well', color='0')
     """
     # mask md
     # index data if select is not None
@@ -60,7 +105,7 @@ def plot_plate(
 
     # check that well variables are unique
     if well_var not in adata.obs.columns:
-        raise ValueError(f"Variable for wells are not found: {well_var}")
+        raise KeyError(f"Variable for wells are not found: {well_var}")
     if not adata.obs[well_var].is_unique:
         raise ValueError(
             "Values for Wells are not unique. Maybe use select to pass a single plate."
@@ -145,7 +190,7 @@ def plot_plate(
                 ]
             )
         else:
-            raise ValueError(f"Size value not found: {size}")
+            raise KeyError(f"Size value not found: {size}")
         points = np.interp(
             size_arr, (np.nanmin(size_arr), np.nanmax(size_arr)), (bot, top)
         )
@@ -251,34 +296,57 @@ def plot_plate(
 
 
 def plot_batch_effect(
-    adata,
-    batch_var="BatchNumber",
-    plate_var="PlateNumber",
-    control_var="Metadata_Treatment",
-    control_id="ctrl",
-    method="pearson",
-    show=False,
-    save=None,
+    adata: ad.AnnData,
+    batch_var: str = "BatchNumber",
+    plate_var: str = "PlateNumber",
+    control_var: str = "Metadata_Treatment",
+    control_id: str = "ctrl",
+    method: str = "pearson",
+    show: bool = False,
+    save: Optional[str] = None,
     **kwargs,
-):
-    """
-    Plot batch effect using the correlation of control wells along different plates and batches.
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
+    """Plot batch effect using the correlation of
+    control wells along different plates and batches.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        batch_var (str): Name of annotation that holds information about batch number.
-        plate_var (str): Name of annotation that holds information about plate number.
-            If None, show only effect between batches.
-        control_var (str): Name of annotation that holds information about conditions.
-        control_id (str): Name of control wells in control_var.
-        method (str): Method for similarity/ distance computation.
-                Should be one of: pearson, spearman, kendall, euclidean, mahalanobis.
-        show (bool): Show and return axes.
-        save (str): Path where to save figure.
-        **kwargs: Keyword arguments passed to seaborn.heatmap
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    batch_var : str
+        Name of annotation that holds information about batch number
+    plate_var : str
+        Name of annotation that holds information about plate number.
+        If None, show only effect between batches.
+    control_var : str
+        Name of annotation that holds information about conditions
+    control_id : str
+        Name of control wells in control_var
+    method : str
+        Method for similarity/ distance computation.
+        Should be one of: `pearson`, `spearman`, `kendall`, `euclidean`, `mahalanobis`.
+    show : bool
+        Show and return axes
+    save : str, optional
+        Path where to save figure
+    **kwargs
+        Keyword arguments passed to seaborn.heatmap
 
-    Returns:
-        matplotlib.pyplot.figure
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
+
+    Raises
+    ------
+    AssertionError
+        If `batch_var`, `plate_var` or `control_var` is not in `.obs`
+    AssertionError
+        If `control_id` is not in `control_var`
+    AssertionError
+        If `method` is unknown
+    OSError
+        If figure can not be saved at specified path
     """
     # check variables
     assert batch_var in adata.obs.columns, f"batch_var not in annotations: {batch_var}"

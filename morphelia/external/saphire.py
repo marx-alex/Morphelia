@@ -3,12 +3,45 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.collections as mcoll
 from matplotlib.ticker import MaxNLocator
+from hmmlearn import hmm
+
+from typing import Tuple, Optional
 
 plt.style.use("seaborn-darkgrid")
 
 
 class BaseTraj:
-    def __init__(self, model, X):
+    """Base trajectory class.
+
+    Parameters
+    ----------
+    model : hmmlearn.hmm.GaussianHMM
+        Hidden markov model
+    X : numpy.ndarray
+        Single-cell embedding
+
+    Raises
+    ------
+    AssertionError
+        If single-cell embedding does not have two dimensions
+
+    Attributes
+    ----------
+    model : hmmlearn.hmm.GaussianHMM
+        Hidden markov model
+    X : numpy.ndarray
+        Single-cell embedding
+    means : numpy.ndarray
+        Model means
+    states : numpy.ndarray
+        Predicted model states
+    n_states : int
+        Number of model states
+    trans : numpy.ndarray
+        Model transition matrix
+    """
+
+    def __init__(self, model: hmm.GaussianHMM, X: np.ndarray) -> None:
         self.model = model
         assert len(X.shape) == 2, f"X should be 2-d, instead got shape {X.shape}"
         self.X = X
@@ -17,15 +50,27 @@ class BaseTraj:
         self.n_states = len(np.unique(self.states))
         self.trans = self.model.transmat_.copy()
 
-    def rho_dt_bins(self, rho, theta, dt, bins=12):
+    def rho_dt_bins(
+        self, rho: np.ndarray, theta: np.ndarray, dt: np.ndarray, bins: int = 12
+    ) -> Tuple[np.ndarray, list, list]:
         """
         Bin rho values and dwell time on polar coordinates.
 
-        :param rho:
-        :param theta:
-        :param dt:
-        :param bins:
-        :return:
+        Parameters
+        ----------
+        rho : numpy.ndarray
+            Polar space rho
+        theta : numpy.ndarray
+        Polar space theta
+        dt : numpy.ndarray
+            Transition dwell time
+        bins : int
+            Number of bins for the radar plot
+
+        Returns
+        -------
+        numpy.ndarray, list, list
+            Bin means, rhos and transition dwell times
         """
         bins = np.linspace(-np.pi, np.pi, bins + 1)
         bin_means = (bins[:-1] + bins[1:]) / 2
@@ -45,10 +90,12 @@ class BaseTraj:
         return bin_means, bin_rd, bin_dt
 
     def transition_vectors(self):
-        """
-        Transition vectors between states on polar coordinates.
+        """Transition vectors between states on polar coordinates.
 
-        :return:
+        Returns
+        -------
+        numpy.ndarray, numpy.ndarray
+            Rhos and thetas in polar space
         """
         mu_x, mu_y = self.means[:, 0], self.means[:, 1]
         mu_x_dist = mu_x - mu_x[:, np.newaxis]
@@ -61,7 +108,19 @@ class BaseTraj:
         ).flatten()
         return trans_rho, trans_theta
 
-    def design_transition(self, thresh=0.1):
+    def design_transition(self, thresh: float = 0.1):
+        """Design transition matrix with zero diagonals.
+
+        Parameters
+        ----------
+        thresh : float
+            Transitions below thresh are 0, over thresh are 1
+
+        Returns
+        -------
+        numpy.ndarray
+            Design transition matrix
+        """
         design_trans = self.trans
         diag_ix = np.diag_indices(len(design_trans))
         design_trans[diag_ix] = 0
@@ -70,10 +129,12 @@ class BaseTraj:
         return design_trans
 
     def norm_trans_time(self):
-        """
-        Normalized transition time.
+        """Normalized transition dwell time.
 
-        :return:
+        Returns
+        -------
+        numpy.ndarray
+            Normalized transition dwell time
         """
         unique, counts = np.unique(self.states, return_counts=True)
         sort_ix = unique.argsort()
@@ -84,10 +145,12 @@ class BaseTraj:
         return dt / dt.sum()
 
     def norm_state_time(self):
-        """
-        Normalized state time.
+        """Normalized state dwell time.
 
-        :return:
+        Returns
+        -------
+        numpy.ndarray
+            Normalized state dwell time
         """
         unique, counts = np.unique(self.states, return_counts=True)
         sort_ix = unique.argsort()
@@ -96,11 +159,12 @@ class BaseTraj:
 
     @staticmethod
     def cart2pol(arr):
-        """
-        Cartesion space to polar space.
+        """Cartesion space to polar space.
 
-        Args:
-        arr (numpy.array): Array of shape [n_state x dims]
+        Parameters
+        ----------
+        numpy.ndarray, numpy.ndarray
+            Arrays of shape `[n_state, dims]`
         """
         x, y = arr[:, 0], arr[:, 1]
         rho = np.sqrt(x ** 2 + y ** 2)
@@ -109,21 +173,43 @@ class BaseTraj:
 
 
 class PhenoSign(BaseTraj):
-    """Phenotypic Signature class."""
+    """Phenotypic Signature class.
 
-    def __init__(self, model, X):
+    Parameters
+    ----------
+    model : hmmlearn.hmm.GaussianHMM
+        Hidden markov model
+    X : numpy.ndarray
+        Single-cell embedding
+
+    Attributes
+    ----------
+    bin_means : numpy.ndarray
+        Bin means for radar plot
+    signature : numpy.ndarray
+        Phenotypic signature of shape `[4, n_bins`] with
+        state radial distances, state dwell times,
+        transition distances, transition dwell times
+    """
+
+    def __init__(self, model, X) -> None:
         super(PhenoSign, self).__init__(model, X)
         self.bin_means, self.signature = self.get_signature()
 
     def get_signature(self):
-        """
-        Calculate phenotypic signature for a given model.
+        """Calculate phenotypic signature for a given model.
 
-        :return: bin_means, array of shape [4 x n_bins] with
-            1. state radial distances
-            2. state dwell times
-            3. transition distances
-            3. transition dwell times
+        Returns
+        -------
+        numpy.ndarray, numpy.ndarray
+            Bin means, array of shape `[4, n_bins]` with
+            state radial distances, state dwell times,
+            transition distances, transition dwell times
+
+        Raises
+        ------
+        AssertionError
+            If state bin means do not match transition bin means
         """
         # states
         mu_rho, mu_theta = self.cart2pol(self.means)
@@ -150,23 +236,48 @@ class PhenoSign(BaseTraj):
 
 
 class Saphire(PhenoSign):
-    """Implementation of the SAPHIRE algorithm for plotting Hidden Markov Models.
+    """Implementation of the SAPHIRE algorithm.
 
-    Gordonov S, Hwang MK, Wells A, Gertler FB, Lauffenburger DA,
-    Bathe M. Time series modeling of live-cell shape dynamics for
-    image-based phenotypic profiling. Integr Biol (Camb). 2016;8(1):73-90.
+    This class can be used to visualize Hidden Markov Models and time series data.
+
+    Parameters
+    ----------
+    model : hmmlearn.hmm.GaussianHMM
+        Hidden markov model
+    X : numpy.ndarray
+        Single-cell embedding
+
+    References
+    ----------
+    .. [1] Gordonov S, Hwang MK, Wells A, Gertler FB, Lauffenburger DA,
+       Bathe M. Time series modeling of live-cell shape dynamics for
+       image-based phenotypic profiling. Integr Biol (Camb). 2016;8(1):73-90.
     """
 
     def __init__(self, model, X):
         super(Saphire, self).__init__(model, X)
 
-    def plot_traj(self, projection="cartesian", ymax=None):
-        """
-        Plot cell trajectory.
+    def plot_traj(
+        self, projection: str = "cartesian", ymax: Optional[float] = None
+    ) -> Tuple[plt.Figure, plt.Axes]:
+        """Plot cell trajectories.
 
-        Args:
-            projection (str): cartesian or polar.
-            ymax (int)
+        Parameters
+        ----------
+        projection : str
+            `cartesian` or `polar`
+        ymax : int, optional
+            Limit for y-axis
+
+        Returns
+        -------
+        matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+            Figure and Axes
+
+        Raises
+        ------
+        AssertionError
+            If projection is unknown
         """
         avail_proj = ["cartesian", "polar"]
         projection = projection.lower()
@@ -175,7 +286,7 @@ class Saphire(PhenoSign):
             projection = None
 
         cmap = plt.get_cmap("binary")
-        cmap = truncate_colormap(cmap, minval=0.2)
+        cmap = _truncate_colormap(cmap, minval=0.2)
 
         if projection == "polar":
             y, x = self.cart2pol(self.X)
@@ -206,7 +317,7 @@ class Saphire(PhenoSign):
         if ymax is not None:
             ax.set_ylim(0, ymax)
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-        colorline(x, y, cmap=cmap, zorder=1)
+        _colorline(x, y, cmap=cmap, zorder=1)
         norm = mpl.colors.Normalize(vmin=0, vmax=48)
         cax = fig.add_axes([0.94, 0.15, 0.05, 0.3])
         fig.colorbar(
@@ -219,10 +330,18 @@ class Saphire(PhenoSign):
 
         return fig, ax
 
-    def plot_states(self, ymax=None):
-        """
-        Plot cell states.
+    def plot_states(self, ymax: Optional[float] = None) -> Tuple[plt.Figure, plt.Axes]:
+        """Plot cell states.
 
+        Parameters
+        ----------
+        ymax : int, optional
+            Limit for y-axis
+
+        Returns
+        -------
+        matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+            Figure and Axes
         """
         bin_rd, bin_dt = self.signature[0, :], self.signature[1, :]
 
@@ -246,10 +365,18 @@ class Saphire(PhenoSign):
 
         return fig, ax
 
-    def plot_transition(self, ymax=None):
-        """
-        Plot transition between cell states.
+    def plot_transition(self, ymax=None) -> Tuple[plt.Figure, plt.Axes]:
+        """Plot transition between cell states.
 
+        Parameters
+        ----------
+        ymax : int, optional
+            Limit for y-axis
+
+        Returns
+        -------
+        matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+            Figure and Axes
         """
         bin_rd, bin_dt = self.signature[2, :], self.signature[3, :]
 
@@ -274,7 +401,7 @@ class Saphire(PhenoSign):
         return fig, ax
 
 
-def colorline(
+def _colorline(
     x,
     y,
     z=None,
@@ -300,7 +427,7 @@ def colorline(
 
     z = np.asarray(z)
 
-    segments = make_segments(x, y)
+    segments = _make_segments(x, y)
     lc = mcoll.LineCollection(
         segments,
         array=z,
@@ -317,7 +444,7 @@ def colorline(
     return lc
 
 
-def make_segments(x, y):
+def _make_segments(x, y):
     """
     Create list of line segments from x and y coordinates, in the correct format
     for LineCollection: an array of the form numlines x (points per line) x 2 (x
@@ -329,7 +456,7 @@ def make_segments(x, y):
     return segments
 
 
-def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
+def _truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
     """
     https://stackoverflow.com/a/18926541
     """

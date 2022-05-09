@@ -1,42 +1,66 @@
 import math
 import os
 import itertools
+from typing import Optional, Union, Tuple, List
 
 import numpy as np
+import anndata as ad
 import matplotlib.pyplot as plt
 from matplotlib import patches
 
 
 def volcano_plot(
-    adata,
-    sign_line=True,
-    lfc_thr=None,
-    pv_thr=None,
-    color=None,
-    xlim=None,
-    ylim=None,
-    null_color=None,
-    show=False,
-    save=None,
-):
-    """
-    Volcano plot.
-    Use scanpy.tl.rank_genes_groups beforehand.
+    adata: ad.AnnData,
+    sign_line: bool = True,
+    lfc_thr: Optional[Union[tuple, list]] = None,
+    pv_thr: Optional[Union[tuple, list]] = None,
+    color: Optional[Union[Tuple[str], List[str]]] = None,
+    xlim: Optional[Union[tuple, list]] = None,
+    ylim: Optional[Union[tuple, list]] = None,
+    null_color: Optional[str] = None,
+    show: bool = False,
+    save: Optional[str] = None,
+) -> Union[plt.Figure, None]:
+    """Volcano plot.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        sign_line (bool): Plot significant thresholds as lines.
-        lfc_thr (tuple, list): Left and right threshold for log-fold-change.
-        pv_thr (tuple, list): Left and right threshold for the p-values.
-        color (tuple, list): Left and right color for significant values.
-        xlim (tuple, list): Left and right limit of x axis.
-        ylim (tuple, list): Left and right limit of y axis.
-        null_color (str): Color for insignificant values.
-        show (bool): Show plot and return None.
-        save (str): Path where to save the plot as 'volcano.png'
+    Use `scanpy.tl.rank_genes_groups` beforehand.
 
-    Returns:
-        fig
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    sign_line : bool
+        Plot significant thresholds as lines
+    lfc_thr : tuple or list, optional
+        Left and right threshold for log-fold-change
+    pv_thr : tuple or list, optional
+        Left and right threshold for the p-values
+    color : tuple or list, optional
+        Left and right color for significant values
+    xlim : tuple or list, optional
+        Left and right limit of x axis
+    ylim : tuple or list, optional
+        Left and right limit of y axis
+    null_color : str, optional
+        Color for insignificant values
+    show : bool
+        Show plot and return None
+    save : str, optional
+        Path where to save the plot as `volcano.png`
+
+    Returns
+    -------
+    plt.Figure
+        Figure of the volcano plot
+
+    Raises
+    -------
+    AssertionError
+        If `scanpy.tl.rank_genes_groups` has not been used
+    AssertionError
+        If `lfc_thr`, `pv_thr` or `color` is not of length 2
+    OSError
+        If figure can not be saved at specified path
     """
     sc_key = "rank_genes_groups"
     assert (

@@ -24,4 +24,4 @@ Install **Morphelia**.
 
 .. code-block:: console
 
-    (morphelia) python setup.py install
+    (morphelia) python -m pip install .

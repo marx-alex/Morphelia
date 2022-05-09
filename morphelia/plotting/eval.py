@@ -1,38 +1,62 @@
 import os
+from typing import Union, Optional, Tuple
+
 import numpy as np
 import seaborn as sns
+import anndata as ad
 import matplotlib.pyplot as plt
 
 
 def plot_eval(
-    adata,
-    whisker_size=0.005,
-    linewidth=4,
-    vmin=0.5,
-    vmax=1.0,
-    c_repro="#C84B31",
-    c_effect="#346751",
-    show_outlier=False,
-    show=False,
-    save=False,
-):
+    adata: ad.AnnData,
+    whisker_size: Union[float, int] = 0.005,
+    linewidth: Union[float, int] = 4,
+    vmin: Union[float, int] = 0.5,
+    vmax: Union[float, int] = 1.0,
+    c_repro: str = "#C84B31",
+    c_effect: str = "#346751",
+    show_outlier: bool = False,
+    show: bool = False,
+    save: Optional[str] = None,
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
     """Plot reproducibility and effect if calculated before.
+
     The lines show the interquartile range for both measures, the intersections show medians.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        whisker_size (float): Size of whiskers.
-        linewidth (int): Width of lines.
-        vmin (float): Minimum value for x and y axis.
-        vmax (float): Maximum value for x and y axis.
-        c_repro: Color for reproducibility.
-        c_effect: Color for effect.
-        show_outlier (bool): Plot outlier values.
-        show (bool): Show and return axes.
-        save (str): Path where to save figure.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    whisker_size : float or int
+        Size of whiskers
+    linewidth : float or int
+        Width of lines
+    vmin : float or int
+        Minimum value for x and y axis
+    vmax : float or int
+        Maximum value for x and y axis
+    c_repro : str
+        Color for reproducibility
+    c_effect : str
+        Color for effect
+    show_outlier : bool
+        Plot outlier values
+    show : bool
+        Show and return axes
+    save : str, optional
+        Path where to save figure
 
-    Returns:
-        fig, axs if return_fig is True
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
+
+    Raises
+    ------
+    AssertionError
+        If reproducibility and effect have not been calculated before
+    OSError
+        If figure can not be saved at specified path
     """
     out = (
         "Reproducibility and effect no yet calculated. Use morphelia.eval.repro_effect"
@@ -116,7 +140,7 @@ def plot_eval(
     plt.ylabel("Effect", fontsize=14)
 
     # save
-    if save:
+    if save is not None:
         try:
             plt.savefig(os.path.join(save, "eval.png"))
         except OSError:

@@ -1,6 +1,9 @@
 import numpy as np
+import anndata as ad
+
 import warnings
 import logging
+from typing import Union, List, Tuple
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
@@ -8,31 +11,67 @@ logger.setLevel(logging.DEBUG)
 
 
 def drop_noise(
-    adata,
-    by="Metadata_Treatment",
-    mean_std_thresh=0.8,
-    drop=True,
-    verbose=False,
-):
-    """Removal of features with high mean of standard deviations within treatment groups.
-    Features with mean standard deviation above mean_std_thresh will be removed.
+    adata: ad.AnnData,
+    by: Union[str, List[str], Tuple[str]] = "Metadata_Treatment",
+    mean_std_thresh: float = 0.8,
+    drop: bool = True,
+    verbose: bool = False,
+) -> ad.AnnData:
+    """Drop noisy features.
+
+    This function removes features with high mean of standard deviations within treatment groups.
+    Features with mean standard deviation above `mean_std_thresh` will be removed.
 
     Normally distributed data is expected.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        by (str, tuple or list): Variable in observations that contains perturbations.
-            Should group data into groups with low expected standard deviation.
-            I.g. same treatment and concentration.
-        mean_std_thresh (float): Threshold for high mean standard deviations.
-        drop (bool): True to drop features directly.
-        verbose (bool)
-
-    Returns:
-        adata.AnnData
+    The following information is stored:
         adata.uns['noisy_feats'] = Dropped features with noise.
-        adata.var['noisy_feats'] = True if feature contains noise.
-             Only if drop is False.
+
+        adata.var['noisy_feats'] = True if feature contains noise. Only if drop is False.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData)
+        Multidimensional morphological data
+    by : str or list of str or tuple of str
+        Variable in observations that contains perturbations.
+        Should group data into groups with low expected standard deviation.
+        I.g. same treatment and concentration.
+    mean_std_thresh : float
+        Threshold for high mean standard deviations
+    drop : bool
+        True to drop features directly
+    verbose : bool
+
+    Returns
+    -------
+    adata.AnnData
+        AnnData object without dropped features if `drop` is True
+
+    Raises
+    ------
+    KeyError
+        If variables in `by` are not in `.obs`
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(10, 5)
+    >>> obs = pd.DataFrame({
+    >>>     'treatment': [
+    >>>         'ctrl', 'ctrl', 'ctrl', 'ctrl', 'ctrl',
+    >>>         'adrenalin', 'adrenalin', 'adrenalin', 'adrenalin', 'adrenalin'
+    >>>     ]
+    >>> })
+    >>> adata = ad.AnnData(data, obs=obs)
+    >>> mp.ft.drop_noise(adata, by='treatment')
+    AnnData object with n_obs × n_vars = 10 × 5
+        obs: 'treatment'
+        uns: 'noisy_feats'
     """
     # check variables
     if by is not None:

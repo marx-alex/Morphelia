@@ -1,40 +1,73 @@
 import os
+from typing import Optional, Union, Tuple
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 import seaborn as sns
+import anndata as ad
 
 from morphelia.tools.utils import get_subsample
 
 
 def clustermap(
-    adata,
-    group_by=None,
-    subsample=False,
-    sample_size=1000,
-    palette="Set2",
-    show=False,
-    save=None,
-    seed=0,
+    adata: ad.AnnData,
+    group_by: Optional[str] = None,
+    subsample: bool = False,
+    sample_size: int = 1000,
+    palette: str = "Set2",
+    show: bool = False,
+    save: Optional[str] = None,
+    seed: int = 0,
     **kwargs,
-):
-    """
-    Cluster map.
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
+    """Cluster map.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        group_by (str): Group cell by variable in .obs.
-        subsample (bool): If True, fit models on subsample of data.
-        sample_size (int): Size of subsample.
+    This is a convenient function to plot AnnData groups
+    as a seaborn clustermap.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    group_by : str, optional
+        Group cell by variable in `.obs`
+    subsample : bool
+        If True, fit models on subsample of data
+    sample_size : int
+        Size of subsample.
         Only if subsample is True.
-        palette (str): Seaborn color palette.
-        show (bool): Show plot and return axis.
-        save (str): Path where to store plot as 'clustermap.png'.
-        seed (int): Seed for subsample calculation.
-        **kwargs: Keyword arguments passed to seaborn.clustermap.
+    palette : str
+        Seaborn color palette
+    show : bool
+        Show plot and return axis
+    save : str, optional
+        Path where to store plot as `clustermap.png`
+    seed : int
+        Seed for subsample calculation.
+    **kwargs : dict
+        Keyword arguments passed to `seaborn.clustermap`
 
-    Returns:
-        fig, ax
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
+
+    Raises
+    ------
+    AssertionError
+        If `group_by` is not in `.obs`
+    OSError
+        If figure can not be saved at specified path
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+
+    >>> data = np.random.rand(4, 4)
+    >>> adata = ad.AnnData(data)
+    >>> mp.pl.clustermap(adata)
     """
     # get subsample
     if subsample:

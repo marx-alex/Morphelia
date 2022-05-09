@@ -1,33 +1,56 @@
 from collections import defaultdict
+from typing import Optional, Union, Tuple
+
 import numpy as np
 import pandas as pd
+import anndata as ad
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.collections as mcoll
 
 
 def plot_trajectory(
-    adata,
-    rep=None,
-    time_var="Metadata_Time",
-    treat_var="Metadata_Treatment",
-    method="mean",
-    bar_label="Time",
-    ax=None,
-    fig=None,
-    show=False,
-):
-    """
-    Plot trajectory on embedding of cell states.
+    adata: ad.AnnData,
+    rep: str,
+    time_var: str = "Metadata_Time",
+    treat_var: str = "Metadata_Treatment",
+    method: str = "mean",
+    bar_label: str = "Time",
+    ax: Optional[plt.Axes] = None,
+    fig: Optional[plt.Figure] = None,
+    show: bool = False,
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
+    """Plot trajectory on embedding of cell states.
 
-    :param adata:
-    :param rep:
-    :param time_var:
-    :param treat_var:
-    :param method:
-    :param ax:
-    :param fig:
-    :return:
+    This function calculates the `mean` or `median` trajectory
+    along treatments and time.
+    The trajectories can be plotted on a two dimensional embedding.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    rep : str
+        Name of embedding in `.obsm`
+    time_var : str
+        Variable in `.obs` with time information
+    treat_var : str
+        Variable in `.obs` with treatments
+    method : str
+        Calculate trajectory as `mean` or `median`
+    bar_label : str
+        Label for trajectory in the plot
+    ax : matplotlib.pyplot.Axes, optional
+        Plot on existing axis
+    fig : matplotlib.pyplot.Figure, optional
+        Plot on existing figure
+    show : bool
+        Show plot
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
     """
     avail_methods = ["mean", "median"]
     method = method.lower()
@@ -79,7 +102,7 @@ def plot_trajectory(
     traj = pd.DataFrame(traj)
 
     cmap = plt.get_cmap("binary")
-    cmap = truncate_colormap(cmap, minval=0.2)
+    cmap = _truncate_colormap(cmap, minval=0.2)
 
     if ax is None or fig is None:
         fig, ax = plt.subplots(figsize=(5, 5))
@@ -88,9 +111,9 @@ def plot_trajectory(
         for treat in treats:
             x = traj.loc[traj["treat"] == treat, "centroid_x"]
             y = traj.loc[traj["treat"] == treat, "centroid_y"]
-            colorline(x, y, cmap=cmap, zorder=1, ax=ax)
+            _colorline(x, y, cmap=cmap, zorder=1, ax=ax)
     else:
-        colorline(traj["centroid_x"], traj["centroid_y"], cmap=cmap, zorder=1, ax=ax)
+        _colorline(traj["centroid_x"], traj["centroid_y"], cmap=cmap, zorder=1, ax=ax)
 
     norm = mpl.colors.Normalize(vmin=0, vmax=max(tps))
     cax = fig.add_axes([0.94, 0.2, 0.15, 0.05])
@@ -108,7 +131,7 @@ def plot_trajectory(
     return fig, ax
 
 
-def colorline(
+def _colorline(
     x,
     y,
     z=None,
@@ -135,7 +158,7 @@ def colorline(
 
     z = np.asarray(z)
 
-    segments = make_segments(x, y)
+    segments = _make_segments(x, y)
     lc = mcoll.LineCollection(
         segments,
         array=z,
@@ -153,7 +176,7 @@ def colorline(
     return lc
 
 
-def make_segments(x, y):
+def _make_segments(x, y):
     """
     Create list of line segments from x and y coordinates, in the correct format
     for LineCollection: an array of the form numlines x (points per line) x 2 (x
@@ -165,7 +188,7 @@ def make_segments(x, y):
     return segments
 
 
-def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
+def _truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
     """
     https://stackoverflow.com/a/18926541
     """

@@ -45,15 +45,21 @@ class MLPModule(pl.LightningModule):
         self.valid_metric = metrics.clone("valid/")
         self.test_metric = metrics.clone("test/")
 
-    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
-        return self.encoder(x)
+    def forward_features(
+        self, x: torch.Tensor, c: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        return self.encoder(x, c=c)
 
-    def forward_pred(self, x: torch.Tensor) -> torch.Tensor:
-        x = self(x)
+    def forward_pred(
+        self, x: torch.Tensor, c: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        x = self(x, c=c)
         return self.softmax(x)
 
-    def forward(self, x):
-        z = self.forward_features(x)
+    def forward(
+        self, x: torch.Tensor, c: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        z = self.forward_features(x, c=c)
         logits = self.classifier(z)
         return logits
 
@@ -89,12 +95,15 @@ class MLPModule(pl.LightningModule):
     def _prepare_batch(batch):
         x = batch["x"]
         target = batch["target"]
-        return x, target
+        c = None
+        if "c" in batch:
+            c = batch["c"]
+        return x, target, c
 
     def _common_step(self, batch, prefix="train"):
-        x, target = self._prepare_batch(batch)
+        x, target, c = self._prepare_batch(batch)
 
-        logits = self(x)
+        logits = self(x, c=c)
         loss = self.cross_entropy(logits, target)
         pred = self.softmax(logits)
 

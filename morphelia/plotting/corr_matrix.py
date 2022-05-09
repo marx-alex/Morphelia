@@ -1,6 +1,7 @@
 # import internal libraries
 import os
 import warnings
+from typing import Optional, List, Union, Tuple
 
 # import external libraries
 import seaborn as sns
@@ -9,16 +10,49 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
 
-def plot_corr_matrix(corr_matrix, groups=None, save="figures/", show=False, **kwargs):
-    """
-    Plot correlation matrix with indicated highly correlated features and
-    invalid (nan) features. Save figure if needed.
+def plot_corr_matrix(
+    corr_matrix: np.ndarray,
+    groups: Optional[List[str]] = None,
+    save: Optional[str] = None,
+    show: bool = False,
+    **kwargs,
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
+    """Plot correlation matrix
 
-    Args:
-        corr_matrix (numpy.ndarray): Correlation Matrix.
-        groups (list): Group labels.
-        show (bool): Show and return axes.
-        save (str): Path to save figure.
+    Highly correlated features and
+    invalid (nan) features are indicated.
+    The figure can be saved at a specified location.
+
+    Parameters
+    ----------
+    corr_matrix : numpy.ndarray)
+        Correlation Matrix
+    groups : list, optional
+        Group labels
+    show : bool
+        Show and return axes
+    save : str
+        Path to save figure
+    **kwargs
+        Keyword arguments are passed to seaborn.clustermap
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
+
+    Raises
+    ------
+    OSError
+        If figure can not be saved at specified path
+
+    Examples
+    --------
+    >>> import morphelia as mp
+    >>> import numpy as np
+
+    >>> data = np.random.rand(4, 4)
+    >>> mp.pl.plot_corr_matrix(data)
     """
     # do not show features with only nan
     corr_matrix = np.nan_to_num(corr_matrix)
@@ -59,7 +93,7 @@ def plot_corr_matrix(corr_matrix, groups=None, save="figures/", show=False, **kw
         )
 
     # save
-    if save:
+    if save is not None:
         try:
             plt.savefig(
                 os.path.join(save, "feature_correlation.png"),

@@ -35,6 +35,7 @@ class MLP(BaseModel):
         optimizer: str = "Adam",
     ):
         self.in_features = in_features
+        self.n_conditions = data.n_conditions
         if in_features is None:
             self.in_features = data.n_features
         self.n_classes = n_classes
@@ -57,6 +58,7 @@ class MLP(BaseModel):
         self.encoder = Encoder(
             layer_dims=layer_dims,
             latent_dim=latent_dim,
+            n_conditions=self.n_conditions,
             sequential=False,
             dropout=dropout,
             batch_norm=batch_norm,
@@ -78,6 +80,7 @@ class MLP(BaseModel):
                 layer_dims=layer_dims,
                 latent_dim=latent_dim,
                 n_classes=self.n_classes,
+                n_conditions=self.n_conditions,
                 dropout=dropout,
                 batch_norm=batch_norm,
                 layer_norm=layer_norm,
@@ -148,10 +151,15 @@ class MLP(BaseModel):
         with torch.no_grad():
             for batch in tqdm(loader, desc="Load samples from test set."):
                 x = batch["x"]
+                c = None
+                if "c" in batch:
+                    c = batch["c"]
 
-                features.append(self.model.forward_features(x).cpu().detach().numpy())
+                features.append(
+                    self.model.forward_features(x, c=c).cpu().detach().numpy()
+                )
 
-                pred.append(self.model.forward_pred(x).cpu().detach().numpy())
+                pred.append(self.model.forward_pred(x, c=c).cpu().detach().numpy())
 
                 classes.append(batch["target"].numpy())
                 ids.append(batch["ids"].numpy())

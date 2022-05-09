@@ -1,12 +1,13 @@
 import logging
 import warnings
+from typing import Union, List
 
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+import anndata as ad
 import statsmodels.api as sm
 from statsmodels.stats.multitest import multipletests
-from scipy.stats import chi2
 
 from morphelia.tools.utils import get_subsample
 
@@ -16,27 +17,27 @@ logger.setLevel(logging.DEBUG)
 
 
 def feature_lmem(
-    adata,
-    treat_var="Metadata_Treatment",
-    ctrl_id="ctrl",
-    fixed_var="Metadata_Concentration",
-    rand_var="BatchNumber",
-    method="bonferroni",
-    alpha=0.05,
-    r2_thresh=0.7,
-    drop=False,
-    subsample=False,
-    sample_size=10000,
-    seed=0,
-):
-    r"""
-    Use Linear Mixed Models to select features that have an effect compared to
+    adata: ad.AnnData,
+    treat_var: str = "Metadata_Treatment",
+    ctrl_id: str = "ctrl",
+    fixed_var: str = "Metadata_Concentration",
+    rand_var: Union[str, List[str]] = "BatchNumber",
+    method: str = "bonferroni",
+    alpha: float = 0.05,
+    r2_thresh: float = 0.7,
+    drop: bool = False,
+    subsample: bool = False,
+    sample_size: int = 10000,
+    seed: int = 0,
+) -> ad.AnnData:
+    """Use Linear Mixed Models to select features that have an effect compared to
     the control and are dependent on dose.
 
     For every treatment and feature a Linear Mixed Model is fitted:
 
     .. math::
-        Y_{ij} = \beta_{0} + \beta_{1}X_{ij} + \gamma_{1i}X_{ij} + \epsilon_{ij}
+
+        Y_{ij} = \\beta_{0} + \\beta_{1}X_{ij} + \\gamma_{1i}X_{ij} + \\epsilon_{ij}
 
     The model describes the relation between a fixed (independent) variable and
     a dependent variable while considering random effects.
@@ -49,7 +50,8 @@ def feature_lmem(
     with different treatments by a given method (i.g. bonferroni).
 
     .. math::
-        R^{2} = 1 - \frac{\sum(y-\hat{y}^2}{y-\bar{y}}
+
+        R^{2} = 1 - \\frac{\\sum(y - \\hat{y}^2}{y - \\bar{y}}
 
     R-squared values are then combined by mean-aggregation.
 
@@ -57,26 +59,71 @@ def feature_lmem(
     Features are assumed to be significant, if at least on p-value is lower than the given alpha
     or the combined R-squared value is above the given threshold for R-squared.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        treat_var (str): Treatment variable in .obs.
-        ctrl_id (str): Name of control condition stored in treat_var.
-        fixed_var (str): Name of variable with fixed effect.
-        rand_var (list, str): Name or list of variables with random effects.
-        method (str): Method to correct for multiple testing.
-            Can be 'bonferroni', 'bh' for Benjamin/Hochberg or any other method
-            used by statsmodels.stats.multitest.multipletests
-        alpha (float): Alpha value for significance.
-        r2_thresh (float): Threshold for R-squared.
-        drop (bool): Drop features based on thresholds.
-            Stores dropped features in .uns['lmm_dropped']
-        subsample (bool): Use method on subsample of the data.
-        sample_size (int): Size of subsample.
-        seed (int): Seed for reproducibility.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    treat_var : str
+        Treatment variable in `.obs`
+    ctrl_id : str
+        Name of control condition stored in `treat_var`
+    fixed_var : str
+        Name of variable with fixed effect
+    rand_var : list or str or str
+        Name or list of variables with random effects
+    method : str
+        Method to correct for multiple testing.
+        Can be `bonferroni`, `bh` for Benjamin/Hochberg or any other method
+        used by statsmodels.stats.multitest.multipletests
+    alpha : float
+        Alpha value for significance
+    r2_thresh : float
+        Threshold for R-squared
+    drop : bool
+        Drop features based on thresholds.
+        Stores dropped features in `.uns['lmm_dropped']`
+    subsample : bool
+        Use method on subsample of the data
+    sample_size : int
+        Size of subsample
+    seed : int
+        Seed for reproducibility
 
-    Returns:
-        anndata.AnnData
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object without dropped features
 
+    Raises
+    -------
+    AssertionError
+        If `rand_var`, `treat_var` or `fixed_var` is not in `.obs`
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    >>> data = np.random.rand(12, 5)
+    >>> obs = pd.DataFrame({
+    >>>     'treatment': [
+    >>>         'ctrl', 'ctrl', 'ctrl', 'ctrl', 'ctrl', 'ctrl',
+    >>>         'adrenalin', 'adrenalin', 'adrenalin', 'adrenalin', 'adrenalin', 'adrenalin'
+    >>>     ],
+    >>>     'concentration': [0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 1, 2],
+    >>>     'batch': [0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1]
+    >>> })
+    >>> adata = ad.AnnData(data, obs=obs)
+    >>> mp.ft.feature_lmem(
+    >>>     adata, treat_var='treatment', ctrl_id='ctrl',
+    >>>     fixed_var='concentration', rand_var='batch'
+    >>> )
+    Fitting LME-Model on every feature...: 100%|██████████| 5/5 [00:00<00:00, 53.30it/s]
+    AnnData object with n_obs × n_vars = 12 × 5
+        obs: 'treatment', 'concentration', 'batch'
+        var: 'r2_mean', 'r2_std', 'r2_adrenalin', 'p_adrenalin', 'r2_mask', 'p_mask', 'lme_combined_mask'
     """
     # check variables
     assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"
@@ -112,7 +159,7 @@ def feature_lmem(
         adata_treat = adata_ss[
             (adata_ss.obs[treat_var] == treat) | (adata_ss.obs[treat_var] == ctrl_id)
         ].copy()
-        r2, p = multivariate_lmem_fit(
+        r2, p = _multivariate_lmem_fit(
             adata_treat, fixed_effect=fixed_var, rand_effect=rand_var
         )
         # store output
@@ -158,7 +205,7 @@ def feature_lmem(
     return adata
 
 
-def multivariate_lmem_fit(
+def _multivariate_lmem_fit(
     adata, fixed_effect="Metadata_Concentration", rand_effect="BatchNumber"
 ):
     # store p-values from log-likelihood ratio test
@@ -214,9 +261,3 @@ def multivariate_lmem_fit(
     r2 = np.asarray(r2)
     r2 = np.clip(r2, a_min=0, a_max=None)
     return r2, ps
-
-
-def log_likelihood_ratio_test(ll0, ll1):
-    lrt = np.abs(ll1 - ll0) * 2
-    p = chi2.sf(lrt, 1)
-    return p

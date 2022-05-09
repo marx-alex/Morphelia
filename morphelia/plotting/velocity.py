@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import anndata as ad
 import scanpy as sc
 
-from morphelia.external import waypoint_sampling
+from morphelia.external import _waypoint_sampling as waypoint_sampling
 from morphelia.tools import choose_representation
 from sklearn.metrics import pairwise_distances
 
@@ -28,27 +28,52 @@ def plot_velocity(
     velo_kwargs: dict = None,
     **kwargs,
 ):
-    """
-    Plot velocity as quiver on embedding.
+    """Plot velocity as quiver on embedding.
 
-    Args:
-        adata: Multidimensional morphological data.
-        rep: Representation to plot.
-        vect_rep: Representation with vectors.
-        kind: Plot quiver or streamplot.
-        by: Key to plot different categories from.
-        grid_dim: Grid dimension for streamplot.
-        n_waypoints: Number of waypoints to use for quiver.
-        min_cells: Minimum number of cells per waypoint.
-        n_cols: Number of column in categorical plot.
-        size: Size of foreground scatter in categorical plot.
-        cmap: Name of colormap to use in categorical plot.
-        save: Path where to save plot.
-        show: Show and only return axes if True.
-        velo_kwargs: Keyword arguments passed to either pyplot.quiver or pyplot.streamplot.
+    Parameters
+    ----------
+    adata: anndata.AnnData
+        Multidimensional morphological data
+    rep : str
+        Representation to plot
+    vect_rep : str
+        Representation with vectors
+    kind : str
+        Plot quiver (`quiver`) or streamplot (`stream`)
+    by : str, optional
+        Key to plot different categories from
+    grid_dim : int
+        Grid dimension for streamplot
+    n_waypoints : int
+        Number of waypoints to use for quiver
+    min_cells : int
+        Minimum number of cells per waypoint
+    n_cols : int
+        Number of column in categorical plot
+    size : int
+        Size of foreground scatter in categorical plot
+    cmap : str, optional
+        Name of colormap to use in categorical plot
+    save : str, optional
+        Path where to save plot
+    show : bool
+        Show and only return axes if True
+    velo_kwargs : dict
+        Keyword arguments passed to either `pyplot.quiver` or `pyplot.streamplot`
+    **kwargs
+        Keyword arguments passed to `scanpy.pl.embedding`
 
-    Returns:
-        Figure and axes.
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
+
+    Raises
+    ------
+    AssertionError
+        If `kind` is not `quiver` or `stream`
+    OSError
+        If figure can not be saved at specified path
     """
 
     if cmap is None:
@@ -90,7 +115,7 @@ def plot_velocity(
                 s=fg_size,
             )
             if kind == "quiver":
-                X, Y, U, V = get_quiver(
+                X, Y, U, V = _get_quiver(
                     cat_data,
                     X=rep,
                     V=vect_rep,
@@ -99,7 +124,7 @@ def plot_velocity(
                 )
                 axs[row, col].quiver(X, Y, U, V, color="black", **velo_kwargs)
             elif kind == "stream":
-                X, Y, U, V = get_streamline(
+                X, Y, U, V = _get_streamline(
                     cat_data, X=rep, V=vect_rep, grid_dim=grid_dim, min_cells=min_cells
                 )
                 axs[row, col].streamplot(X, Y, U, V, color="black", **velo_kwargs)
@@ -112,12 +137,12 @@ def plot_velocity(
         axs = sc.pl.embedding(adata, basis=rep, ax=axs, show=False, **kwargs)
 
         if kind == "quiver":
-            X, Y, U, V = get_quiver(
+            X, Y, U, V = _get_quiver(
                 adata, X=rep, V=vect_rep, n_waypoints=n_waypoints, min_cells=min_cells
             )
             axs.quiver(X, Y, U, V, color="black", **velo_kwargs)
         elif kind == "stream":
-            X, Y, U, V = get_streamline(
+            X, Y, U, V = _get_streamline(
                 adata, X=rep, V=vect_rep, grid_dim=grid_dim, min_cells=min_cells
             )
             axs.streamplot(X, Y, U, V, color="black", **velo_kwargs)
@@ -141,17 +166,16 @@ def plot_velocity(
     return fig, axs
 
 
-def get_quiver(adata, X="X_nne", V="X_vect", n_waypoints=50, min_cells=20):
+def _get_quiver(
+    adata: ad.AnnData,
+    X: str = "X_nne",
+    V: str = "X_vect",
+    n_waypoints: int = 50,
+    min_cells: int = 20,
+):
     """
     Get grid parameters to draw a quiver plot.
     Use morphelia.tools.vectorize_emb beforehand.
-
-    :param adata:
-    :param X:
-    :param V:
-    :param n_waypoints:
-    :param min_cells:
-    :return:
     """
     assert X in adata.obsm.keys(), f"X not in .obsm: {X}"
     assert V in adata.obsm.keys(), f"V not in .obsm: {V}"
@@ -187,17 +211,16 @@ def get_quiver(adata, X="X_nne", V="X_vect", n_waypoints=50, min_cells=20):
     )
 
 
-def get_streamline(adata, X="X_nne", V="X_vect", grid_dim=50, min_cells=5):
+def _get_streamline(
+    adata: ad.AnnData,
+    X: str = "X_nne",
+    V: str = "X_vect",
+    grid_dim: int = 50,
+    min_cells: int = 5,
+):
     """
     Get grid parameters to draw a streamplot.
     Use morphelia.tools.vectorize_emb beforehand.
-
-    :param adata:
-    :param X:
-    :param V:
-    :param grid_dim:
-    :param min_cells:
-    :return:
     """
     assert X in adata.obsm.keys(), f"X not in .obsm: {X}"
     assert V in adata.obsm.keys(), f"V not in .obsm: {V}"

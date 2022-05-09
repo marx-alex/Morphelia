@@ -79,16 +79,16 @@ def group_shuffle_split(
 ) -> Tuple[ad.AnnData, ad.AnnData]:
     """Train-test-split for grouped data.
 
-    This function avoid splitting groups.
+    This function avoids splitting groups.
 
     Parameters
     ----------
     adata : anndata.AnnData
         Multidimensional morphological data
     group : str
-        Variable in .obs with groups
+        Variable in `.obs` with groups
     stratify : str, optional
-        Variable in .obs to use for stratification
+        Variable in `.obs` to use for stratification
     test_size : float
         Size of test set
     random_state : int

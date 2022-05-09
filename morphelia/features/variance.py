@@ -1,7 +1,10 @@
 import numpy as np
 from tqdm import tqdm
+import anndata as ad
 from scipy.stats import median_abs_deviation as mad
+
 import logging
+from typing import Union, List, Tuple, Optional
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
@@ -9,36 +12,79 @@ logger.setLevel(logging.DEBUG)
 
 
 def drop_near_zero_variance(
-    adata, freq_thresh=0.05, unique_thresh=0.01, drop=True, verbose=False
-):
-    """Drop features that have low variance and therefore low expected information content.
+    adata: ad.AnnData,
+    freq_thresh: float = 0.05,
+    unique_thresh: float = 0.01,
+    drop: bool = True,
+    verbose: bool = False,
+) -> ad.AnnData:
+    """Drop features with near zero variance.
+
+    This function drops features that have low variance and therefore low expected information content.
     Low variance is assumed if single values appear more than one time in a feature vector.
+
     The rules are as following:
-    1. A feature vector is of low variance if second_max_count / max_count < freq_thresh
-    2. A feature vector is of low variance if num_unique_values / n_samples < unique_thresh
+        1. A feature vector is of low variance if second_max_count / max_count < freq_thresh
+
+        2. A feature vector is of low variance if num_unique_values / n_samples < unique_thresh
+
     with:
         second_max_count: counts of second frequent value
+
         max_count: counts of most frequent value
+
         freq_thresh: threshold for rule 1.
+
         num_unique_values: number of unique values in a feature vector
+
         n_samples: number of total samples
+
         unique_thresh: threshold for rule 2.
 
-    This idea is modified from caret::nearZeroVar():
-    https://www.rdocumentation.org/packages/caret/versions/6.0-88/topics/nearZeroVar
-
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        freq_thresh (float): Threshold for frequency.
-        unique_thresh (float): Threshold for uniqueness.
-        drop (bool): Drop features with low variance directly.
-        verbose (bool)
-
-    Returns:
-        anndata.AnnData
+    The following information is stored:
         .uns['near_zero_variance_feats']: Dropped features with near zero variance.
-        .var['near_zero_variance_feats']: True if feature has near zero variance.
-            Only if drop is False.
+
+        .var['near_zero_variance_feats']: True if feature has near zero variance. Only if drop is False.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    freq_thresh : float
+        Threshold for frequency
+    unique_thresh : float
+        Threshold for uniqueness
+    drop : bool
+        Drop features with low variance directly
+    verbose : bool
+
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object without dropped features if `drop` is True
+
+    Raises
+    -------
+    AssertionError
+        If `freq_thresh` or `unique_thresh` is not between 0 and 1
+
+    References
+    ----------
+    .. [1] This idea is modified from caret::nearZeroVar():
+       https://www.rdocumentation.org/packages/caret/versions/6.0-88/topics/nearZeroVar
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+
+    >>> data = np.random.rand(10, 5)
+    >>> adata = ad.AnnData(data)
+    >>> mp.ft.drop_near_zero_variance(adata)
+    Iterating over features: 100%|██████████| 5/5 [00:00<00:00, 835.22it/s]
+    AnnData object with n_obs × n_vars = 10 × 5
+        uns: 'near_zero_variance_feats'
     """
     # check variables
     assert 0 <= freq_thresh <= 1, (
@@ -94,38 +140,76 @@ def drop_near_zero_variance(
 
 
 def drop_low_cv(
-    adata,
-    by=("BatchNumber", "PlateNumber"),
-    method="std",
-    cutoff=0.5,
-    drop=True,
-    verbose=False,
-):
-    """Find features with low coefficients of variance which is interpreted as a low content of biological
-    information.
+    adata: ad.AnnData,
+    by: Optional[Union[str, List[str], Tuple[str]]] = ("BatchNumber", "PlateNumber"),
+    method: str = "std",
+    cutoff: float = 0.5,
+    drop: bool = True,
+    verbose: bool = False,
+) -> ad.AnnData:
+    """Drop features with a low coefficient of variance.
+
+    This function finds features with low coefficients of variance
+    which is interpreted as a low content of biological information.
     Depending on the method the normalized standard deviation or mean absolute deviation for every feature
     is calculated. If 'by' is given, the mean deviation of groups (batches or plates) is calculated.
     Features below a given threshold are dropped from the data.
     By default a coefficient of variance below 1 is considered to indicate low variance.
 
     The coefficients of variance are:
-        std_norm = std / abs(mean)
-        mad_norm = mad / abs(median)
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        by (iterable, str or None): Groups to apply function to.
-                If None, apply to whole anndata.AnnData object.
-        method (str): Standard deviation ('std') or mean absolute deviation ('mad').
-        cutoff (float): Drop features with deviation below cutoff.
-        drop (bool): Drop features with low variance directly.
-        verbose (bool)
+    .. math::
 
-    Returns:
-        anndata.AnnData
+        std_{norm} = \\frac{std}{abs(mean)}
+
+        mad_{norm} = \\frac{mad}{abs(median)}
+
+    The following information is stored:
         .uns['low_cv_feats']: Dropped features with low coefficients of variance.
+
         .var['low_cv_feats']: True for features with low coefficients of variance.
             Only if drop is False.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data.
+    by : list of str, tuple of str or str, optional
+        Groups to apply function to.
+        If None, apply to whole AnnData object.
+    method : str
+        Standard deviation (`std`) or mean absolute deviation (`mad`).
+    cutoff : float
+        Drop features with deviation below cutoff
+    drop : bool
+        Drop features with low variance directly
+    verbose : bool
+
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object without dropped features if `drop` is True
+
+    Raises
+    ------
+    KeyError
+        If `by` is not in `obs`
+    AssertionError
+        If `method` is neither `std` nor `mad`
+    AssertionError
+        If cutoff is not of type int or float
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+
+    >>> data = np.random.rand(10, 5)
+    >>> adata = ad.AnnData(data)
+    >>> mp.ft.drop_low_cv(adata, by=None)
+    AnnData object with n_obs × n_vars = 10 × 4
+        uns: 'low_cv_feats'
     """
     # check variables
     if by is not None:
@@ -140,13 +224,13 @@ def drop_low_cv(
     # check method
     method = method.lower()
     avail_methods = ["std", "mad"]
-    assert method in avail_methods, (
-        f"Method not in {avail_methods}, " f"instead got {method}"
-    )
+    assert (
+        method in avail_methods
+    ), f"Method not in {avail_methods}, instead got {method}"
 
-    assert isinstance(cutoff, (int, float)), (
-        f"cutoff is expected to be type(float), " f"instead got {type(cutoff)}"
-    )
+    assert isinstance(
+        cutoff, (int, float)
+    ), f"cutoff is expected to be type(float), instead got {type(cutoff)}"
 
     with np.errstate(divide="ignore", invalid="ignore"):
         if by is not None:
@@ -201,34 +285,67 @@ def drop_low_cv(
 
 
 def drop_low_variance(
-    adata,
-    by=("BatchNumber", "PlateNumber"),
-    cutoff=0.5,
-    drop=True,
-    verbose=False,
-):
-    """Find features with low variance. This approach tries to account for the mean-variance
+    adata: ad.AnnData,
+    by: Optional[Union[str, List[str], Tuple[str]]] = ("BatchNumber", "PlateNumber"),
+    cutoff: float = 0.5,
+    drop: bool = True,
+    verbose: bool = False,
+) -> ad.AnnData:
+    """Find features with low variance.
+
+    This approach tries to account for the mean-variance
     relationship by applying a variance-stabilizing transformation before ranking variance of features.
-    The implementation was described by Stuart et al., 2019:
-    Stuart et al. (2019), Comprehensive integration of single-cell data. Cell.
 
     Different to Stuart et al. a polynomial fit with one degree (linear regression) is calculated to
     predict the variance of each feature as a function of its mean.
     Since negative mean values are possible in morphological data, the absolute values for means are taken.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        by (iterable, str or None): Groups to apply function to.
-                If None, apply to whole anndata.AnnData object.
-        cutoff (float): Drop features with deviation below cutoff.
-        drop (bool): Drop features with low variance directly.
-        verbose (bool)
-
-    Returns:
-        anndata.AnnData
+    The following information is stored:
         .uns['low_variance_feats']: Dropped features with low variance.
+
         .var['low_varinace_feats']: True for features with low varinace.
             Only if drop is False.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data.
+    by : str, or list of str or tuple of str, optional
+        Groups to apply function to.
+        If None, apply to whole AnnData object.
+    cutoff : float
+        Drop features with deviation below cutoff
+    drop : bool
+        Drop features with low variance directly
+    verbose : bool
+
+    Returns
+    -------
+    anndata.AnnData
+        AnnData object without dropped features if drop is True
+
+    Raises
+    ------
+    KeyError
+        If `by` is not in `obs`
+    AssertionError
+        If cutoff is not of type int or float
+
+    References
+    ----------
+    .. [1] Stuart et al. (2019), Comprehensive integration of single-cell data. Cell.
+
+    Examples
+    --------
+    >>> import anndata as ad
+    >>> import morphelia as mp
+    >>> import numpy as np
+
+    >>> data = np.random.rand(10, 5)
+    >>> adata = ad.AnnData(data)
+    >>> mp.ft.drop_low_variance(adata, by=None)
+    AnnData object with n_obs × n_vars = 10 × 1
+        uns: 'low_variance_feats'
     """
     # check variables
     if by is not None:

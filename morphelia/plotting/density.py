@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union, Tuple
 import os
 
 import numpy as np
@@ -17,22 +17,41 @@ def plot_density(
     save: Optional[str] = None,
     show: bool = False,
     **kwargs,
-):
-    """
-    Plot density.
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
+    """Plot density.
 
-    Args:
-        adata: Multidimensional morphological data.
-        by: Key in .obs.
-        rep: Representation to plot.
-        n_cols: Number of columns.
-        size: Size of the scatter.
-        cmap: Name of colormap to use in categorical plot.
-        save: Path where to save plot.
-        show: Show and only return axes if True.
+    Convenient function for scanpy.pl.embedding_density.
+    Gaussian kernel density estimates are calculated for a specified condition.
+    Densities are then plotted as a grid with a plot for each unique condition.
 
-    Returns:
-        Figure and axes.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    by : str
+        Key in `.obs`
+    rep : str
+        Representation in `.obsm`
+    n_cols : int
+        Number of columns
+    size : int
+        Size of the scatter points
+    cmap : str, optional
+        Name of colormap to use in categorical plot
+    save : str, optional
+        Path where to save plot
+    show : bool
+        Show and only return axes if True
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure if show is False and Axes
+
+    Raises
+    ------
+    OSError
+        If figure can not be saved at specified path
     """
     basis = rep.split("_")[-1]
     sc.tl.embedding_density(adata, basis=basis, groupby=by)

@@ -15,6 +15,7 @@ import warnings
 import logging
 from copy import deepcopy
 from collections import OrderedDict
+from typing import Optional, Union, Tuple, List
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
@@ -22,27 +23,48 @@ logger.setLevel(logging.DEBUG)
 
 
 class Palantir:
-    """
-    This is an implementation of the Palantir framework, which is described here:
-    Setty, M., Kiseliovas, V., Levine, J. et al.
-    Characterization of cell fate probabilities in single-cell data with Palantir.
-    Nat Biotechnol 37, 451–460 (2019). https://doi.org/10.1038/s41587-019-0068-4
+    """Palantir main class.
 
-    Some fragments of the code are taken from the original implementation:
-    https://github.com/dpeerlab/Palantir
+    This is an implementation of the Palantir method for cell fate analysis
+    in single-cell data.
+    Some code fragments were taken from [2]. The code is licensed under the GPL-2.0 License.
 
-    The code is licensed under the GPL-2.0 License.
+    Parameters
+    ----------
+    n_waypoints : int
+        Number of waypoints
+    n_neighbors : int
+        Number of neighbors for affinity matrix
+    start_cell : numpy.ndarray, optional
+        Cell of early differentiation
+    terminal_states : numpy.ndarray, optional
+        Terminal states
+    n_jobs : int, optional
+        Number of jobs for parallel processing
+    verbose : bool
+
+    Raises
+    ------
+    TypeError
+        If terminal states are not of type list, tuple or numpy.ndarray
+
+    References
+    ----------
+    .. [1] Setty, M., Kiseliovas, V., Levine, J. et al.
+       Characterization of cell fate probabilities in single-cell data with Palantir.
+       Nat Biotechnol 37, 451–460 (2019). https://doi.org/10.1038/s41587-019-0068-4
+    .. [2] https://github.com/dpeerlab/Palantir
     """
 
     def __init__(
         self,
-        n_waypoints=100,
-        n_neighbors=10,
-        start_cell=None,
-        terminal_states=None,
-        n_jobs=None,
-        verbose=False,
-    ):
+        n_waypoints: int = 100,
+        n_neighbors: int = 10,
+        start_cell: Optional[np.ndarray] = None,
+        terminal_states: Optional[Union[list, tuple, np.ndarray]] = None,
+        n_jobs: Optional[int] = None,
+        verbose: bool = False,
+    ) -> None:
         self.n_waypoints = n_waypoints
         self.n_neighbors = n_neighbors
         self.start_cell = start_cell
@@ -119,10 +141,10 @@ class Palantir:
 
         if self.verbose:
             logger.info(f"Creating {self.n_waypoints} waypoints")
-        self._waypoints = waypoint_sampling(X, n_waypoints=self.n_waypoints)
+        self._waypoints = _waypoint_sampling(X, n_waypoints=self.n_waypoints)
 
         if self.start_cell is None:
-            self.start_cell = find_start_cell(X)
+            self.start_cell = _find_start_cell(X)
         assert isinstance(self.start_cell, int), (
             "start cell must be a y index for X of type(int), "
             f"instead got {type(self.start_cell)}"
@@ -135,7 +157,7 @@ class Palantir:
 
         if self.verbose:
             logger.info("Pseudotime computation")
-        self._pseudotime, self._W = compute_pseudotime(
+        self._pseudotime, self._W = _compute_pseudotime(
             X,
             self.start_cell,
             self._waypoints,
@@ -145,7 +167,7 @@ class Palantir:
 
         if self.verbose:
             logger.info("Entropy and branch probabilities")
-        _branch_probs = differentiation_prob(
+        _branch_probs = _differentiation_prob(
             X,
             self._waypoints,
             self._pseudotime,
@@ -166,16 +188,27 @@ class Palantir:
 
         return self
 
-    def annotate_data(self, adata):
-        """
-        Annotate anndata.AnnData class with Palantir class instances.
+    def annotate_data(self, adata: ad.AnnData) -> ad.AnnData:
+        """Annotate anndata.AnnData class with Palantir class instances.
 
-        :param adata:
-        :return:
+        Parameters
+        ----------
+        adata : anndata.AnnData
+            Multidimensional morphological data
+
+        Returns
+        -------
+        anndata.AnnData
+            Annotated AnnData object with palantir results as additional observation
+
+        Raises
+        ------
+        AssertionError
+            If `adata` is not of type anndata.AnnData
         """
-        assert isinstance(adata, ad.AnnData), (
-            f"adata must be of type anndata.AnnData, " f"instead got {type(adata)}"
-        )
+        assert isinstance(
+            adata, ad.AnnData
+        ), f"adata must be of type anndata.AnnData, instead got {type(adata)}"
 
         adata.obs["pseudotime"] = self.pseudotime
         adata.obs["branch"] = self.branch_label
@@ -194,14 +227,34 @@ class Palantir:
 
         return adata
 
-    def branch_dist(self, X, treat_var="Metadata_Treatment", cutoff=0.7):
-        """
-        Convenience function to get distribution of labels per branch.
+    def branch_dist(
+        self,
+        X: Union[np.ndarray, ad.AnnData],
+        treat_var: str = "Metadata_Treatment",
+        cutoff: float = 0.7,
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """Convenience function to get distribution of labels per branch.
 
-        :param X:
-        :param treat_var:
-        :param cutoff:
-        :return:
+        Parameters
+        ----------
+        X : numpy.ndarray or anndata.AnnData
+            A feature vector as array or an AnnData object.
+            The latter need an additional `treat_var`.
+        treat_var : str
+            Variable in `.obs` for which branch distribution should be calculated
+        cutoff : float
+            Only calculate branch distributions for cells with a branch probability
+            above this cutoff value
+
+        Returns
+        -------
+        tuple of pandas.DataFrame
+            Count and distribution matrix
+
+        Raises
+        ------
+        AssertionError
+            If `treat_var` is not in `.obs`
         """
 
         if isinstance(X, ad.AnnData):
@@ -236,14 +289,34 @@ class Palantir:
 
         return count_matrix, dist_matrix
 
-    def compute_trends(self, X, feats, branches=None):
-        """
-        For every given feature and branch fit a Generalized Additive Model to show feature trends.
+    def compute_trends(
+        self,
+        X: Union[np.ndarray, ad.AnnData],
+        feats: Union[Tuple[str], List[str], str],
+        branches: Optional[list] = None,
+    ) -> OrderedDict:
+        """For every given feature and branch this method fits
+        a Generalized Additive Model to show feature trends.
 
-        :param X:
-        :param feats:
-        :param branches:
-        :return:
+        Parameters
+        ----------
+        X : numpy.ndarray or anndata.AnnData
+            Feature vectors as array of an AnnData object.
+            The latter requires feature names (`feats`) that should be used.
+        feats : str or list of str or tuple of str
+            Features in `.var_names` to compute trends for
+        branches : list, optional
+            List of branches to compute trends for
+
+        Returns
+        -------
+        collections.OrderedDict
+            Trends for each branch
+
+        Raises
+        ------
+        AssertionError
+            If `feats` are not in `.var_names`
         """
         # check given variables
         if isinstance(feats, str):
@@ -293,13 +366,9 @@ class Palantir:
         return results
 
 
-def waypoint_sampling(X, n_waypoints=100):
+def _waypoint_sampling(X, n_waypoints=100):
     """
     Min-max sampling of waypoints in a two dimensional embedding.
-
-    :param X:
-    :param n_waypoints:
-    :return:
     """
     # store waypoints and initiate distances
     wps = []
@@ -330,32 +399,20 @@ def waypoint_sampling(X, n_waypoints=100):
     return wps
 
 
-def find_start_cell(X):
+def _find_start_cell(X):
     """
     Return cell closest to origin
-
-    :param X:
-    :return:
     """
     dist_from_orig = np.sqrt(np.sum(X ** 2, axis=1))
     return int(np.argmin(dist_from_orig))
 
 
-def compute_pseudotime(
+def _compute_pseudotime(
     X, start_cell, wps, n_neighbors=10, n_jobs=None, max_iter=25, verbose=False
 ):
     """
     Pseudotime computation for cells embedded in X.
     Pseudotime increases with distance from start_cell.
-
-    :param X:
-    :param start_cell:
-    :param wps:
-    :param n_neighbors:
-    :param n_jobs:
-    :param max_iter:
-    :param verbose:
-    :return:
     """
     # k nearest neighbors to connect cells
     nbrs = NearestNeighbors(
@@ -365,11 +422,11 @@ def compute_pseudotime(
     adj = nbrs.kneighbors_graph(X, mode="distance")
 
     # connect graph where disconnected
-    adj = connect_graph(adj, X, start_cell)
+    adj = _connect_graph(adj, X, start_cell)
 
     # compute waypoint distances to all other cells
     D = Parallel(n_jobs=n_jobs, max_nbytes=None)(
-        delayed(shortest_path_helper)(adj, cell) for cell in wps
+        delayed(_shortest_path_helper)(adj, cell) for cell in wps
     )
     D = np.stack(D)
 
@@ -419,15 +476,10 @@ def compute_pseudotime(
     return pseudotime, W
 
 
-def connect_graph(adj, X, start_cell):
+def _connect_graph(adj, X, start_cell):
     """
     Reconnect a partially disconnected graph by finding disconnected nodes and
     attaching them to furthest disconnected nodes.
-
-    :param adj:
-    :param X:
-    :param start_cell:
-    :return:
     """
 
     # adjacency matrix to graph
@@ -471,30 +523,22 @@ def connect_graph(adj, X, start_cell):
     return adj
 
 
-def shortest_path_helper(adj, cell):
+def _shortest_path_helper(adj, cell):
     return csgraph.dijkstra(adj, False, cell)
 
 
-def differentiation_prob(
+def _differentiation_prob(
     X, wps, pseudotime, terminal_states=None, n_neighbors=10, n_jobs=None
 ):
     """
     Differentiation probability for cells of reaching a certain terminal cell state.
     Probability is defined to be the stationary distribution in a markov process.
-
-    :param X:
-    :param wps:
-    :param pseudotime:
-    :param terminal_states:
-    :param n_neighbors:
-    :param n_jobs:
-    :return:
     """
-    T = construct_markov_chain(X, wps, pseudotime, n_neighbors, n_jobs)
+    T = _construct_markov_chain(X, wps, pseudotime, n_neighbors, n_jobs)
 
     # find terminal states
     if terminal_states is None:
-        terminal_states = terminal_states_from_markov_chain(X, wps, T, pseudotime)
+        terminal_states = _terminal_states_from_markov_chain(X, wps, T, pseudotime)
 
     wps = np.array(wps)
     abs_states = np.where(np.isin(wps, terminal_states))[0]
@@ -529,15 +573,9 @@ def differentiation_prob(
     return branch_probs.loc[wps, :]
 
 
-def terminal_states_from_markov_chain(X, wps, T, pseudotime):
+def _terminal_states_from_markov_chain(X, wps, T, pseudotime):
     """
     Choosing terminal states from the boundaries of the embedding.
-
-    :param X:
-    :param wps:
-    :param T:
-    :param pseudotime:
-    :return:
     """
     # boundaries of embedding
     ix_max = set(np.argmax(X[wps, :], axis=0))
@@ -578,16 +616,9 @@ def terminal_states_from_markov_chain(X, wps, T, pseudotime):
     return terminal_states
 
 
-def construct_markov_chain(X, wps, pseudotime, n_neighbors=10, n_jobs=None):
+def _construct_markov_chain(X, wps, pseudotime, n_neighbors=10, n_jobs=None):
     """
     Construction of a markov chain with cell states and their transition probabilities.
-
-    :param X:
-    :param wps:
-    :param pseudotime:
-    :param n_neighbors:
-    :param n_jobs:
-    :return:
     """
     # build knn graph
     nbrs = NearestNeighbors(

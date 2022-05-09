@@ -1,10 +1,12 @@
 # import internal libraries
 import math
 import os
+from typing import Optional, Union, Tuple
 
 # import external libraries
 import numpy as np
 import pandas as pd
+import anndata as ad
 import matplotlib.pyplot as plt
 import seaborn as sns
 import networkx as nx
@@ -12,35 +14,73 @@ from sklearn.decomposition import PCA
 
 
 def show_trace(
-    adata,
-    fields,
-    dim="2d",
-    time_var="Metadata_Time",
-    time_unit="h",
-    trace_var="Metadata_Trace_Parent",
-    x_loc="Cells_Location_Center_X",
-    y_loc="Cells_Location_Center_Y",
-    size=None,
-    color=None,
-    save=None,
+    adata: ad.AnnData,
+    fields: dict,
+    dim: str = "2d",
+    time_var: str = "Metadata_Time",
+    time_unit: str = "h",
+    trace_var: str = "Metadata_Trace_Parent",
+    x_loc: str = "Cells_Location_Center_X",
+    y_loc: str = "Cells_Location_Center_Y",
+    size: Optional[str] = None,
+    color: Optional[str] = None,
+    save: Optional[str] = None,
     **kwargs,
-):
+) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
     """Visualizes the trace of all objects in a specified field of view.
 
-    Args:
-        adata (anndata.AnnData): Morphological data from cells with different time stamps.
-        fields (defaultdict(list)): Variables and annotations that define field to visualize.
-        dim (str): Plot traces in 2 or 3 dimensions.
-        time_var (str): Variable name for time point in annotations.
-        time_unit (str): Unit to use for time.
-            Only used for axis annotation for plotting.
-        trace_var (str): Variable name used to store index of parent cell.
-        x_loc (str): Identifier for x location in annotations.
-        y_loc (str): Identifier for y location in annotations.
-        size (str): Variable to use for size of edges in 2d representation of traces.
-        color (str): Variable to use for color of edges in 2d representation of traces.
-        save (str): If path is given, store figures.
-        **kwargs (dict): Keyword arguments passed to matplotlib.pyplot.plot
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Morphological time-series data
+    fields : dict
+        Variables and annotations that define field to visualize.
+        For example `{'batch': [0, 1], 'field': [4, 5]}`
+    dim : str
+        Plot traces in `2d` or `3d`
+    time_var : str
+        Variable name for time point in annotations
+    time_unit : str
+        Unit to use for time.
+        Only used for axis annotation for plotting.
+    trace_var : str
+        Variable name used to store index of parent cell
+    x_loc : str
+        Identifier for x location in annotations
+    y_loc : str
+        Identifier for y location in annotations
+    size : str, optional
+        Variable to use for size of edges in 2d representation of traces
+    color : str, optional
+        Variable to use for color of edges in 2d representation of traces
+    save : str, optional
+        If path is given, store figures
+    **kwargs
+        Keyword arguments passed to `matplotlib.pyplot.plot`
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure, matplotlib.pyplot.Axes
+        Figure and Axes
+
+    Raises
+    ------
+    KeyError
+        If variables in `fields` are not in `.obs`
+    TypeError
+        If values of `fields` are not of type list
+    ValueError
+        If values of `fields` are of different lenghts
+    OSError
+        If figure can not be saved at specified path
+    AssertionError
+        If `x_loc` or `y_loc` are not in `.obs`
+    AssertionError
+        If `dim` is neither `2d` nor `3d`
+    KeyError
+        If `size` is not in `.obs` or `.var_names`
+    OSError
+        If figure can not be saved at specified path
     """
     # check that variables of fields are in morphome
     if not all(var in adata.obs.columns for var in fields.keys()):
@@ -49,10 +89,10 @@ def show_trace(
         )
     # check that values of fields are lists
     if not all(type(val) == list for val in fields.values()):
-        raise TypeError(f"Values of show are not lists: {type(fields.values()[0])}")
+        raise TypeError(f"Values of fields are not lists: {type(fields.values()[0])}")
     # check that values of fields have same length:
     if any(len(val) != len(list(fields.values())[0]) for val in fields.values()):
-        raise ValueError("Values in show have different length.")
+        raise ValueError("Values in fields have different length.")
 
     assert x_loc in adata.obs.columns, f"x_loc not in annotations: {x_loc}"
     assert y_loc in adata.obs.columns, f"y_loc not in annotations: {y_loc}"
@@ -67,6 +107,7 @@ def show_trace(
     # iterate over fields to show
     field_ids_lst = list(zip(*fields.values()))
     field_vars_lst = [tuple(fields.keys())] * len(field_ids_lst)
+    fig, ax = None, None
 
     for field_vars, field_ids in list(zip(field_vars_lst, field_ids_lst)):
         # create filter to select requested field
@@ -81,7 +122,7 @@ def show_trace(
         adata_field = adata[adata.obs.query(query_term).index, :].copy()
 
         # create graph from annotations
-        G, pos = create_graph(adata_field, dim, trace_var, x_loc, y_loc, time_var)
+        G, pos = _create_graph(adata_field, dim, trace_var, x_loc, y_loc, time_var)
 
         # Extract node and edge positions from the layout
         node_xyz = np.array([pos[v] for v in sorted(G)])
@@ -94,7 +135,7 @@ def show_trace(
             elif size in adata.obs.columns:
                 s = adata_field.obs[size].to_numpy.flatten()
             else:
-                raise ValueError(f"Size value not found: {size}.")
+                raise KeyError(f"Size value not found: {size}.")
 
             s = (s - np.min(s)) / (np.max(s) - np.min(s))
             s = s * 20
@@ -185,30 +226,38 @@ def show_trace(
                 raise OSError(f"Path does not exist: {save}")
             fig.savefig(save, dpi=fig.dpi)
 
-    return None
+    return fig, ax
 
 
-def create_graph(
-    adata,
-    dim="2d",
-    trace_var="Metadata_Trace_Parent",
-    x_loc="Cells_Location_Center_X",
-    y_loc="Cells_Location_Center_X",
-    time_var="Metadata_Time",
-):
+def _create_graph(
+    adata: ad.AnnData,
+    dim: str = "2d",
+    trace_var: str = "Metadata_Trace_Parent",
+    x_loc: str = "Cells_Location_Center_X",
+    y_loc: str = "Cells_Location_Center_X",
+    time_var: str = "Metadata_Time",
+) -> tuple:
     """Creates directed graph with connection from parent cells to their children.
 
-    Args:
-        adata (anndata.AnnData): Multidimensional morphological data.
-        dim (str): Plot traces in 2 or 3 dimensions.
-            '2d' or '3d'
-        trace_var (str): Variable name used to store a index o parent cell.
-        x_loc (str): Variable name used to store x locations.
-        y_loc (str): Variable name used to store y locations.
-        time_var (str): Column names in .obs indicating time point.
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    dim : str
+        Plot traces in 2 or 3 dimensions: `2d` or `3d`
+    trace_var : str
+        Variable name used to store a index o parent cell
+    x_loc : str
+        Variable name used to store x locations
+    y_loc : str
+        Variable name used to store y locations
+    time_var : str
+        Column names in `.obs` indicating time point
 
-    Returns:
-        tuple: networkx directed Graph and positions
+    Returns
+    -------
+    tuple
+        networkx directed Graph and positions
     """
     # check variables
     assert trace_var in adata.obs.columns, f"trace_var not in .obs: {trace_var}"
