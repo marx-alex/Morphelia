@@ -3,8 +3,14 @@ from torch import nn
 
 
 class MeanClassifier(nn.Module):
-    """
-    Mean Classification
+    """Mean classification module.
+
+    Parameters
+    ----------
+    input_dim : int
+        Input dimension
+    n_classes : int
+        Number of classes
     """
 
     def __init__(
@@ -20,10 +26,18 @@ class MeanClassifier(nn.Module):
             nn.LayerNorm(input_dim), nn.Linear(input_dim, n_classes)
         )  # [B,F] -> [B, n_classes]
 
-    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
-        """
-        Args:
-            x : B x N x F
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Passes tensor through module.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Tensor of shape `[batch size, sequence length, features]`
+
+        Returns
+        -------
+        torch.Tensor
+            Tensor of shape `[batch size, number of classes]`
         """
 
         x = self.feature_norm(x).mean(dim=1)
@@ -32,8 +46,14 @@ class MeanClassifier(nn.Module):
 
 
 class MedianClassifier(nn.Module):
-    """
-    Median Classification
+    """Median classification module.
+
+    Parameters
+    ----------
+    input_dim : int
+        Input dimension
+    n_classes : int
+        Number of classes
     """
 
     def __init__(
@@ -49,10 +69,18 @@ class MedianClassifier(nn.Module):
             nn.LayerNorm(input_dim), nn.Linear(input_dim, n_classes)
         )  # [B,F] -> [B, n_classes]
 
-    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
-        """
-        Args:
-            x : B x N x F
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Passes tensor through module.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Tensor of shape `[batch size, sequence length, features]`
+
+        Returns
+        -------
+        torch.Tensor
+            Tensor of shape `[batch size, number of classes]`
         """
 
         x = x.median(dim=1)[0]
@@ -61,8 +89,14 @@ class MedianClassifier(nn.Module):
 
 
 class MajorityClassifier(nn.Module):
-    """
-    Majority Vote
+    """Classification by majority vote.
+
+    Parameters
+    ----------
+    input_dim : int
+        Input dimension
+    n_classes : int
+        Number of classes
     """
 
     def __init__(
@@ -78,10 +112,18 @@ class MajorityClassifier(nn.Module):
             nn.LayerNorm(input_dim), nn.Linear(input_dim, n_classes)
         )  # [B,F] -> [B, n_classes]
 
-    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
-        """
-        Args:
-            x: B x N x F
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Passes tensor through module.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Tensor of shape `[batch size, sequence length, features]`
+
+        Returns
+        -------
+        torch.Tensor
+            Tensor of shape `[batch size, number of classes]`
         """
         B, N, F = x.size()
 

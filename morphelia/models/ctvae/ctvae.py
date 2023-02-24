@@ -18,7 +18,53 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
 class cTVAE(BaseModel):
-    """Morphelia class for the conditional Transformer Variational Autoencoder."""
+    """Morphelia class for the conditional Transformer Variational Autoencoder.
+
+    This is a convenience class for model initialization,
+    data loading, training and predicting morphological data.
+    The cTVAE model models image-based profiles from
+    single cells as sequences. A sequence contains samples
+    from same conditions (i.g. treatment groups).
+    The model contains two main parts: An encoder for
+    dimensionality reduction and a transformer for sequential encoding.
+
+    Parameters
+    ----------
+    data : pytorch_lightning.LightningDataModule
+        This data module should have a train, validation and
+        test loader that yield batches of sequential data
+    encoder_layer_dims : sequence of int, optional
+        Dimensions of hidden layers. The length of
+        the sequences it equal to the number of hidden layers.
+    latent_dim : int
+        Dimensions of the latent space
+    encoder_dropout : float
+        Dropout rate for the encoder part
+    nhead : int
+        Number of heads for the Transformer classifier
+    dim_feedforward : int, optional
+        Number of dimensions for the feed-forward layer of the
+        transformer classifier. The default dimensions is
+        2 * input dimensions.
+    transformer_dropout : float
+        Dropout rate for the Transformer
+    pos_dropout : float
+        Dropout rate for the positional encoding
+    transformer_norm : str
+        Normalization method for the Transformer classifier.
+        Either batch normalization (`batch`) or layer
+        normalization (`layer`).
+    pos_encoding : str
+        Kind of the positional encoding for the Transformer classifier.
+        Either `learnable` of `fixed`.
+    n_transformer_layers : int
+        Number of layers for the Transformer classifier
+    learning_rate : float
+        Learning rate during training
+    optimizer : str
+        Optimizer for the training process.
+        Can be `Adam` or `AdamW`.
+    """
 
     def __init__(
         self,
@@ -35,7 +81,7 @@ class cTVAE(BaseModel):
         n_transformer_layers: int = 1,
         learning_rate: float = 1e-4,
         optimizer: str = "Adam",
-    ):
+    ) -> None:
         self.n_conditions = data.n_conditions
         self.in_features = data.n_features
         self.seq_len = data.seq_len
@@ -137,7 +183,24 @@ class cTVAE(BaseModel):
         wandb_log: bool = True,
         wandb_kwargs: Optional[dict] = None,
         **kwargs,
-    ):
+    ) -> None:
+        """Training method.
+
+        Parameters
+        ----------
+        mask : bool
+            Geometrical masks to hide parts of the sequential data to the model
+        masking_len : int
+            Mean length of masks
+        masking_ratio : float
+            Absolute fraction of masked values
+        wandb_log : bool
+            Log training to Weights and Biases
+        wandb_kwargs : dict, optional
+            Keyword arguments for the logger
+        **kwargs
+            Keyword arguments passed to pytorch_lightning.Trainer
+        """
         # update model parameters
         self.model.mask = mask
         self.model.masking_len = masking_len
@@ -163,13 +226,54 @@ class cTVAE(BaseModel):
             logger.experiment.finish()
 
     def load_from_checkpoints(self, ckpt: str) -> None:
+        """Load model from checkpoints.
+
+        Parameters
+        ----------
+        ckpt : str
+            Path to checkpoint file
+        """
         self.model = self.model.load_from_checkpoint(ckpt)
 
-    def get_latent(
-        self,
-    ) -> Union[ad.AnnData, dict]:
-        loader = self.data.test_dataloader()
-        adata = self.data.test
+    def get_latent(self, loader: str = "test") -> Union[ad.AnnData, dict]:
+        """Load latent representation.
+
+        Latent features and predictions can be loaded
+        from the train, validation or test loader.
+        The latent embedding is returned as new embedding in
+        the AnnData object if DataModule as an AnnData object stored.
+        Otherwise a dictionary is returned.
+
+        Parameters
+        ----------
+        loader : str
+            Load latent representation of `train`,
+            `valid` or `test` loader
+
+        Returns
+        -------
+        anndata.AnnData or dict
+            AnnData object with embedded features and predictions (in `.obs`)
+            if an AnnData object is stored in the DataModule
+
+        Raises
+        -------
+        NotImplementedError
+            If loader in neither `train`, `valid` nor `test`
+        """
+        if loader == "test":
+            loader = self.data.test_dataloader()
+            adata = self.data.test
+        elif loader == "valid":
+            loader = self.data.val_dataloader()
+            adata = self.data.valid
+        elif loader == "train":
+            loader = self.data.train_dataloader()
+            adata = self.data.train
+        else:
+            raise NotImplementedError(
+                f"loader must be 'test', 'train' or 'valid', instead got {loader}"
+            )
         features = []
         pred = []
         classes = []
@@ -194,12 +298,13 @@ class cTVAE(BaseModel):
                 )
 
                 pred.append(
-                    np.tile(
+                    np.repeat(
                         self.model.forward_pred(x, c=c, padding_mask=padding_mask)
                         .cpu()
                         .detach()
                         .numpy(),
-                        (self.seq_len, 1),
+                        repeats=self.seq_len,
+                        axis=0,
                     )
                 )
                 classes.append(np.tile(batch["target"].numpy(), self.seq_len))

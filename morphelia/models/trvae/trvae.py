@@ -20,8 +20,36 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 class trVAE(BaseModel):
     """Morphelia class for the trVAE model.
 
-    References:
-        Lotfollahi et al., 2020, Bioinformatics
+    This is a convenience class for model initialization,
+    data loading, training and predicting morphological data.
+    The trVAE model models image-based profiles from
+    single cells using a conditional variaitonal autoencoder.
+
+    Parameters
+    ----------
+    data : pytorch_lightning.LightningDataModule
+        This data module should have a train, validation and
+        test loader that yield batches of sequential data
+    layer_dims : list, optional
+        Dimensions of hidden layers. The length of
+        the sequences it equal to the number of hidden layers.
+    dropout : float
+        Dropout rate
+    batch_norm : bool
+        Include batch normalization after every encoder layer
+    layer_norm : bool
+        Include layer normalization after every encoder layer
+    latent_dim : int
+        Dimensions of the latent space
+    learning_rate : float
+        Learning rate during training
+    optimizer : str
+        Optimizer for the training process.
+        Can be `Adam` or `AdamW`.
+
+    References
+    ----------
+    .. [1] Lotfollahi et al., 2020, Bioinformatics
     """
 
     def __init__(
@@ -121,7 +149,7 @@ class trVAE(BaseModel):
         mse_beta: float = 1.0,
         wandb_log: bool = True,
         wandb_kwargs: Optional[dict] = None,
-        **kwargs
+        **kwargs,
     ):
         # update model parameters
         self.model.kld_beta = kld_beta
@@ -150,11 +178,20 @@ class trVAE(BaseModel):
     def load_from_checkpoints(self, ckpt: str) -> None:
         self.model = self.model.load_from_checkpoint(ckpt)
 
-    def get_latent(
-        self,
-    ) -> Union[ad.AnnData, dict]:
-        loader = self.data.test_dataloader()
-        adata = self.data.test
+    def get_latent(self, loader: str = "test") -> Union[ad.AnnData, dict]:
+        if loader == "test":
+            loader = self.data.test_dataloader()
+            adata = self.data.test
+        elif loader == "valid":
+            loader = self.data.val_dataloader()
+            adata = self.data.valid
+        elif loader == "train":
+            loader = self.data.train_dataloader()
+            adata = self.data.train
+        else:
+            raise NotImplementedError(
+                f"loader must be 'test', 'train' or 'valid', instead got {loader}"
+            )
         features = []
         ids = []
 

@@ -21,7 +21,7 @@ def select_by_group(
     var : str
         Variable in .obs to use for selection
     by : str
-        Variable in .obs to use group grouping
+        Variable in .obs to use for grouping
     method: str
         `median`: Selects the median group
         `max`: Selects the maximum group

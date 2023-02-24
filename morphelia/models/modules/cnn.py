@@ -1,4 +1,4 @@
-from typing import Union, Optional, Tuple
+from typing import Union, Optional, Tuple, List
 
 import torch
 from torch import nn
@@ -9,7 +9,29 @@ from ._utils import add_condition, MultOutSequential, PosArgSequential
 
 
 class ConvBlock(nn.Module):
-    """Conditional convolutional Block with optional average pooling."""
+    """Conditional convolutional block with optional average pooling.
+
+    Parameters
+    ----------
+    in_channels : int
+        Number of input channels
+    out_channels : int
+        Number of output channels
+    kernel_size : int
+        Size of convolutional kernel
+    n_conditions : int
+        Number of conditions
+    padding : int
+        Padding length
+    norm : bool
+        Batch normalization before activation
+    pool : bool
+        Pooling before return
+    pool_method : str
+        Average (`avg`) or Max (`max`) pooling
+    pooling_kernel_size : int
+        Size of pooling kernel
+    """
 
     def __init__(
         self,
@@ -22,7 +44,7 @@ class ConvBlock(nn.Module):
         pool: bool = True,
         pool_method: str = "avg",
         pooling_kernel_size: int = 2,
-    ):
+    ) -> None:
         super().__init__()
 
         self.n_conditions = n_conditions
@@ -53,11 +75,16 @@ class ConvBlock(nn.Module):
     def forward(
         self, x: torch.Tensor
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        """
-        Args:
-            x: Tensor of shape [batch size, channel dimensions, sequence length].
+        """Pass tensor through module.
 
-        Returns:
+        Parameters
+        ----------
+        x : torch.Tensor
+            Tensor of shape `[batch size, channel dimensions, sequence length]`
+
+        Returns
+        -------
+        torch.Tensor, torch.Tensor
             Returns the output tensor and indices if 'pool_method' is 'max'.
             Otherwise only the output is tensor is returned.
         """
@@ -78,7 +105,29 @@ class ConvBlock(nn.Module):
 
 
 class DeconvBlock(nn.Module):
-    """Conditional deconvolutional Block with optional average pooling."""
+    """Conditional deconvolutional block with optional average pooling.
+
+    Parameters
+    ----------
+    in_channels : int
+        Number of input channels
+    out_channels : int
+        Number of output channels
+    kernel_size : int
+        Size of convolutional kernel
+    n_conditions : int
+        Number of conditions
+    padding : int
+        Padding length
+    norm : bool
+        Batch normalization before activation
+    pool : bool
+        Pooling before return
+    pool_method : str
+        Average (`avg`) or Max (`max`) pooling
+    pooling_kernel_size : int
+        Size of pooling kernel
+    """
 
     def __init__(
         self,
@@ -91,7 +140,7 @@ class DeconvBlock(nn.Module):
         pool: bool = True,
         pool_method: str = "avg",
         pooling_kernel_size: int = 2,
-    ):
+    ) -> None:
         super().__init__()
 
         self.n_conditions = n_conditions
@@ -126,11 +175,18 @@ class DeconvBlock(nn.Module):
         self.pool_method = pool_method
 
     def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
-        """
-        Args:
-            x: Tensor of shape [batch size, channel dimensions, sequence length].
-            kwargs: Passed to the pooling layer. Could be indices if 'pooling_method'
-                is 'max'.
+        """Pass tensor through module.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Tensor of shape `[batch size, channel dimensions, sequence length]`.
+        **kwargs
+            Passed to the pooling layer. Could be indices if `pooling_method` is `max`.
+
+        Returns
+        -------
+        torch.Tensor
         """
         if self.n_conditions == 0:
             if self.pool:
@@ -153,14 +209,41 @@ class DeconvBlock(nn.Module):
 
 
 class ConvEncoder(nn.Module):
-    """
-    Sequentially added convolutional layers for Encoding.
+    """Convolutional Encoder.
+
+    Sequentially added convolutional layers for encoding.
     The first layer is an optional conditional layer and adds conditions to the model.
+
+    Parameters
+    ----------
+    channel_dims : list of int
+        Dimensions of hidden layers
+    latent_dim : int
+        Number of latent dimensions
+    seq_len : int
+        Sequence length
+    kernel_size : int or list
+        Size of convolutional kernel. Either the same for all layers (int)
+        or different for every layer (list with length equal to hidden layers).
+    pool_method : str
+        Average (`avg`) or Max (`max`) pooling
+    pooling_kernel_size : int or list
+        Size of pooling kernel. Either the same for all layers (int)
+        or different for every layer (list with length equal to hidden layers).
+    n_conditions : int
+        Number of conditions
+    final_pool : bool
+        Final pooling and reduction to `sequence length = 1`
+
+    Raises
+    ------
+    AssertionError
+        If `kernel_size` or `pooling_kernel_size` is of type list but does not have the same length as `channel_dims`
     """
 
     def __init__(
         self,
-        channel_dims: list,
+        channel_dims: List[int],
         latent_dim: int,
         seq_len: int,
         kernel_size: Union[int, list],
@@ -169,7 +252,7 @@ class ConvEncoder(nn.Module):
         n_conditions: int = 0,
         final_pool: bool = False,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__()
 
         self.permute = PermuteAxis([0, 2, 1])
@@ -252,11 +335,20 @@ class ConvEncoder(nn.Module):
         c: Optional[torch.Tensor] = None,
         return_indices: bool = False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        """
-        Args:
-            x: Tensor of shape [batch size, sequence length, feature size]
-            c: Tensor of shape [batch size,]
-            return_indices: Return indices if pooling method is 'max'.
+        """Pass tensor through module.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Tensor of shape `[batch size, sequence length, feature size]`
+        c : torch.Tensor
+            Tensor of shape `[batch size,]`
+        return_indices : bool
+            Return indices if pooling method is `max`
+
+        Returns
+        -------
+        torch.Tensor
         """
         # concatenate x and condition
         if c is not None:
@@ -276,8 +368,16 @@ class ConvEncoder(nn.Module):
 
 
 class ConvVAEEncoder(ConvEncoder):
-    """
-    1d-Convolutional Neural Network as Variational Autoencoder.
+    """Variational Autoencoder with a 1d-Convolutional Neural Network.
+
+    Parameters
+    ----------
+    channel_dims : list of int
+        Dimensions of hidden layers
+    latent_dim : int
+        Number of latent dimensions
+    **kwargs
+        Keyword arguments are passed to morphelia.dl.modules.ConvEncoder
     """
 
     def __init__(self, channel_dims: list, latent_dim: int, **kwargs):
@@ -296,12 +396,18 @@ class ConvVAEEncoder(ConvEncoder):
         Tuple[torch.Tensor, torch.Tensor],
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
     ]:
-        """
-        Args:
-            x: Tensor of shape [batch size, sequence length, feature size]
-            c: Tensor of shape [batch size,]
-            return_statistic: Return means ond log-variances together with z.
-            return_indices: Return indices if pooling method is 'max'.
+        """Pass tensor through module.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Tensor of shape `[batch size, sequence length, feature size]`
+        c : torch.Tensor
+            Tensor of shape `[batch size,]`
+        return_statistic : bool
+            Return means ond log-variances together with z
+        return_indices : bool
+            Return indices if pooling method is `max`
         """
         # concatenate x and condition
         if c is not None:
@@ -323,8 +429,14 @@ class ConvVAEEncoder(ConvEncoder):
 
 
 class CNNClassifier(ConvEncoder):
-    """
-    CNN Classifier wit convolutional encodings.
+    """CNN Classifier wit convolutional encodings.
+
+    Parameters
+    ----------
+    n_classes : int
+        Number of classes
+    channel_dims : list
+        Dimensions of hidden layers
     """
 
     def __init__(self, n_classes: int, channel_dims: list, **kwargs):
@@ -339,14 +451,20 @@ class CNNClassifier(ConvEncoder):
         c: Optional[torch.Tensor] = None,
         return_indices: bool = False,
     ) -> Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
-        """
-        Args:
-            x: Tensor of shape [batch size, sequence length, feature size]
-            c: Tensor of shape [batch size,]
-            return_indices: Return indices if pooling method is 'max'.
+        """Pass tensor through module.
 
-        Returns:
-            Logits
+        Parameters
+        ----------
+        x : torch.Tensor
+            Tensor of shape `[batch size, sequence length, feature size]`
+        c : torch.Tensor Tensor of shape `[batch size,]`
+        return_indices : bool
+            Return indices if pooling method is `max`
+
+        Returns
+        -------
+        torch.Tensor, torch.Tensor
+            Logits and indices if return_indices is True
         """
         # concatenate x and condition
         if c is not None:
@@ -371,9 +489,34 @@ class CNNClassifier(ConvEncoder):
 
 
 class DeconvDecoder(nn.Module):
-    """
+    """Deconvolutional Decoder.
+
     Sequentially added deconvolution layers to reconstruct sequantial data.
-    The first layer is an optional conditional layer and add conditions to the model.
+    The first layer is an optional conditional layer and adds conditions to the model.
+
+    Parameters
+    ----------
+    channel_dims : list of int
+        Dimensions of hidden layers
+    latent_dim : int
+        Number of latent dimensions
+    kernel_size : int or list
+        Size of convolutional kernel. Either the same for all layers (int)
+        or different for every layer (list with length equal to hidden layers).
+    pool_method : str
+        Average (`avg`) or Max (`max`) pooling
+    pooling_kernel_size : int or list
+        Size of pooling kernel. Either the same for all layers (int)
+        or different for every layer (list with length equal to hidden layers).
+    n_conditions : int
+        Number of conditions
+    **kwargs
+        Keyword arguments passed to morphelia.dl.modules.DeconvBlock
+
+    Raises
+    ------
+    AssertionError
+        If `kernel_size` or `pooling_kernel_size` is of type list but does not have the same length as `channel_dims`
     """
 
     def __init__(
@@ -459,14 +602,23 @@ class DeconvDecoder(nn.Module):
     def forward(
         self, x: torch.Tensor, c: Optional[torch.Tensor] = None, **kwargs
     ) -> torch.Tensor:
-        """
-        Args:
-            x: Tensor of shape [batch size, sequence length, feature size]
-            c: Tensor of shape [batch size,]
-            kwargs: Passed to the pooling layer.
-                Could be indices if 'pooling_method' is 'max'.
-                In this case, kwargs should hold the keyword 'indices' with a list
-                containing indices for every layer of the model.
+        """Pass tensor through module.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Tensor of shape `[batch size, sequence length, feature size]`
+        c : torch.Tensor
+            Tensor of shape `[batch size,]`
+        **kwargs
+            Passed to the pooling layer.
+            Could be indices if `pooling_method' is 'max`.
+            In this case, kwargs should hold the keyword 'indices' with a list
+            containing indices for every layer of the model.
+
+        Returns
+        -------
+        torch.Tensor
         """
         # concatenate x and condition
         if c is not None:

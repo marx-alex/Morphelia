@@ -63,25 +63,24 @@ def plot_density(
     fg_size, bg_size = size, size / 2
 
     cats = list(np.sort(adata.obs[by].unique()))
+    if len(cats) < n_cols:
+        n_cols = len(cats)
     n_rows = int(np.ceil(len(cats) / n_cols))
 
     fig, axs = plt.subplots(n_rows, n_cols, figsize=(2 * n_cols, 2 * n_rows))
 
-    for i, cat in enumerate(cats):
-        row = int(np.floor(i / n_cols))
-        col = np.remainder(i, n_cols)
-
+    for i, (cat, ax) in enumerate(zip(cats, axs.reshape(-1))):
         cat_data = adata[adata.obs[by] == cat, :]
         na_data = adata[adata.obs[by] != cat, :]
         # plot background
-        axs[row, col].scatter(
+        ax.scatter(
             na_data.obsm[rep][:, 0],
             na_data.obsm[rep][:, 1],
             color="lightgrey",
             s=bg_size,
         )
         # plot foreground
-        axs[row, col].scatter(
+        ax.scatter(
             cat_data.obsm[rep][:, 0],
             cat_data.obsm[rep][:, 1],
             c=cat_data.obs[dens_key],
@@ -90,9 +89,9 @@ def plot_density(
             **kwargs,
         )
 
-        axs[row, col].set_title(cat)
-        axs[row, col].set_yticks([])
-        axs[row, col].set_xticks([])
+        ax.set_title(cat)
+        ax.set_yticks([])
+        ax.set_xticks([])
 
     # save
     if save:

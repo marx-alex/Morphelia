@@ -6,28 +6,34 @@ import torchmetrics
 import pytorch_lightning as pl
 
 from morphelia.models.modules._utils import add_condition
-from morphelia.models.modules.vae import CondLayer
+from ..modules import Encoder
 
 
 class MultiClassRegression(nn.Module):
     def __init__(
-        self, in_features: int, n_classes: int = 0, latent_dim: int = 64
+        self,
+        in_features: int,
+        n_classes: int = 0,
+        layer_dims: list = None,
+        latent_dim: int = 16,
     ) -> None:
         super().__init__()
 
         self.in_features = in_features
         self.latent_dim = latent_dim
+        if layer_dims is None:
+            layer_dims = [64, 32]
+        layer_dims = [self.in_features] + layer_dims
+        self.layer_dims = layer_dims
         self.n_classes = n_classes
 
-        self.class_layer = nn.Sequential(
-            CondLayer(
-                in_features=in_features,
-                out_features=latent_dim,
-                n_conditions=self.n_classes,
-                bias=True,
-            ),
-            nn.ReLU(),
+        self.encoder = Encoder(
+            layer_dims=self.layer_dims,
+            latent_dim=self.latent_dim,
+            sequential=False,
+            n_conditions=self.n_classes,
         )
+
         self.regression = nn.Linear(latent_dim, 1)
 
     def forward(
@@ -42,14 +48,14 @@ class MultiClassRegression(nn.Module):
         if c is not None:
             x = add_condition(x, c, self.n_classes)
 
-        x = self.class_layer(x)
+        x = self.encoder(x)
 
         return self.regression(x)
 
 
 class TSEMModule(pl.LightningModule):
     """
-    Time series evolutional model.
+    Time series evolutionary model.
     """
 
     def __init__(
@@ -64,7 +70,7 @@ class TSEMModule(pl.LightningModule):
     ):
         super().__init__()
 
-        self.save_hyperparameters("learning_rate", "optimizer")
+        self.save_hyperparameters()
 
         self.encoder = encoder
         self.n_classes = n_classes
@@ -134,9 +140,13 @@ class TSEMModule(pl.LightningModule):
 
     def configure_optimizers(self):
         if self.hparams.optimizer == "Adam":
-            opt = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+            opt = torch.optim.Adam(
+                self.parameters(), lr=self.hparams.learning_rate, weight_decay=1e-5
+            )
         elif self.hparams.optimizer == "AdamW":
-            opt = torch.optim.AdamW(self.parameters(), lr=self.hparams.learning_rate)
+            opt = torch.optim.AdamW(
+                self.parameters(), lr=self.hparams.learning_rate, weight_decay=1e-5
+            )
         else:
             assert False, f"{self.hparams.optimizer=} is not Adam or AdamW"
 

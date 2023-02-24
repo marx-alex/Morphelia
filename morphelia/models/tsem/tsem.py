@@ -18,7 +18,7 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
 class tsEM(BaseModel):
-    """Morphelia class for the time series evolutional model."""
+    """Morphelia class for the time series evolutionary model."""
 
     def __init__(
         self,
@@ -142,11 +142,20 @@ class tsEM(BaseModel):
     def load_from_checkpoints(self, ckpt: str) -> None:
         self.model = self.model.load_from_checkpoint(ckpt)
 
-    def get_latent(
-        self,
-    ) -> Union[ad.AnnData, dict]:
-        loader = self.data.test_dataloader()
-        adata = self.data.test
+    def get_latent(self, loader: str = "test") -> Union[ad.AnnData, dict]:
+        if loader == "test":
+            loader = self.data.test_dataloader()
+            adata = self.data.test
+        elif loader == "valid":
+            loader = self.data.val_dataloader()
+            adata = self.data.valid
+        elif loader == "train":
+            loader = self.data.train_dataloader()
+            adata = self.data.train
+        else:
+            raise NotImplementedError(
+                f"loader must be 'test', 'train' or 'valid', instead got {loader}"
+            )
         features = []
         pred = []
         classes = []

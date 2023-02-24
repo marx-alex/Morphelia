@@ -67,8 +67,8 @@ def pca_variance_ratio(
     sns.set_theme()
     fig, ax = plt.subplots()
     ax.plot(pca_ixs, var_ratio, **kwargs)
-    ax.set_ylabel("percentage explained variance")
-    ax.set_xlabel("number of principal components")
+    ax.set_ylabel("Percentage Explained Variance")
+    ax.set_xlabel("Number of Principal Components")
 
     # save
     if save is not None:

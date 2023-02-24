@@ -9,7 +9,7 @@ from .vae import sampling
 from ._utils import MultOutSequential, ArgSequential
 
 
-def get_pos_encoder(pos_encoding: str):
+def _get_pos_encoder(pos_encoding: str):
     pos_encoding = pos_encoding.lower()
     if pos_encoding == "learnable":
         return LearnablePositionalEncoding
@@ -22,14 +22,18 @@ def get_pos_encoder(pos_encoding: str):
 
 # From https://github.com/pytorch/examples/blob/master/word_language_model/model.py
 class FixedPositionalEncoding(nn.Module):
-    """
-    Implements positional encodings from sine and cosine functions of different frequencies.
+    """Implements positional encodings from sine and cosine functions of different frequencies.
 
-    Args:
-        dim: Number of features.
-        dropout: Dropout value.
-        seq_len: Maximum length of the incoming sequence.
-        scale_factor: Scaling factor.
+    Parameters
+    ----------
+    dim : int
+        Number of features
+    dropout : float
+        Dropout value
+    seq_len : int
+        Maximum length of the incoming sequence
+    scale_factor : float
+        Scaling factor
     """
 
     def __init__(
@@ -54,27 +58,33 @@ class FixedPositionalEncoding(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Add positional encoding to input tensor.
+        """Add positional encoding to input tensor.
 
-        Args:
-            x: Tensor of shape [N x S x F], where S is the sequence length,
-                N is the batch size and F is the number of features.
-        Returns:
-            (torch.Tensor): Tensor of same shape as input tensor.
+        Parameters
+        ----------
+        x : torch.Tensor
+            Tensor of shape `[N x S x F]`, where `S` is the sequence length,
+            `N` is the batch size and `F` is the number of features
+        Returns
+        -------
+        torch.Tensor
+            Tensor of same shape as input tensor
         """
         x = x + self.pe
         return self.dropout(x)
 
 
 class LearnablePositionalEncoding(nn.Module):
-    """
-    Implements the learnable positional encoding Module.
+    """Implements the learnable positional encoding Module.
 
-    Args:
-        dim: Number of features.
-        dropout: Dropout value.
-        seq_len: Maximum length of the incoming sequence.
+    Parameters
+    ----------
+    dim : int
+        Number of features
+    dropout : float
+        Dropout value
+    seq_len : int
+        Maximum length of the incoming sequence
     """
 
     def __init__(self, dim: int, seq_len: int, dropout: float = 0.1) -> None:
@@ -85,21 +95,40 @@ class LearnablePositionalEncoding(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Add positional encoding to input tensor.
+        """Add positional encoding to input tensor.
 
-        Args:
-            x: Tensor of shape [N x S x F], where S is the sequence length,
-                N is the batch size and F is the number of features.
-        Returns:
-            (torch.Tensor): Tensor of same shape as input tensor.
+        Parameters
+        ----------
+        x : torch.Tensor
+            Tensor of shape `[N x S x F]`, where `S` is the sequence length,
+            `N` is the batch size and `F` is the number of features
+        Returns
+        -------
+        torch.Tensor
+            Tensor of same shape as input tensor
         """
         x = x + self.pe
         return self.dropout(x)
 
 
 class ResNormBlock(nn.Module):
-    def __init__(self, dim: int, fn, dropout: float = 0.0, norm: str = "layer") -> None:
+    """Transformer block for sequential data.
+
+    Parameters
+    ----------
+    dim : int
+        Number of features
+    fn : pytorch.nn.Module
+        Module to wrap in the block
+    dropout : float
+        Include dropout
+    norm : str
+        `batch_norm` for batch normalization, `layer_norm` for layer normalization
+    """
+
+    def __init__(
+        self, dim: int, fn: torch.nn.Module, dropout: float = 0.0, norm: str = "layer"
+    ) -> None:
         super(ResNormBlock, self).__init__()
 
         norm = norm.lower()
@@ -121,6 +150,19 @@ class ResNormBlock(nn.Module):
     def forward(
         self, x: torch.Tensor, **kwargs
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """Pass tensor through module.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+        **kwargs
+            Keyword arguments are passed to the layer
+
+        Returns
+        -------
+        torch.Tensor, torch.Tensor
+             Output tensor and attention if layer returns a tuple
+        """
         z = self.norm(x)
         z = self.fn(z, **kwargs)
         z = self.dropout(z)
@@ -132,12 +174,24 @@ class ResNormBlock(nn.Module):
 
 
 class Attention(nn.Module):
-    """
-    This class implements an attention module according to
-    https://arxiv.org/pdf/1706.03762.pdf
+    """This class implements an attention module.
+
+    Parameters
+    ----------
+    dim : int
+        Number of features
+    heads : int
+        Number of heads
+    dropout : float
+        Dropout rate
+
+    References
+    ----------
+    .. [1] Attention is all you need. A. Vaswani et al.
+       Advances in Neural Information Processing Systems , page 5998--6008. (2017)
     """
 
-    def __init__(self, dim, heads, dropout=0.0):
+    def __init__(self, dim: int, heads: int, dropout=0.0) -> None:
         super(Attention, self).__init__()
 
         self.linear = nn.Sequential(
@@ -157,6 +211,21 @@ class Attention(nn.Module):
         attn_mask: Optional[torch.Tensor] = None,
         return_attention: bool = False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """Pass tensor through module.
+
+        Parameters
+        ----------
+            x : torch.Tensor
+                Input tensor
+            key_padding_mask : torch.Tensor
+            attn_mask : torch.Tensor
+            return_attention : bool
+
+        Returns
+        -------
+        torch.Tensor, torch.Tensor
+            Output tensor and attention if `return_attention` it True
+        """
         if isinstance(x, tuple):
             q, k, v = x
         else:
@@ -170,9 +239,17 @@ class Attention(nn.Module):
 
 
 class FeedForward(nn.Module):
-    """
-    This class implements the MLP, which is applied after
+    """This class implements the multi-layer perceptron, which is applied after
     the Multi-Head Attention.
+
+    Parameters
+    ----------
+    dim : int
+        Number of features
+    hidden_dim : int
+        Number of hidden features
+    dropout : float
+        Dropout rate
     """
 
     def __init__(self, dim: int, hidden_dim: int, dropout: float = 0.0) -> None:
@@ -187,10 +264,38 @@ class FeedForward(nn.Module):
         )  # [B, S, F] -> [B, S, F]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Pass tensor through module.
+
+        Parameters
+        ----------
+            x : torch.Tensor
+
+        Returns
+        -------
+        torch.Tensor
+        """
         return self.net(x)
 
 
 class TransformerEncoderLayer(nn.Module):
+    """Transformer Encoder Layer.
+
+    Parameters
+    ----------
+    input_dim : int
+        Number of input features
+    dim_feedforward : int
+        Dimensions of the MLP
+    nhead : int
+        attention heads (dim % heads == 0)
+    ff_drop : float
+        Feat forward drop
+    att_drop : float
+        Attention drop
+    norm : str
+        Normalization method. `layer` or `batch` - normalization.
+    """
+
     def __init__(
         self,
         input_dim: int,
@@ -201,17 +306,6 @@ class TransformerEncoderLayer(nn.Module):
         connection_drop: float = 0.0,
         norm: str = "layer",
     ) -> None:
-        """
-        Layer of the Transformer Encoder.
-
-        Args:
-            input_dim: feature dimension
-            dim_feedforward: dim for the mlp
-            nhead: attention heads (dim % heads == 0)
-            ff_drop: feat forward drop
-            att_drop: attention drop
-            norm: Normalization method.
-        """
         super().__init__()
 
         self.attn = ResNormBlock(
@@ -234,6 +328,20 @@ class TransformerEncoderLayer(nn.Module):
         attn_mask: Optional[torch.Tensor] = None,
         return_attention: bool = False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """Pass tensor through module.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+        key_padding_mask : torch.Tensor
+        attn_mask : torch.Tensor
+        return_attention : bool
+
+        Returns
+        -------
+        torch.Tensor, torch.Tensor
+            Output tensor and attention tensor if `return_attention` is True
+        """
         z = self.attn(
             x,
             key_padding_mask=key_padding_mask,
@@ -247,29 +355,40 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    """
+    """Transformer Encoder.
+
     Implements the Transformer encoder with additional features.
     This is similar to pytorch's TransformerEncoder but with batch normalization
     and fixed as well as learnable positional embedding.
 
-    Args:
-        input_dim: The number of expected features in the input.
-        seq_len: Sequence length.
-        nhead: The number of heads in the multihead attention layer.
-            Embedded dimensions must be divisible by number of heads.
-        dim_feedforward: The dimension of the feedforward network model.
-            The default dimension is 2 times the input dimensions.
-        dropout: The dropout value for the feedforward and attention layer.
-        pos_dropout: The dropout value for the positional encoding.
-        norm: Normalization method ('batch' or 'layer').
-        pos_encoding: Positional encoding. Can be 'learnable' or 'fixed'
-        num_layers: Depth of encoder.
+    Parameters
+    ----------
+    input_dim : int
+        The number of expected features in the input
+    seq_len : int
+        Sequence length
+    nhead : int
+        The number of heads in the multihead attention layer.
+        Embedded dimensions must be divisible by number of heads.
+    dim_feedforward : int, optional
+        The dimension of the feedforward network model.
+        The default dimension is 2 times the input dimensions.
+    dropout : float
+        The dropout value for the feedforward and attention layer
+    pos_dropout : float
+        The dropout value for the positional encoding
+    norm : str
+        Normalization method (`batch` or `layer`)
+    pos_encoding : str, optional
+        Positional encoding. Can be `learnable` or `fixed`.
+    num_layers : int
+        Depth of encoder
 
-    Reference:
-        George Zerveas et al. A Transformer-based Framework for Multivariate Time Series Representation Learning,
-        in Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '21),
-        August 14--18, 2021.
-        ArXiV version: https://arxiv.org/abs/2010.02803
+    References
+    ----------
+    .. [1] George Zerveas et al. A Transformer-based Framework for Multivariate Time Series Representation Learning,
+       in Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '21),
+       August 14--18, 2021.
     """
 
     def __init__(
@@ -307,7 +426,7 @@ class TransformerEncoder(nn.Module):
         # positional encoding
         self.forward_emb = None
         if pos_encoding is not None:
-            self.forward_emb = get_pos_encoder(pos_encoding)(
+            self.forward_emb = _get_pos_encoder(pos_encoding)(
                 input_dim, seq_len=seq_len, dropout=pos_dropout
             )
 
@@ -318,14 +437,23 @@ class TransformerEncoder(nn.Module):
         key_padding_mask: Optional[torch.Tensor] = None,
         return_attention: bool = False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        """
-        Passes the input through the encoder modules.
+        """Passes the input through the encoder modules.
 
-        Args:
-            x: the sequence to the encoder modules.
-            attn_mask: the mask for the src sequence.
-            key_padding_mask: the mask for the src keys per batch.
-            return_attention: return the attention weights.
+        Parameters
+        ----------
+        x : torch.Tensor
+            The sequence to the encoder modules
+        attn_mask : torch.Tensor, optional
+            The mask for the src sequence
+        key_padding_mask : torch.Tensor, optional
+            The mask for the src keys per batch
+        return_attention : bool, optional
+            Return the attention weights
+
+        Returns
+        -------
+        torch.Tensor, torch.Tensor
+            Output tensor and attention weights if `return_attention` is True
         """
         if self.forward_emb is not None:
             z = self.forward_emb(x)
@@ -343,6 +471,20 @@ class TransformerEncoder(nn.Module):
 
 
 class TVAEEncoder(TransformerEncoder):
+    """Variation Autoencoder using a transformer encoder.
+
+    Parameters
+    ----------
+    input_dim : int
+        Number of input features
+    seq_len : int
+        Sequence length
+    latent_dim : int
+        Number of latent features
+    **kwargs
+        Keyword arguments are passed to morphelia.dl.modules.TransformerEncoder
+    """
+
     def __init__(self, input_dim: int, seq_len: int, latent_dim: int, **kwargs):
         super().__init__(input_dim=input_dim, seq_len=seq_len, **kwargs)
 
@@ -362,15 +504,26 @@ class TVAEEncoder(TransformerEncoder):
         Tuple[torch.Tensor, torch.Tensor],
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
     ]:
-        """
-        Passes the input through the encoder modules.
+        """Passes the input through the encoder modules.
 
-        Args:
-            x: the sequence to the encoder modules (required).
-            attn_mask: the mask for the src sequence (optional).
-            key_padding_mask: the mask for the src keys per batch (optional).
-            return_attention: return the attention weights.
-            return_statistics: return the means and log-variances.
+        Parameters
+        ----------
+        x : torch.Tensor
+            The sequence to the encoder modules
+        attn_mask : torch.Tensor, optional
+            The mask for the src sequence
+        key_padding_mask : torch.Tensor, optional
+            The mask for the src keys per batch
+        return_attention : bool
+            Return the attention weights
+        return_statistics : bool
+            Return the means and log-variances
+
+        Returns
+        -------
+        torch.Tensor, torch.Tensor, torch.Tensor
+            Output tensor, attention weights (if `return_attention` is True),
+            means and log-variance (if `return_statistics` is True).
         """
         if self.forward_emb is not None:
             z = self.forward_emb(x)
@@ -398,6 +551,20 @@ class TVAEEncoder(TransformerEncoder):
 
 
 class TransformerClassifier(TransformerEncoder):
+    """Transformer Classifier.
+
+    Parameters
+    ----------
+    input_dim : int
+        Number of input features
+    seq_len : int
+        Sequence length
+    n_classes : int
+        Number of classes
+    **kwargs
+        Keyword arguments are passed to morphelia.dl.modules.TransformerEncoder
+    """
+
     def __init__(self, input_dim: int, seq_len: int, n_classes: int, **kwargs):
         super().__init__(input_dim=input_dim, seq_len=seq_len, **kwargs)
 
@@ -415,14 +582,23 @@ class TransformerClassifier(TransformerEncoder):
         Tuple[torch.Tensor, torch.Tensor],
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
     ]:
-        """
-        Passes the input through the encoder modules.
+        """Passes the input through the encoder modules.
 
-        Args:
-            x: the sequence to the encoder modules (required).
-            attn_mask: the mask for the src sequence (optional).
-            key_padding_mask: the mask for the src keys per batch (optional).
-            return_attention: return the attention weights.
+        Parameters
+        ----------
+        x : torch.Tensor
+            The sequence to the encoder modules
+        attn_mask : torch.Tensor, optional
+            The mask for the src sequence
+        key_padding_mask : torch.Tensor, optional
+            The mask for the src keys per batch
+        return_attention : bool
+            Return the attention weights
+
+        Returns
+        -------
+        torch.Tensor, torch.Tensor
+            Logits and attention weights (if `return_attention` is True)
         """
         if self.forward_emb is not None:
             z = self.forward_emb(x)
@@ -451,6 +627,24 @@ class TransformerClassifier(TransformerEncoder):
 
 
 class TransformerTokenClassifier(TransformerEncoder):
+    """Transformer token classifier.
+
+    Parameters
+    ----------
+    input_dim : int
+        Number of input features
+    seq_len : int
+        Sequence length
+    n_classes : int
+        Number of classes
+    pos_dropout : float
+        Dropout rate
+    pos_encoding : str, optional
+        `learnable` or `fixed` positional encoding
+    **kwargs
+        Keyword arguments are passed to morphelia.dl.modules.TransformerEncoder
+    """
+
     def __init__(
         self,
         input_dim: int,
@@ -478,7 +672,7 @@ class TransformerTokenClassifier(TransformerEncoder):
         # overwrite positional encoding
         self.forward_emb = None
         if pos_encoding is not None:
-            self.forward_emb = get_pos_encoder(pos_encoding)(
+            self.forward_emb = _get_pos_encoder(pos_encoding)(
                 input_dim, seq_len=seq_len + 1, dropout=pos_dropout
             )
 
@@ -493,14 +687,23 @@ class TransformerTokenClassifier(TransformerEncoder):
         Tuple[torch.Tensor, torch.Tensor],
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
     ]:
-        """
-        Passes the input through the encoder and classification modules.
+        """Passes the input through the encoder modules.
 
-        Args:
-            x: the sequence to the encoder modules (required).
-            attn_mask: the mask for the src sequence (optional).
-            key_padding_mask: the mask for the src keys per batch (optional).
-            return_attention: return the attention weights.
+        Parameters
+        ----------
+        x : torch.Tensor
+            The sequence to the encoder modules
+        attn_mask : torch.Tensor, optional
+            The mask for the src sequence
+        key_padding_mask : torch.Tensor, optional
+            The mask for the src keys per batch
+        return_attention : bool
+            Return the attention weights
+
+        Returns
+        -------
+        torch.Tensor, torch.Tensor
+            Logits and attention weights (if `return_attention` is True)
         """
         # introduce classification token
         b, n, f = x.shape
@@ -539,6 +742,26 @@ class TransformerTokenClassifier(TransformerEncoder):
 
 
 class TransformerDecoderLayer(nn.Module):
+    """Transformer Decoder Layer.
+
+    Parameters
+    ----------
+    input_dim : int
+        Number of input features
+    dim_feedforward : int
+        Dimensions of the MLP
+    nhead : int
+        attention heads (dim % heads == 0)
+    ff_drop : float
+        Feat forward drop
+    att_drop : float
+        Attention drop
+    connection_drop : float
+        Connection drop
+    norm : str
+        Normalization method. `layer` or `batch` - normalization.
+    """
+
     def __init__(
         self,
         input_dim: int,
@@ -549,17 +772,6 @@ class TransformerDecoderLayer(nn.Module):
         connection_drop: float = 0.0,
         norm: str = "layer",
     ) -> None:
-        """
-        Layer of the Transformer Decoder
-
-        Args:
-            input_dim: feature dimension
-            dim_feedforward: dim for the mlp
-            nhead: attention heads (dim % heads == 0)
-            ff_drop: feat forward drop
-            att_drop: attention drop
-            norm: Normalization method.
-        """
         super().__init__()
 
         self.self_attn = ResNormBlock(
@@ -589,6 +801,20 @@ class TransformerDecoderLayer(nn.Module):
         src_attn_mask: Optional[torch.Tensor] = None,
         tgt_attn_mask: Optional[torch.Tensor] = None,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """Pass tensor through module.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+        memory : torch.Tensor
+        key_padding_mask : torch.Tensor
+        src_attn_mask : torch.Tensor
+        tgt_attn_mask : torch.Tensor
+
+        Returns
+        -------
+        torch.Tensor
+        """
         x = self.self_attn(
             x, key_padding_mask=key_padding_mask, attn_mask=tgt_attn_mask
         )
@@ -602,29 +828,40 @@ class TransformerDecoderLayer(nn.Module):
 
 
 class TransformerDecoder(nn.Module):
-    """
+    """Transformer Decoder.
+
     Implements the Transformer Decoder with additional features.
     This is similar to pytorch's TransformerDecoder but with batch normalization
     and fixed as well as learnable positional embedding.
 
-    Args:
-        input_dim: The number of expected features in the input.
-        seq_len: Sequence length.
-        nhead: The number of heads in the multihead attention layer.
-            Embedded dimensions must be divisible by number of heads.
-        dim_feedforward: The dimension of the feedforward network model.
-            The default dimension is 2 times the input dimensions.
-        dropout: The dropout value for the feedforward and attention layer.
-        pos_dropout: The dropout value for the positional encoding.
-        norm: Normalization method ('batch' or 'layer').
-        pos_encoding: Positional encoding. Can be 'learnable' or 'fixed'
-        num_layers: Depth of encoder.
+    Parameters
+    ----------
+    input_dim : int
+        The number of expected features in the input
+    seq_len : int
+        Sequence length
+    nhead : int
+        The number of heads in the multihead attention layer.
+        Embedded dimensions must be divisible by number of heads.
+    dim_feedforward : int, optional
+        The dimension of the feedforward network model.
+        The default dimension is 2 times the input dimensions.
+    dropout : float
+        The dropout value for the feedforward and attention layer
+    pos_dropout : float
+        The dropout value for the positional encoding
+    norm : str
+        Normalization method (`batch` or `layer`)
+    pos_encoding : str, optional
+        Positional encoding. Can be `learnable` or `fixed`.
+    num_layers : int
+        Depth of encoder
 
-    Reference:
-        George Zerveas et al. A Transformer-based Framework for Multivariate Time Series Representation Learning,
-        in Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '21),
-        August 14--18, 2021.
-        ArXiV version: https://arxiv.org/abs/2010.02803
+    References
+    ----------
+    .. [1] George Zerveas et al. A Transformer-based Framework for Multivariate Time Series Representation Learning,
+       in Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '21),
+       August 14--18, 2021.
     """
 
     def __init__(
@@ -662,7 +899,7 @@ class TransformerDecoder(nn.Module):
         # positional encoding
         self.forward_emb = None
         if pos_encoding is not None:
-            self.forward_emb = get_pos_encoder(pos_encoding)(
+            self.forward_emb = _get_pos_encoder(pos_encoding)(
                 input_dim, seq_len=seq_len, dropout=pos_dropout
             )
 
@@ -674,8 +911,19 @@ class TransformerDecoder(nn.Module):
         src_attn_mask: Optional[torch.Tensor] = None,
         tgt_attn_mask: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Passes the input through the decoder modules.
+        """Pass tensor through module.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+        memory : torch.Tensor
+        key_padding_mask : torch.Tensor
+        src_attn_mask : torch.Tensor
+        tgt_attn_mask : torch.Tensor
+
+        Returns
+        -------
+        torch.Tensor
         """
         if self.forward_emb is not None:
             z = self.forward_emb(x)

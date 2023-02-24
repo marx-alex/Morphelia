@@ -13,12 +13,18 @@ def sampling(
 ) -> torch.Tensor:
     """Sampling from a normal distribution using the reparameterization trick.
 
-    Args:
-        mu: Means.
-        log_var: Logarithmic variances.
-        eps: Avoid zero variances.
+    Parameters
+    ----------
+    mu : torch.Tensor
+        Means
+    log_var : torch.Tensor
+        Logarithmic variances
+    eps : float
+        Avoid zero variances
 
-    Returns:
+    Returns
+    -------
+    torch.Tensor
         Samples
     """
     var = torch.exp(log_var) + eps
@@ -28,12 +34,17 @@ def sampling(
 class CondLayer(nn.Module):
     """Implements a conditional layer.
 
-    Args:
-        in_features: Number of input features.
-        out_features: Number of output features.
-        n_conditions: Absolute number of conditions.
-        bias: Learn bias for the layer. Default is True.
-            This das not affect the conditional layer where no additive bias is learned.
+    Parameters
+    ----------
+    in_features : int
+        Number of input features
+    out_features : int
+        Number of output features
+    n_conditions : int
+        Absolute number of conditions
+    bias : bool
+        Learn bias for the layer. Default is True.
+        This does not affect the conditional layer where no additive bias is learned.
     """
 
     def __init__(
@@ -46,6 +57,16 @@ class CondLayer(nn.Module):
             self.cond_layer = nn.Linear(self.n_conditions, out_features, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Pass tensor through module.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+
+        Returns
+        -------
+        torch.Tensor
+        """
         if self.n_conditions == 0:
             return self.layer(x)
         else:
@@ -56,18 +77,25 @@ class CondLayer(nn.Module):
 
 
 class Encoder(nn.Module):
-    """
-    Implements the Encoder Module for a conditional VAE.
+    """Encoder Module for a conditional VAE.
 
-    Args:
-        layer_dims: List with number of hidden features.
-            Last number is number of features in hidden space.
-        latent_dim: Number of features in latent space.
-        n_conditions: Number of conditions. Vanilla VAE if 0.
-        sequential: Permute Axis before BatchNorm if sequential.
-        batch_norm: Add batch normalization.
-        layer_norm: Add layer normalization.
-        dropout: Add dropout layer.
+    Parameters
+    ----------
+    layer_dims : list
+        List with number of hidden features.
+        Last number is number of features in hidden space.
+    latent_dim : int
+        Number of features in latent space
+    n_conditions : int
+        Number of conditions. Vanilla VAE if 0.
+    sequential : bool
+        Permute Axis before BatchNorm if sequential
+    batch_norm : bool
+        Add batch normalization
+    layer_norm : bool
+        Add layer normalization
+    dropout : float
+        Add dropout layer
     """
 
     def __init__(
@@ -134,10 +162,18 @@ class Encoder(nn.Module):
     def forward(
         self, x: torch.Tensor, c: Optional[torch.Tensor] = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Args:
-            x: Tensor of shape [batch size, sequence length, feature size]
-            c: Tensor of shape [batch size,]
+        """Pass tensor through module.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Tensor of shape `[batch size, sequence length, feature size]`
+        c : torch.Tensor
+            Tensor of shape `[batch size,]`
+
+        Returns
+        -------
+        torch.Tensor
         """
         # concatenate x and condition
         if c is not None:
@@ -150,10 +186,12 @@ class Encoder(nn.Module):
 
 
 class VAEEncoder(Encoder):
-    """
-    Implements the Encoder Module for a Variational Autoencoder.
+    """Encoder Module for a Variational Autoencoder.
 
-    Outputs means and log-variances instead of z.
+    Parameters
+    ----------
+    **kwargs
+        Keyword arguments are passed to morphelia.dl.modules.Encoder
     """
 
     def __init__(self, **kwargs):
@@ -164,10 +202,18 @@ class VAEEncoder(Encoder):
     def forward(
         self, x: torch.Tensor, c: Optional[torch.Tensor] = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Args:
-            x: Tensor of shape [batch size x feature size]
-            c: Tensor of shape [batch size,]
+        """Pass tensor through module.
+
+        Parameters
+        x : torch.Tensor
+            Tensor of shape `[batch size, sequence length, feature size]`
+        c : torch.Tensor
+            Tensor of shape `[batch size,]`
+
+        Returns
+        -------
+        torch.Tensor, torch.Tensor
+            Means and log-variances
         """
         # concatenate x and condition
         if c is not None:
@@ -182,18 +228,27 @@ class VAEEncoder(Encoder):
 
 
 class MMDDecoder(nn.Module):
-    """
+    """Decoder with MMD loss.
+
     Implements the split Decoder Module for a conditional VAE,
     that can be used to calculate the MMD loss.
 
-    Args:
-        layer_dims: List with number of hidden features.
-        latent_dim: Number of features in latent space.
-        n_conditions: Number of conditions. Vanilla VAE if 0.
-        sequential: Permute Axis before BatchNorm if sequential.
-        batch_norm: Add batch normalization.
-        layer_norm: Add layer normalization.
-        dropout: Add dropout layer.
+    Parameters
+    ----------
+    layer_dims : list
+        List with number of hidden features
+    latent_dim : int
+        Number of features in latent space
+    n_conditions : int
+        Number of conditions. Vanilla VAE if 0
+    sequential : bool
+        Permute Axis before BatchNorm if sequential
+    batch_norm : bool
+        Add batch normalization
+    layer_norm : bool
+        Add layer normalization
+    dropout : float
+        Add dropout layer
     """
 
     def __init__(
@@ -377,10 +432,17 @@ class Decoder(nn.Module):
     def forward(
         self, x: torch.Tensor, c: Optional[torch.Tensor] = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Args:
-            x: Tensor of shape [batch size x feature size]
-            c: Tensor of shape [batch size,]
+        """Pass tensor through module.
+
+        Parameters
+        x : torch.Tensor
+            Tensor of shape `[batch size, sequence length, feature size]`
+        c : torch.Tensor
+            Tensor of shape `[batch size,]`
+
+        Returns
+        -------
+        torch.Tensor
         """
         # concatenate x and condition
         if c is not None:

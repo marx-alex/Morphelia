@@ -9,6 +9,30 @@ from morphelia.models.utils import geometric_noise
 
 
 class CTVAE(pl.LightningModule):
+    """Implementation of the Autoaggregation model as
+    a PyTorch Lighnting module.
+
+    Parameters
+    ----------
+    encoder : torch.nn.Module
+        Encoder module for dimensionality reduction
+    transformer : torch.nn.Module
+        Transformer module
+    n_classes : int
+        Number of classes
+    mask : bool
+        Geometrical masks to hide parts of the sequential data to the model
+    masking_len : int
+        Mean length of masks
+    masking_ratio : float
+        Absolute fraction of masked values
+    learning_rate : float
+        Learning rate during training
+    optimizer : str
+        Optimizer for the training process.
+        Can be `Adam` or `AdamW`.
+    """
+
     def __init__(
         self,
         encoder: nn.Module,
@@ -22,7 +46,7 @@ class CTVAE(pl.LightningModule):
     ):
         super().__init__()
 
-        self.save_hyperparameters("learning_rate", "optimizer")
+        self.save_hyperparameters()
         self.mask = mask
         self.masking_len = masking_len
         self.masking_ratio = masking_ratio
@@ -54,6 +78,22 @@ class CTVAE(pl.LightningModule):
         c: Optional[torch.Tensor] = None,
         padding_mask: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Passes tensor through encoder and classification
+        module and returns embedding with attention weights.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+        c : torch.Tensor, optional
+            Conditions
+        padding_mask : torch.Tensor, optional
+            Padding mask
+
+        Returns
+        -------
+        torch.Tensor, torch.Tensor
+            Embedding and attention weights
+        """
         z = self.encoder(x, c=c)
         z, w = self.transformer(z, key_padding_mask=padding_mask, return_attention=True)
 
@@ -65,7 +105,21 @@ class CTVAE(pl.LightningModule):
         c: Optional[torch.Tensor] = None,
         padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        """Passes tensor through encoder module.
 
+        Parameters
+        ----------
+        x : torch.Tensor
+        c : torch.Tensor, optional
+            Conditions
+        padding_mask : torch.Tensor, optional
+            Padding mask
+
+        Returns
+        -------
+        torch.Tensor
+            Latent representation
+        """
         z = self.encoder(x, c=c)
         z = self.transformer(z, key_padding_mask=padding_mask)
 
@@ -74,6 +128,19 @@ class CTVAE(pl.LightningModule):
     def classify(
         self, x: torch.Tensor, padding_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
+        """Classification by a single classification layer.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+        padding_mask : torch.Tensor, optional
+            Padding mask
+
+        Returns
+        -------
+        torch.Tensor
+            Logits
+        """
         if padding_mask is not None:
             y = x * ~padding_mask.unsqueeze(-1)
         else:
@@ -88,6 +155,22 @@ class CTVAE(pl.LightningModule):
         c: Optional[torch.Tensor] = None,
         padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        """Forwards tensor through model and transforms
+        logits with the SoftMax function.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+        c : torch.Tensor, optional
+            Conditions
+        padding_mask : torch.Tensor, optional
+            Padding mask
+
+        Returns
+        -------
+        torch.Tensor
+            Predictions
+        """
         x = self(x, c=c, padding_mask=padding_mask)
         return self.softmax(x)
 
@@ -97,38 +180,97 @@ class CTVAE(pl.LightningModule):
         c: Optional[torch.Tensor] = None,
         padding_mask: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Args:
-            x: (batch_size, seq_length, feat_dim) Masked features (input).
-            c: (batch_size,) Conditions.
-            padding_mask: (batch_size, seq_length) boolean tensor,
-                0s mean keep vector at this position, 1s means padding.
-        """
+        """Forwards tensor through model.
 
+        Parameters
+        ----------
+        x : torch.Tensor
+        c : torch.Tensor, optional
+            Conditions
+        padding_mask : torch.Tensor, optional
+            Tensor of shape `[batch size, sequence length]`.
+            0s mean keep vector at this position, 1s means padding.
+
+        Returns
+        -------
+        torch.Tensor
+            Logits
+        """
         z = self.forward_features(x, c=c, padding_mask=padding_mask)
         logits = self.classify(z, padding_mask=padding_mask)  # [N, n_classes]
 
         return logits
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch: dict, batch_idx: torch.Tensor) -> torch.Tensor:
+        """Training step.
+
+        Parameters
+        ----------
+        batch : dict
+            Dictionary with `x` and `target` as required keys.
+            `c` and `padding_mask` are optional keys.
+        batch_idx : torch.Tensor
+            Batch index
+
+        Returns
+        -------
+        torch.Tensor
+            Loss
+        """
         loss, pred, target = self._common_step(batch, prefix="train")
         self.train_metric.update(pred, target)
         self.log_dict(self.train_metric, on_step=False, on_epoch=True)
         return loss
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch: dict, batch_idx: torch.Tensor) -> torch.Tensor:
+        """Validation step.
+
+        Parameters
+        ----------
+        batch : dict
+            Dictionary with `x` and `target` as required keys.
+            `c` and `padding_mask` are optional keys.
+        batch_idx : torch.Tensor
+            Batch index
+
+        Returns
+        -------
+        torch.Tensor
+            Loss
+        """
         loss, pred, target = self._common_step(batch, prefix="valid")
         self.valid_metric.update(pred, target)
         self.log_dict(self.valid_metric, on_step=False, on_epoch=True)
         return loss
 
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch: dict, batch_idx: torch.Tensor) -> torch.Tensor:
+        """Test step.
+
+        Parameters
+        ----------
+        batch : dict
+            Dictionary with `x` and `target` as required keys.
+            `c` and `padding_mask` are optional keys.
+        batch_idx : torch.Tensor
+            Batch index
+
+        Returns
+        -------
+        torch.Tensor
+            Loss
+        """
         loss, pred, target = self._common_step(batch, prefix="test")
         self.test_metric.update(pred, target)
         self.log_dict(self.test_metric, on_step=False, on_epoch=True)
         return loss
 
     def configure_optimizers(self):
+        """Configure optimizer.
+
+        Returns
+        -------
+        torch.optim.Adam or torch.optim.AdamW
+        """
         if self.hparams.optimizer == "Adam":
             opt = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
         elif self.hparams.optimizer == "AdamW":

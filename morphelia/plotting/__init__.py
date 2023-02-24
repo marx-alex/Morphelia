@@ -18,3 +18,4 @@ from .lmem import plot_lmem
 from .cluster import clustermap
 from .volcano import volcano_plot
 from .density import plot_density
+from .hmm import plot_hmm

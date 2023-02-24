@@ -15,6 +15,22 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
 class BaseDataModule(pl.LightningDataModule):
+    """Base class for data loading.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData or str
+        Path to anndata object or anndata object
+    batch_size : int
+        Size of mini batches
+    num_workers : int
+        Number of subprocesses
+    train_dataloader_opts : dict, optional
+        Additional arguments for training dataloader
+    valid_dataloader_opts : dict, optional
+        Additional arguments for validation dataloader
+    """
+
     def __init__(
         self,
         adata: Union[str, ad.AnnData],
@@ -23,16 +39,6 @@ class BaseDataModule(pl.LightningDataModule):
         train_dataloader_opts: Optional[dict] = None,
         valid_dataloader_opts: Optional[dict] = None,
     ):
-        """
-        Base class for data loading.
-
-        Args:
-            adata: Path to anndata object or anndata object.
-            batch_size: Size of mini batches.
-            num_workers: Number of subprocesses.
-            train_dataloader_opts: Additional arguments for training dataloader.
-            valid_dataloader_opts: Additional arguments for validation dataloader.
-        """
         super().__init__()
 
         self.batch_size = batch_size
@@ -69,6 +75,42 @@ class BaseDataModule(pl.LightningDataModule):
 
 
 class LineageTreeDataModule(BaseDataModule):
+    """Data Loading of time series data with sampling from lineage trees.
+
+    Parameters
+    ----------
+    adata : str or anndata.AnnData
+        Path to anndata object or anndata object
+    target_key : str
+        Key in `.obs` with targets
+    root_key : str
+        Key in `.obs` with roots
+    track_key : str
+        Key in `.obs` with tracks
+    parent_key : str
+        Key in `.obs` with parents
+    time_key : str
+        Key in `.obs` with time
+    condition_key : str
+        Key in `.obs` with batch
+    batch_size : int
+        Size of mini batches
+    num_workers : int
+        Number of subprocesses
+    test_size : float
+        Size for test set
+    val_size : float
+        Size of validation set
+    train_dataloader_opts : dict, optional
+        Additional arguments for training dataloader
+    valid_dataloader_opts : dict, optional
+        Additional arguments for validation dataloader
+    seq_len : str or int
+        Lengths of sequences. If `max`, maximum sequence length is taken.
+        If a sequence is smaller than ts_len, the sequence is padded with zeros.
+        If a sequence is longer than ts_len, the sequence is shortened.
+    """
+
     def __init__(
         self,
         adata: Union[str, ad.AnnData],
@@ -86,27 +128,6 @@ class LineageTreeDataModule(BaseDataModule):
         valid_dataloader_opts: dict = None,
         seq_len: Union[str, int] = "max",
     ):
-        """
-        Data Loading of time series data with sampling from lineage trees.
-
-        Args:
-            adata: Path to anndata object or anndata object.
-            target_key: Key in .obs with targets.
-            root_key: Key in .obs with roots.
-            track_key: Key in .obs with tracks.
-            parent_key: Key in .obs with parents.
-            time_key: Key in .obs with time.
-            condition_key: Key in .obs with batch.
-            batch_size: Size of mini batches.
-            num_workers: Number of subprocesses.
-            test_size: Size for test set.
-            val_size: Size of validation set.
-            train_dataloader_opts: Additional arguments for training dataloader.
-            valid_dataloader_opts: Additional arguments for validation dataloader.
-            seq_len: Lengths of sequences.
-                If a sequence is smaller than ts_len, the sequence is padded with zeros.
-                If a sequence is longer than ts_len, the sequence is shortened.
-        """
         super().__init__(
             adata=adata,
             batch_size=batch_size,
@@ -188,6 +209,38 @@ class LineageTreeDataModule(BaseDataModule):
 
 
 class TSDataModule(BaseDataModule):
+    """Data Loading of time series data with sampling from single tracks.
+
+    Parameters
+    ----------
+    adata : str or anndata.AnnData
+        Path to anndata object or anndata object
+    target_key : str
+        Key in `.obs` with targets
+    track_key : str
+        Key in `.obs` with tracks
+    time_key : str
+        Key in `.obs` with time
+    condition_key : str
+        Key in `.obs` with batch
+    batch_size : int
+        Size of mini batches
+    num_workers : int
+        Number of subprocesses
+    test_size : float
+        Size for test set
+    val_size : float
+        Size of validation set
+    train_dataloader_opts : dict, optional
+        Additional arguments for training dataloader
+    valid_dataloader_opts : dict, optional
+        Additional arguments for validation dataloader
+    seq_len : str or int
+        Lengths of sequences. If `max`, maximum sequence length is taken.
+        If a sequence is smaller than ts_len, the sequence is padded with zeros.
+        If a sequence is longer than ts_len, the sequence is shortened.
+    """
+
     def __init__(
         self,
         adata: Union[str, ad.AnnData],
@@ -202,26 +255,7 @@ class TSDataModule(BaseDataModule):
         train_dataloader_opts: dict = None,
         valid_dataloader_opts: dict = None,
         seq_len: Union[str, int] = "max",
-    ):
-        """
-        Data Loading of time series data with sampling from single tracks.
-
-        Args:
-            adata: Path to anndata object or anndata object.
-            target_key: Key in .obs with targets.
-            track_key: Key in .obs with tracks.
-            time_key: Key in .obs with time.
-            condition_key: Key in .obs with batch.
-            batch_size: Size of mini batches.
-            num_workers: Number of subprocesses.
-            test_size: Size for test set.
-            val_size: Size of validation set.
-            train_dataloader_opts: Additional arguments for training dataloader.
-            valid_dataloader_opts: Additional arguments for validation dataloader.
-            seq_len: Lengths of sequences.
-                If a sequence is smaller than ts_len, the sequence is padded with zeros.
-                If a sequence is longer than ts_len, the sequence is shortened.
-        """
+    ) -> None:
         super().__init__(
             adata=adata,
             batch_size=batch_size,
@@ -297,6 +331,44 @@ class TSDataModule(BaseDataModule):
 
 
 class SequenceDataModule(BaseDataModule):
+    """Data Loading as sequences.
+
+    Parameters
+    ----------
+    adata : str or anndata.AnnData
+        Path to anndata object or anndata object
+    target_key : str
+        Key in `.obs` with targets
+    group_key : str
+        Key in `.obs` with groups to sample from
+    condition_key : str
+        Key in `.obs` with batch
+    batch_size : int
+        Size of mini batches
+    num_workers : int
+        Number of subprocesses
+    test_size : float
+        Size for test set
+    val_size : float
+        Size of validation set
+    split_by : str, optional
+        A variable in `.obs` that should be used to split data
+        into train, validation and test set
+    split_by_groups : dict, optional
+        If `split_by` is not None, a dictionary with `train`,
+        `valid` and `test` as keys should indicate the labels per group.
+        Alternatively to `train` and `valid`, `train_val` can be used.
+        The train and validation group is then split randomly.
+    train_dataloader_opts : dict, optional
+        Additional arguments for training dataloader
+    valid_dataloader_opts : dict, optional
+        Additional arguments for validation dataloader
+    seq_len : str or int
+        Lengths of sequences. If `max`, maximum sequence length is taken.
+        If a sequence is smaller than ts_len, the sequence is padded with zeros.
+        If a sequence is longer than ts_len, the sequence is shortened.
+    """
+
     def __init__(
         self,
         adata: Union[str, ad.AnnData],
@@ -307,26 +379,12 @@ class SequenceDataModule(BaseDataModule):
         num_workers: int = 0,
         test_size: float = 0.2,
         val_size: float = 0.2,
+        split_by: Optional[str] = None,
+        split_by_groups: Optional[dict] = None,
         train_dataloader_opts: dict = None,
         valid_dataloader_opts: dict = None,
         seq_len: int = 5,
     ):
-        """
-        Data Loading as sequences.
-
-        Args:
-            adata: Path to anndata object or anndata object.
-            target_key: Key in .obs with targets.
-            group_key: Key in .obs with groups to sample from.
-            condition_key: Key in .obs with batch.
-            batch_size: Size of mini batches.
-            num_workers: Number of subprocesses.
-            test_size: Size for test set.
-            val_size: Size of validation set.
-            train_dataloader_opts: Additional arguments for training dataloader.
-            valid_dataloader_opts: Additional arguments for validation dataloader.
-            seq_len: Lengths of sequences.
-        """
         super().__init__(
             adata=adata,
             batch_size=batch_size,
@@ -335,17 +393,44 @@ class SequenceDataModule(BaseDataModule):
             valid_dataloader_opts=valid_dataloader_opts,
         )
 
+        if split_by is None:
+            train_val, self.test = train_test_split(adata, test_size=test_size)
+            self.train, self.valid = train_test_split(train_val, test_size=val_size)
+        else:
+            assert split_by in adata.obs, f"split_by is not in .obs: {split_by}"
+            assert isinstance(
+                split_by_groups, dict
+            ), f"split_by_groups should be of type dict, instead got {type(split_by_groups)}"
+            self.train, self.valid, self.test = None, None, None
+            if "train_val" in split_by_groups:
+                train_val = adata[
+                    adata.obs[split_by].isin(split_by_groups["train_val"]), :
+                ].copy()
+                self.train, self.valid = train_test_split(train_val, test_size=val_size)
+            else:
+                if "train" in split_by_groups:
+                    self.train = adata[
+                        adata.obs[split_by].isin(split_by_groups["train"]), :
+                    ].copy()
+                if "valid" in split_by_groups:
+                    self.valid = adata[
+                        adata.obs[split_by].isin(split_by_groups["valid"]), :
+                    ].copy()
+            if "test" in split_by_groups:
+                self.test = adata[
+                    adata.obs[split_by].isin(split_by_groups["test"]), :
+                ].copy()
+
+        assert self.test is not None, "no test set initialized"
+
         self.seq_len = seq_len
-        self.class_labels = adata.obs[target_key].unique()
+        self.class_labels = self.train.obs[target_key].astype("category").unique()
         self.n_classes = len(self.class_labels)
 
         if condition_key is not None:
             self.n_conditions = len(adata.obs[condition_key].unique())
         else:
             self.n_conditions = 0
-
-        train_val, self.test = train_test_split(adata, test_size=test_size)
-        self.train, self.valid = train_test_split(train_val, test_size=val_size)
 
         self.group_key = group_key
         self.condition_key = condition_key
@@ -389,6 +474,40 @@ class SequenceDataModule(BaseDataModule):
 
 
 class AnnDataModule(BaseDataModule):
+    """Data Loading of AnnDataViews.
+
+    Parameters
+    ----------
+    adata : str or anndata.AnnData
+        Path to anndata object or anndata object
+    target_key : str
+        Key in `.obs` with targets
+    condition_key : str
+        Key in `.obs` with batch
+    batch_size : int
+        Size of mini batches
+    num_workers : int
+        Number of subprocesses
+    test_size : float
+        Size for test set
+    val_size : float
+        Size of validation set
+    split_by : str, optional
+        A variable in `.obs` that should be used to split data
+        into train, validation and test set
+    split_by_groups : dict, optional
+        If `split_by` is not None, a dictionary with `train`,
+        `valid` and `test` as keys should indicate the labels per group.
+        Alternatively to `train` and `valid`, `train_val` can be used.
+        The train and validation group is then split randomly.
+    preserve_group : str, optional
+        Preserve groups in `.obs` that should not be split.
+    train_dataloader_opts : dict, optional
+        Additional arguments for training dataloader
+    valid_dataloader_opts : dict, optional
+        Additional arguments for validation dataloader
+    """
+
     def __init__(
         self,
         adata: Union[str, ad.AnnData],
@@ -401,27 +520,10 @@ class AnnDataModule(BaseDataModule):
         val_size: float = 0.2,
         split_by: Optional[str] = None,
         split_by_groups: Optional[dict] = None,
+        preserve_group: Optional[str] = None,
         train_dataloader_opts: dict = None,
         valid_dataloader_opts: dict = None,
     ):
-        """
-        Data Loading of AnnDataViews.
-
-        Args:
-            adata: Path to anndata object or anndata object.
-            target_key: Key in .obs with targets.
-            condition_key: Key in .obs with batch.
-            batch_size: Size of mini batches.
-            num_workers: Number of subprocesses.
-            test_size: Size for test set.
-            val_size: Size of validation set.
-            split_by: A variable in .obs that should be used to split data
-                into train, validation and test set.
-            split_by_groups: If `split_by` is not None, a dictionary with `train`,
-            `valid` and `test` as keys should indicate the labels per group.
-            train_dataloader_opts: Additional arguments for training dataloader.
-            valid_dataloader_opts: Additional arguments for validation dataloader.
-        """
         collator = AdataCollator(
             target_key=target_key, condition_key=condition_key, time_key=time_key
         )
@@ -456,22 +558,43 @@ class AnnDataModule(BaseDataModule):
             self.t_max = None
 
         if split_by is None:
-            train_val, self.test = train_test_split(adata, test_size=test_size)
-            self.train, self.valid = train_test_split(train_val, test_size=val_size)
+            if preserve_group is None:
+                train_val, self.test = train_test_split(adata, test_size=test_size)
+                self.train, self.valid = train_test_split(train_val, test_size=val_size)
+            else:
+                train_val, self.test = group_shuffle_split(
+                    adata, group=preserve_group, test_size=test_size
+                )
+                self.train, self.valid = group_shuffle_split(
+                    train_val, group=preserve_group, test_size=val_size
+                )
         else:
             assert split_by in adata.obs, f"split_by is not in .obs: {split_by}"
             assert isinstance(
                 split_by_groups, dict
             ), f"split_by_groups should be of type dict, instead got {type(split_by_groups)}"
             self.train, self.valid, self.test = None, None, None
-            if "train" in split_by_groups:
-                self.train = adata[
-                    adata.obs[split_by].isin(split_by_groups["train"]), :
+            if "train_val" in split_by_groups:
+                train_val = adata[
+                    adata.obs[split_by].isin(split_by_groups["train_val"]), :
                 ].copy()
-            if "valid" in split_by_groups:
-                self.valid = adata[
-                    adata.obs[split_by].isin(split_by_groups["valid"]), :
-                ].copy()
+                if preserve_group is None:
+                    self.train, self.valid = train_test_split(
+                        train_val, test_size=val_size
+                    )
+                else:
+                    self.train, self.valid = group_shuffle_split(
+                        train_val, group=preserve_group, test_size=val_size
+                    )
+            else:
+                if "train" in split_by_groups:
+                    self.train = adata[
+                        adata.obs[split_by].isin(split_by_groups["train"]), :
+                    ].copy()
+                if "valid" in split_by_groups:
+                    self.valid = adata[
+                        adata.obs[split_by].isin(split_by_groups["valid"]), :
+                    ].copy()
             if "test" in split_by_groups:
                 self.test = adata[
                     adata.obs[split_by].isin(split_by_groups["test"]), :

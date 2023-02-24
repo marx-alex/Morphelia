@@ -11,9 +11,26 @@ from ._utils import data_converter
 
 
 class LineageTreeDataset(Dataset):
-    """
-    Dataset handler for tracked lineage trees.
+    """Dataset handler for tracked lineage trees.
 
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    target_key : str
+        Target variable
+    root_key : str
+        Variable with lineage roots
+    track_key : str
+        Variable with lineage tracks
+    parent_key :str
+        Variable with lineage parents
+    time_key : str
+        Time variable
+    condition_key : str, optional
+        Contition variable
+    seq_len : str or int
+        Length of sequences. If `seq_len` is `max`, the maximum sequence length is used.
     """
 
     def __init__(
@@ -164,9 +181,22 @@ class LineageTreeDataset(Dataset):
 
 
 class TSDataset(Dataset):
-    """
-    Dataset handler for sequential data.
+    """Dataset handler for sequential data.
 
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    target_key : str
+        Target variable
+    track_key : str
+        Variable with lineage tracks
+    time_key : str
+        Time variable
+    condition_key : str, optional
+        Contition variable
+    seq_len : str or int
+        Length of sequences. If `seq_len` is `max`, the maximum sequence length is used.
     """
 
     def __init__(
@@ -274,9 +304,20 @@ class TSDataset(Dataset):
 
 
 class SequenceDataset(Dataset):
-    """
-    Dataset handler for non sequential data, that can be load as sequences.
+    """Dataset handler for non sequential data, that can be load as sequences.
 
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    target_key : str
+        Target variable
+    condition_key : str, optional
+        Contition variable
+    seq_len : str or int
+        Length of sequences. If `seq_len` is `max`, the maximum sequence length is used.
+    seed : int
+        Seed partition assignment
     """
 
     def __init__(

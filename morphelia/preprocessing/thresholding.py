@@ -4,6 +4,7 @@ import os
 from typing import Union, List, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 import seaborn as sns
 import anndata as ad
 import matplotlib.pyplot as plt
@@ -181,11 +182,12 @@ def assign_by_threshold(
 
     adata.obs[new_var] = np.nan
     fig = None
+    index_table = pd.Series(index=adata.obs.index, data=np.arange(len(adata)))
 
     if by is not None:
         fig = []
         for groups, sub_df in adata.obs.groupby(by):
-            group_mask = np.in1d(adata.obs.index, sub_df.index)
+            group_mask = index_table[sub_df.index].to_numpy()
             group_dist = dist[group_mask]
 
             thresh, class_annotation = _find_thresh(
@@ -210,6 +212,9 @@ def assign_by_threshold(
                 f = _plot_thresh(
                     group_dist,
                     thresh,
+                    subsample,
+                    sample_size,
+                    seed,
                     xlabel,
                     threshold_colors,
                     threshold_labels,
@@ -243,6 +248,9 @@ def assign_by_threshold(
             fig = _plot_thresh(
                 dist,
                 thresh,
+                subsample,
+                sample_size,
+                seed,
                 xlabel,
                 threshold_colors,
                 threshold_labels,
@@ -314,12 +322,15 @@ def _find_thresh(
     for i, t in enumerate(thresh):
         class_annotation[dist > t] = i + 1
 
-    return thresh, class_annotation
+    return thresh, class_annotation.flatten()
 
 
 def _plot_thresh(
     dist,
     thresh,
+    subsample=False,
+    sample_size=10000,
+    seed=0,
     xlabel=None,
     threshold_colors=None,
     threshold_labels=None,
@@ -331,6 +342,16 @@ def _plot_thresh(
     show=True,
     **kwargs,
 ):
+    if subsample and sample_size is not None:
+        # get samples
+        np.random.seed(seed)
+        N = len(dist)
+        if sample_size >= N:
+            pass
+        else:
+            sample_ixs = np.random.choice(N, size=sample_size, replace=False)
+            dist = dist[sample_ixs]
+
     kwargs.setdefault("kde", True)
     kwargs.setdefault("stat", "density")
     kwargs.setdefault("linewidth", 0)

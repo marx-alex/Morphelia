@@ -6,17 +6,38 @@ import numpy as np
 import pandas as pd
 
 
-def collate_concat(batch):
-    """
-    Collate a list of of samples.
+def collate_concat(batch: list) -> dict:
+    """Concatenate batch elements.
+
+    This function collates a list of of samples.
     Samples might be tensors of dictionaries.
-    Values of dictionaries can be list, numpy.ndarray, torch.tensor or pandas.Series.
+    Values of dictionaries can be `list`, `numpy.ndarray`, `torch.tensor` or `pandas.Series`.
 
-    Args:
-        batch (list): List of dictionaries.
+    Parameters
+    ----------
+    batch : list
+        List of dictionaries
 
-    Returns:
-        (dict): Dictionary with single tensors as values.
+    Returns
+    -------
+    dict
+        Dictionary with single tensors as values
+
+    Examples
+    --------
+    >>> import morphelia as mp
+
+    >>> batch = [
+    >>>     {'x': [0, 1, 2, 3],
+    >>>      'y': [0, 0, 1, 1]},
+    >>>     {'x': [4, 5, 6, 7],
+    >>>      'y': [0, 0, 1, 1]}
+    >>> ]
+    >>> mp.dl.data.collate_concat(batch)
+    {'x': tensor([[0, 1, 2, 3],
+             [4, 5, 6, 7]]),
+     'y': tensor([[0, 0, 1, 1],
+             [0, 0, 1, 1]])}
     """
     elem = batch[0]
 
@@ -52,17 +73,47 @@ def collate_concat(batch):
 
 
 class AdataCollator:
+    """Collator class for the AnnLoader module.
+
+    This class contains the pytorch collate logic, which
+    can be initiated once and called for every batch.
+
+    Parameters
+    ----------
+    target_key : str, optional
+        Target variable
+    condition_key : str, optional
+        Condition variable
+    time_key : str, optional
+        Time variable (for time-series experiments)
+    """
+
     def __init__(
         self,
         target_key: Optional[str] = "Metadata_Treatment",
         condition_key: Optional[str] = None,
         time_key: Optional[str] = None,
-    ):
+    ) -> None:
         self.target_key = target_key
         self.condition_key = condition_key
         self.time_key = time_key
 
-    def __call__(self, batch):
+    def __call__(self, batch) -> dict:
+        """Called for every batch.
+
+        If AdataCollator is called, `x`, `target`, `c` (condition) and `t` (time)
+        is returned as a dictionary.
+
+        Parameters
+        ----------
+        batch : AnnCollectionView
+            Batch given by anndata.experimental.AnnLoader
+
+        Returns
+        -------
+        dict
+            Converted batch to dictionary
+        """
         out = dict()
 
         out["x"] = batch.X

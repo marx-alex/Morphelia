@@ -47,10 +47,10 @@ class FateCluster:
         n_neighbors: int = 10,
         neighbor_params: Optional[dict] = None,
         n_iter: int = 100,
-        centroid: np.array = Optional[None],
+        centroid: Optional[np.array] = None,
         centroid_method: str = "median",
-        centroid_fun_params: dict = Optional[None],
-        random_state: int = Optional[None],
+        centroid_fun_params: Optional[dict] = None,
+        random_state: Optional[int] = 0,
         verbose=False,
     ):
         self.n_neighbors = n_neighbors
@@ -104,7 +104,7 @@ class FateCluster:
                 "label": unique,
                 "counts": counts,
             }
-        )
+        ).sort_values("counts", ascending=False)
 
     def fit(self, X: np.ndarray):
         """Compute random walks from centroid to terminal cells.

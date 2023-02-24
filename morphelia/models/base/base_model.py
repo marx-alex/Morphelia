@@ -4,8 +4,10 @@ import os
 
 
 class BaseModel:
-    """
-    Base Model for Morphelia models.
+    """Base Model for Morphelia's convenience models.
+
+    Morphelia model aim to simplify model initialization, training
+    and testing.
     """
 
     def save_model(
@@ -14,17 +16,21 @@ class BaseModel:
         fname: str = "model",
         overwrite: bool = False,
     ) -> None:
-        """
-        Save the state of the model.
+        """Save the current state of the model.
+
         Neither the trainer optimizer state nor the trainer history are saved.
 
-        Args:
-           path: Path to directory.
-           fname: Name of file to be saved.
-           overwrite: Overwrite existing data or not.
-           If `False` and directory already exists at `path`, error will be raised.
+        Parameters
+        ----------
+        path : str
+            Path to directory
+        fname : str
+            Name of file to be saved.
+        overwrite : bool
+            Overwrite existing data or not.
+            If `False` and directory already exists at `path`, error will be raised.
         """
-        assert self.model is not None, "No model trained yet."
+        assert self.model is not None, "No model to save."
 
         if not os.path.exists(path):
             os.mkdir(path)

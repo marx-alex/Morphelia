@@ -2,12 +2,36 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+from typing import Union
+
 
 class MultOutSequential(nn.Sequential):
-    def __init__(self, *args):
+    """Sequential module for multiple outputs.
+
+    Pytorch module to concatenate module sequences, where one or more modules generate
+    multiple outputs. In this case, the data is returned together with the outputs.
+
+    Parameters
+    ----------
+    *args
+        `pytorch.nn.Module`
+    """
+
+    def __init__(self, *args) -> None:
         super().__init__(*args)
 
-    def forward(self, x: torch.Tensor, **kwargs) -> tuple:
+    def forward(self, x: torch.Tensor, **kwargs) -> Union[torch.Tensor, tuple]:
+        """Pass a tensor through all modules.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+
+        Returns
+        -------
+        torch.Tensor, list
+            Tensor and list of all collected outputs
+        """
         outs = []
         for module in self:
             output = module(x, **kwargs)
@@ -27,15 +51,35 @@ class MultOutSequential(nn.Sequential):
 
 
 class PosArgSequential(nn.Sequential):
-    """
-    Pytorch Sequential Module. Optional keyword arguments are passed to every module
+    """Sequential module with positional keyword arguments.
+
+    This module allows passing keyword arguments to submodules.
+    Keyword arguments are passed to every module
     depending on their position.
+
+    Parameters
+    ----------
+    *args
+        `pytorch.nn.Module`
     """
 
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         super().__init__(*args)
 
     def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
+        """Pass a tensor through all modules.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+        **kwargs
+            Keyword arguments with list as values. List items are passed to module depending
+            on their position in the list on the module position in the sequence
+
+        Returns
+        -------
+        torch.Tensor
+        """
         for i, module in enumerate(self):
             sub_kwargs = {k: v[i] for k, v in kwargs.items()}
             x = module(x, **sub_kwargs)
@@ -43,27 +87,53 @@ class PosArgSequential(nn.Sequential):
 
 
 class ArgSequential(nn.Sequential):
-    """
-    Pytorch Sequential Module. Optional keyword arguments are passed to every module.
+    """Sequential module with keyword arguments.
+
+    This module allows passing keyword arguments to all submodules.
+
+    Parameters
+    ----------
+    *args
+        `pytorch.nn.Module`
     """
 
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         super().__init__(*args)
 
     def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
+        """Pass a tensor through all modules.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+        **kwargs
+            Keyword arguments are passed to every module
+
+        Returns
+        -------
+            torch.Tensor
+        """
         for module in self:
             x = module(x, **kwargs)
         return x
 
 
 def add_condition(x: torch.Tensor, c: torch.Tensor, n_conditions: int) -> torch.Tensor:
-    """
-    Concatenate the input tensor with hot-encoded conditions.
+    """Concatenate the input tensor with hot-encoded conditions.
 
-    Args:
-        x: Input tensor.
-        c: Tensor with conditions.
-        n_conditions: Number of conditions.
+    Parameters
+    ----------
+    x : torch.Tensor
+        Input tensor
+    c : torch.Tensor
+        Tensor with conditions
+    n_conditions : int
+        Number of conditions
+
+    Returns
+    -------
+    torch.Tensor
+        Tensor of shape [n, features + number of conditions]
     """
     c = F.one_hot(c, num_classes=n_conditions)
 

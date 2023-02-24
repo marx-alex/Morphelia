@@ -23,7 +23,7 @@ def plot_plate(
     well_var: str = "Metadata_Well",
     color: Optional[str] = None,
     size: Optional[str] = None,
-    select: Optional[str] = None,
+    select: Optional[dict] = None,
     wells: int = 96,
     show: bool = False,
     save: Optional[str] = None,

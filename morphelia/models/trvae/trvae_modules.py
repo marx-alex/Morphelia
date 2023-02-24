@@ -25,7 +25,7 @@ class TRVAE(pl.LightningModule):
     ):
         super().__init__()
 
-        self.save_hyperparameters("learning_rate", "optimizer")
+        self.save_hyperparameters()
         self.kld_beta = kld_beta
         self.mmd_beta = mmd_beta
         self.mse_beta = mse_beta

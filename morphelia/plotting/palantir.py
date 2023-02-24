@@ -15,6 +15,8 @@ from typing import Optional, Union, Tuple
 def plot_palantir_results(
     adata: ad.AnnData,
     emb: str = "X_tsne",
+    n_cols: int = 6,
+    branch_names: Optional[list] = None,
     cmap: Optional[str] = None,
     show: bool = True,
 ) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
@@ -29,6 +31,10 @@ def plot_palantir_results(
         Multidimensional morphological data
     emb : str
         Embedding in `.obsm`
+    n_cols : int
+        Number of columns
+    branch_names : list
+        List of optional branch names
     cmap : str, optional
         Valid matplotlib cmap to use for plots
     show : bool
@@ -60,9 +66,9 @@ def plot_palantir_results(
 
     # set up figure
     n_branches = len(branch_prob_anns)
-    n_cols = 6
+    n_cols = n_cols
     n_rows = int(np.ceil(n_branches / n_cols))
-    fig = plt.figure(figsize=[2 * n_cols, 2 * (n_rows + 2)])
+    fig = plt.figure(figsize=[3 * n_cols, 2 * (n_rows + 2)])
     gs = plt.GridSpec(
         n_rows + 2,
         n_cols,
@@ -90,6 +96,11 @@ def plot_palantir_results(
     ax.set_axis_off()
     ax.set_title("Differentiation potential")
 
+    if branch_names is not None:
+        assert len(branch_names) == len(
+            terminal_states
+        ), "length of branch names must match length of terminal states"
+
     for i, ts in enumerate(terminal_states):
         branch_label = f"branch_prob_{ts}"
         row = int(np.floor(i / n_cols))
@@ -105,7 +116,11 @@ def plot_palantir_results(
             marker="v",
         )
         ax.set_axis_off()
-        ax.set_title(f"Branch {i}", fontsize=10)
+
+        if branch_names is None:
+            ax.set_title(f"Branch {i+1}", fontsize=10)
+        else:
+            ax.set_title(f"{branch_names[i]}", fontsize=10)
 
     if show:
         plt.show()
@@ -123,6 +138,7 @@ def plot_branches(
     pie_explode: bool = True,
     pie_labels: bool = False,
     pie_pct: bool = True,
+    branch_names: Optional[list] = None,
     cmap: Optional[str] = None,
     show: bool = True,
 ) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
@@ -150,8 +166,10 @@ def plot_branches(
         Add labels to pie chart
     pie_pct : bool
         Add percentage values to pie chart
+    branch_names : list
+        List of optional branch names
     cmap : str, optional
-        Valid matplotlib cmap to use for plots
+        Valid matplotlib colormap to use for plots
     show : bool
         If True, the figure is shown and only the axes are returned
 
@@ -181,13 +199,16 @@ def plot_branches(
 
     assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"
 
+    if adata.obs[treat_var].dtype != "category":
+        adata.obs[treat_var] = adata.obs[treat_var].astype("category")
+
     start_cell = int(adata.uns["palantir"]["start_cell"])
 
     # set up figure
     n_branches = len(branch_prob_anns)
     n_cols = 4
     n_rows = int(np.ceil(n_branches / n_cols))
-    fig = plt.figure(figsize=[2 * n_cols, 2 * (n_rows + 2)])
+    fig = plt.figure(figsize=[3 * n_cols, 2 * (n_rows + 2)])
     gs = plt.GridSpec(
         n_rows + 2,
         n_cols,
@@ -201,7 +222,9 @@ def plot_branches(
 
     # Treatments
     ax = plt.subplot(gs[:2, 1:3])
-    ax = sc.pl.embedding(adata, basis=emb, color=treat_var, ax=ax, show=False)
+    ax = sc.pl.embedding(
+        adata, basis=emb, color=treat_var, ax=ax, palette=cmap.colors, show=False
+    )
     ax.scatter(
         adata.obsm[emb][terminal_states, 0],
         adata.obsm[emb][terminal_states, 1],
@@ -249,6 +272,11 @@ def plot_branches(
     ax.set_axis_off()
     ax.set_title("Treatment Conditions", fontsize=14)
 
+    if branch_names is not None:
+        assert len(branch_names) == len(
+            terminal_states
+        ), "length of branch names must match length of terminal states"
+
     # Branch Labels
     for i, ts in enumerate(terminal_states):
         branch_label = f"branch_prob_{ts}"
@@ -261,7 +289,7 @@ def plot_branches(
         row = int(np.floor(i / n_cols))
         ax = plt.subplot(gs[row + 2, np.remainder(i, n_cols)])
         ax = sc.pl.embedding(
-            adata, basis=emb, color="color", ax=ax, cmap=cmap, show=False
+            adata, basis=emb, color="color", ax=ax, palette=cmap.colors, show=False
         )
         ax.set_axis_off()
         ax.get_legend().remove()
@@ -272,7 +300,7 @@ def plot_branches(
             x_loc = adata.obsm[emb][ts, 0]
             y_loc = adata.obsm[emb][ts, 1]
             loc = ax.transLimits.transform((x_loc, y_loc))
-            ins = ax.inset_axes([loc[0] - 0.1, loc[1] - 0.1, 0.3, 0.3])
+            ins = ax.inset_axes([loc[0] - 0.25, loc[1] - 0.25, 0.3, 0.3])
             sizes = dist.iloc[i, :].tolist()
             explode_sizes = np.zeros(len(treat_labels))
             if pie_explode:
@@ -284,10 +312,19 @@ def plot_branches(
             pl = None
             if pie_labels:
                 pl = treat_labels
-            ins.pie(sizes, explode=explode_sizes, labels=pl, autopct=autopct)
+            ins.pie(
+                sizes,
+                explode=explode_sizes,
+                labels=pl,
+                autopct=autopct,
+                colors=cmap.colors,
+            )
             ins.axis("equal")
 
-        ax.set_title(f"Branch {i}", fontsize=10)
+        if branch_names is None:
+            ax.set_title(f"Branch {i+1}", fontsize=10)
+        else:
+            ax.set_title(f"{branch_names[i]}", fontsize=10)
 
     if show:
         plt.show()
@@ -297,11 +334,11 @@ def plot_branches(
 
 
 def plot_branch_distribution(
-    adata: ad.AnnData,
     dist: pd.DataFrame,
-    emb: str = "X_tsne",
-    treat_var: str = "Metadata_Treatment",
+    branch_names: Optional[list] = None,
+    title: str = "Branch Probability",
     show: bool = True,
+    **kwargs,
 ) -> Union[plt.Axes, Tuple[plt.Figure, plt.Axes]]:
     """Plot branch distribution.
 
@@ -310,16 +347,16 @@ def plot_branch_distribution(
 
     Parameters
     ----------
-    adata : anndata.AnnData
-        Multidimensional morphological data
-    emb : str
-        Embedding in `.obsm`
-    treat_var : str
-        Treatment variable in `.obs`
     dist : pandas.DataFrame, optional
         Branch distribution calculated by morphelia.external.Palantir.branch_dist
+    branch_names : list
+        List of optional branch names
+    title : str
+        Plot title
     show : bool
         If True, the figure is shown and only the axes are returned
+    kwargs : dict
+        Passed to seaborn.barplot
 
     Returns
     -------
@@ -333,31 +370,28 @@ def plot_branch_distribution(
     AssertionError
         If palantir was not used before
     """
-
-    assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"
-
-    assert emb in adata.obsm, f"emb not found in .obsm: {emb}"
-
-    annotations = ["pseudotime", "entropy", "branch"]
-    assert all(ann in adata.obs.columns for ann in annotations), (
-        "AnnData object is not annotated. " "Use Palantir.annotate_data()."
-    )
-
     # create figure
     plt_df = dist.stack()
     plt_df.rename("val", inplace=True)
     plt_df.index.set_names(["Branch", "Treatment"], inplace=True)
     plt_df = plt_df.reset_index()
 
+    if branch_names is not None:
+        unique_branches = np.sort(plt_df["Branch"].unique())
+        assert len(branch_names) == len(
+            plt_df["Branch"].unique()
+        ), "length of branch names must match length of terminal states"
+        branch_dict = {b: n for b, n in zip(unique_branches, branch_names)}
+        plt_df["Branch"] = plt_df["Branch"].map(branch_dict)
+    else:
+        plt_df["Branch"] = plt_df["Branch"] + 1
+
     sns.set_theme(style="whitegrid")
-    fig, ax = plt.subplots(figsize=(7, 4))
-    sns.barplot(data=plt_df, x="Branch", y="val", hue="Treatment")
+    fig, ax = plt.subplots(figsize=(10, 5))
+    sns.barplot(data=plt_df, x="Branch", y="val", hue="Treatment", **kwargs)
 
     ax.set_ylabel("")
-    title_style = "Probability"
-    if dist.name == "count":
-        title_style = "Count"
-    ax.set_title(f"Branch {title_style}")
+    ax.set_title(title)
     ax.legend(frameon=False, bbox_to_anchor=(1, 0.5), loc="center left")
 
     if show:

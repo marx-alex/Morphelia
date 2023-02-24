@@ -157,11 +157,11 @@ tracker_config = {
 }
 
 fate_dict = {
-    "FALSE_POSITIVE": "false",
+    "FALSE_POSITIVE": "false_positive",
     "DIVIDE": "divide",
     "APOPTOSIS": "apoptosis",
-    "TERMINATE_BACK": "full_track",
-    "TERMINATE_LAZY": "apoptosis",
+    "TERMINATE_BACK": "terminate_back",
+    "TERMINATE_LAZY": "terminate_lazy",
 }
 
 
@@ -370,7 +370,7 @@ def track(
     if drop_untracked:
         len_before = len(adata)
         # drop false positive
-        adata = adata[adata.obs[fate_id] != "false", :]
+        adata = adata[adata.obs[fate_id] != "false_positive", :]
         # drop untracked cells
         adata = adata[adata.obs[track_id].notna(), :]
         adata = adata[adata.obs[parent_id].notna(), :]
@@ -423,7 +423,7 @@ def _tracks_as_dict(tracks: list, properties: list, add_fate: bool = False):
             if fate in fate_dict:
                 fate = fate_dict[fate]
             else:
-                fate = "false"
+                fate = "false_positive"
             trk["fate"] = fate
 
         data = {}

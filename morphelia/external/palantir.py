@@ -35,7 +35,7 @@ class Palantir:
         Number of waypoints
     n_neighbors : int
         Number of neighbors for affinity matrix
-    start_cell : numpy.ndarray, optional
+    start_cell : int, optional
         Cell of early differentiation
     terminal_states : numpy.ndarray, optional
         Terminal states
@@ -60,7 +60,7 @@ class Palantir:
         self,
         n_waypoints: int = 100,
         n_neighbors: int = 10,
-        start_cell: Optional[np.ndarray] = None,
+        start_cell: Optional[int] = None,
         terminal_states: Optional[Union[list, tuple, np.ndarray]] = None,
         n_jobs: Optional[int] = None,
         verbose: bool = False,
@@ -71,15 +71,16 @@ class Palantir:
         self.n_jobs = n_jobs
         self.verbose = verbose
 
-        if isinstance(terminal_states, (tuple, list)):
-            terminal_states = np.array(terminal_states)
-        elif isinstance(terminal_states, np.ndarray):
-            pass
-        else:
-            raise TypeError(
-                f"terminal_states must be of type list, tuple or numpy.ndarray, "
-                f"instead got {type(terminal_states)}"
-            )
+        if terminal_states is not None:
+            if isinstance(terminal_states, (tuple, list)):
+                terminal_states = np.array(terminal_states)
+            elif isinstance(terminal_states, np.ndarray):
+                pass
+            else:
+                raise TypeError(
+                    f"terminal_states must be of type list, tuple or numpy.ndarray, "
+                    f"instead got {type(terminal_states)}"
+                )
         self._terminal_states = terminal_states
 
         # results
@@ -167,20 +168,23 @@ class Palantir:
 
         if self.verbose:
             logger.info("Entropy and branch probabilities")
-        _branch_probs = _differentiation_prob(
+        _branch_probs, _terminal_states = _differentiation_prob(
             X,
             self._waypoints,
             self._pseudotime,
             terminal_states=self._terminal_states,
         )
-        self._terminal_states = list(_branch_probs.columns)
+        if self._terminal_states is None:
+            self._terminal_states = _terminal_states
+        # self._terminal_states = list(_branch_probs.columns)
 
         if self.verbose:
             logger.info("Project results to all cells")
         self._branch_probs = pd.DataFrame(
-            np.dot(self._W.T, _branch_probs), columns=self._terminal_states
+            np.dot(self._W.T, _branch_probs), columns=list(_branch_probs.columns)
         )
         self._entropy = self._branch_probs.apply(entropy, axis=1)
+        self._branch_probs = self._branch_probs[self._terminal_states]
 
         end = time.time()
         if self.verbose:
@@ -229,7 +233,7 @@ class Palantir:
 
     def branch_dist(
         self,
-        X: Union[np.ndarray, ad.AnnData],
+        adata: ad.AnnData,
         treat_var: str = "Metadata_Treatment",
         cutoff: float = 0.7,
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -237,9 +241,8 @@ class Palantir:
 
         Parameters
         ----------
-        X : numpy.ndarray or anndata.AnnData
-            A feature vector as array or an AnnData object.
-            The latter need an additional `treat_var`.
+        adata : anndata.AnnData
+            AnnData object
         treat_var : str
             Variable in `.obs` for which branch distribution should be calculated
         cutoff : float
@@ -257,33 +260,30 @@ class Palantir:
             If `treat_var` is not in `.obs`
         """
 
-        if isinstance(X, ad.AnnData):
-            assert treat_var in X.obs.columns, f"treat_var not in .obs: {treat_var}"
-            X = X.obs[treat_var].to_numpy()
+        assert treat_var in adata.obs.columns, f"treat_var not in .obs: {treat_var}"
+        treats = adata.obs[treat_var].to_numpy()
 
-        branch_labels = self.branch_label.copy()
+        # branch_labels = self.branch_label.copy()
         branch_probs = self.branch_probs.values
 
         branches = list(range(len(self.branch_probs.columns)))
-        treats = np.unique(X)
+        unique_treats = np.sort(np.unique(treats))
 
-        count_matrix = np.zeros((len(branches), len(treats)))
-        count_matrix = pd.DataFrame(count_matrix, columns=treats, index=branches)
+        count_matrix = np.zeros((len(branches), len(unique_treats)))
+        count_matrix = pd.DataFrame(count_matrix, columns=unique_treats, index=branches)
 
         for branch in branches:
-            if cutoff is None:
-                mask = branch_labels == branch
-            else:
-                mask = branch_probs[:, branch] > cutoff
 
-            branch_treats = X[mask]
+            mask = branch_probs[:, branch] > cutoff
+
+            branch_treats = treats[mask]
             unique, counts = np.unique(branch_treats, return_counts=True)
 
             for i, treat in enumerate(unique):
                 count_matrix.loc[branch, treat] += counts[i]
 
-        dist_matrix = count_matrix.div(count_matrix.sum(axis=0), axis=1).fillna(0)
-        # dist_matrix = count_matrix.div(count_matrix.sum(axis=1), axis=0).fillna(0)
+        # dist_matrix = count_matrix.div(count_matrix.sum(axis=0), axis=1).fillna(0)
+        dist_matrix = count_matrix.div(count_matrix.sum(axis=1), axis=0).fillna(0)
         dist_matrix.name = "dist"
         count_matrix.name = "count"
 
@@ -339,17 +339,17 @@ class Palantir:
         # store results in dict
         results = OrderedDict()
         for branch in branches:
-            results[branch] = OrderedDict()
+            results[branch + 1] = OrderedDict()
             # branch weights
             weights = self.branch_probs.iloc[:, branch]
             # pseudotime range for branch
             br_max_pt = self.pseudotime[weights > 0.7].max()
             branch_pt = np.linspace(0, br_max_pt, 500)
-            results[branch]["pseudotime"] = branch_pt
+            results[branch + 1]["pseudotime"] = branch_pt
 
             # fit GAM for every feature
             for ix, feat in enumerate(feats):
-                results[branch][feat] = OrderedDict()
+                results[branch + 1][feat] = OrderedDict()
                 y = X[:, ix]
                 # fit GAM
                 gam = LinearGAM(s(0))
@@ -360,8 +360,8 @@ class Palantir:
                 y_intervals = gam.confidence_intervals(branch_pt)
 
                 # store values
-                results[branch][feat]["trends"] = y_predict
-                results[branch][feat]["ci"] = y_intervals
+                results[branch + 1][feat]["trends"] = y_predict
+                results[branch + 1][feat]["ci"] = y_intervals
 
         return results
 
@@ -434,8 +434,10 @@ def _compute_pseudotime(
     # waypoint weights
     sdv = np.std(D) * 1.06 * D.size ** (-1 / 5)
     W = np.exp(-0.5 * np.power((D / sdv), 2))
+
     # stochastize the matrix
     W = W / W.sum(axis=0)
+    W = np.nan_to_num(W)
 
     # initialize pseudotime to start cell distances
     pseudotime = D[wps.index(start_cell), :]
@@ -570,7 +572,7 @@ def _differentiation_prob(
     bp.values[range(len(terminal_states)), range(len(terminal_states))] = 1
     branch_probs = branch_probs.append(bp.loc[:, branch_probs.columns])
 
-    return branch_probs.loc[wps, :]
+    return branch_probs.loc[wps, :], terminal_states
 
 
 def _terminal_states_from_markov_chain(X, wps, T, pseudotime):

@@ -7,8 +7,20 @@ import pytorch_lightning as pl
 
 
 class MLPModule(pl.LightningModule):
-    """
-    Multilayer Perceptron for Classification
+    """Implementation of the MLP model as
+    as PyTorch Lighnting module.
+
+    Parameters
+    ----------
+    encoder : torch.nn.Module
+        Encoder module for dimensionality reduction
+    n_classes : int
+        Number of classes
+    learning_rate : float
+        Learning rate during training
+    optimizer : str
+        Optimizer for the training process.
+        Can be `Adam` or `AdamW`.
     """
 
     def __init__(
@@ -21,7 +33,7 @@ class MLPModule(pl.LightningModule):
     ):
         super().__init__()
 
-        self.save_hyperparameters("learning_rate", "optimizer")
+        self.save_hyperparameters()
 
         self.encoder = encoder
         self.n_classes = n_classes
@@ -48,40 +60,131 @@ class MLPModule(pl.LightningModule):
     def forward_features(
         self, x: torch.Tensor, c: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
+        """Passes tensor through encoder module.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+        c : torch.Tensor
+            Conditions
+
+        Returns
+        -------
+        torch.Tensor
+            Latent representation
+        """
         return self.encoder(x, c=c)
 
     def forward_pred(
         self, x: torch.Tensor, c: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
+        """Forwards tensor through model and transforms
+        logits with the SoftMax function.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+        c : torch.Tensor
+            Conditions
+
+        Returns
+        -------
+        torch.Tensor
+            Predictions
+        """
         x = self(x, c=c)
         return self.softmax(x)
 
     def forward(
         self, x: torch.Tensor, c: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
+        """Forwards tensor through model.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+        c : torch.Tensor
+            Conditions
+
+        Returns
+        -------
+        torch.Tensor
+            Logits
+        """
         z = self.forward_features(x, c=c)
         logits = self.classifier(z)
         return logits
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch: dict, batch_idx: torch.Tensor) -> torch.Tensor:
+        """Training step.
+
+        Parameters
+        ----------
+        batch : dict
+            Dictionary with `x` and `target` as required keys.
+            `c` for conditions is a optional key.
+        batch_idx : torch.Tensor
+            Batch index
+
+        Returns
+        -------
+        torch.Tensor
+            Loss
+        """
         loss, pred, target = self._common_step(batch, prefix="train")
         self.train_metric(pred, target)
         self.log_dict(self.train_metric, on_step=False, on_epoch=True)
         return loss
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch: dict, batch_idx: torch.Tensor) -> torch.Tensor:
+        """Validation step.
+
+        Parameters
+        ----------
+        batch : dict
+            Dictionary with `x` and `target` as required keys.
+            `c` for conditions is a optional key.
+        batch_idx : torch.Tensor
+            Batch index
+
+        Returns
+        -------
+        torch.Tensor
+            Loss
+        """
         loss, pred, target = self._common_step(batch, prefix="valid")
         self.valid_metric(pred, target)
         self.log_dict(self.valid_metric, on_step=False, on_epoch=True)
         return loss
 
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch: dict, batch_idx: torch.Tensor) -> torch.Tensor:
+        """Test step.
+
+        Parameters
+        ----------
+        batch : dict
+            Dictionary with `x` and `target` as required keys.
+            `c` for conditions is a optional key.
+        batch_idx : torch.Tensor
+            Batch index
+
+        Returns
+        -------
+        torch.Tensor
+            Loss
+        """
         loss, pred, target = self._common_step(batch, prefix="test")
         self.test_metric(pred, target)
         self.log_dict(self.test_metric, on_step=False, on_epoch=True)
         return loss
 
     def configure_optimizers(self):
+        """Configure optimizer.
+
+        Returns
+        -------
+        torch.optim.Adam or torch.optim.AdamW
+        """
         if self.hparams.optimizer == "Adam":
             opt = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
         elif self.hparams.optimizer == "AdamW":

@@ -10,7 +10,7 @@ from morphelia.features import thresh_outlier
 
 def normalize(
     adata: ad.AnnData,
-    by: Union[str, list, tuple] = ("BatchNumber", "PlateNumber"),
+    by: Optional[Union[str, list, tuple]] = ("BatchNumber", "PlateNumber"),
     method: str = "standard",
     pop_var: str = "Metadata_Treatment",
     norm_pop: Optional[str] = None,

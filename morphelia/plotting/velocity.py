@@ -14,7 +14,7 @@ from sklearn.metrics import pairwise_distances
 def plot_velocity(
     adata: ad.AnnData,
     rep: str,
-    vect_rep: str = "X_vect",
+    vect_rep: str,
     kind: str = "quiver",
     by: Optional[str] = None,
     grid_dim: int = 50,

@@ -20,8 +20,45 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 class DeepMap(BaseModel):
     """Morphelia class for the DeepMap model.
 
-    References:
-        Ren et al., 2021, bioRxiv
+    This is a convenience class for model initialization,
+    data loading, training and predicting morphological data.
+    The DeepMap model models image-based profiles from
+    single cells using a combined clustering and classification layer.
+    The clustering layer initializes cluster centers that are learned during
+    training and classification works by distances to cluster centers.
+
+    Parameters
+    ----------
+    data : pytorch_lightning.LightningDataModule
+        This data module should have a train, validation and
+        test loader that yield batches of sequential data
+    in_features : int, optional
+        Number of input dimensions
+    n_classes : int, optional
+        Number of classes
+    cdist_act : str, optional
+        Optional activation function after calculating cluster
+        center distances. Can be `tanhshrink`, `tanh`, `relu`, `gelu`, `sigmoid`.
+    layer_dims : list, optional
+        Dimensions of hidden layers. The length of
+        the sequences it equal to the number of hidden layers.
+    dropout : float
+        Dropout rate
+    batch_norm : bool
+        Include batch normalization after every encoder layer
+    layer_norm : bool
+        Include layer normalization after every encoder layer
+    latent_dim : int
+        Dimensions of the latent space
+    learning_rate : float
+        Learning rate during training
+    optimizer : str
+        Optimizer for the training process.
+        Can be `Adam` or `AdamW`.
+
+    References
+    ----------
+    .. [1] Ren et al., 2021, bioRxiv
     """
 
     def __init__(
@@ -30,14 +67,14 @@ class DeepMap(BaseModel):
         in_features: Optional[int] = None,
         n_classes: Optional[int] = None,
         cdist_act: Optional[str] = None,
-        layer_dims: list = None,
+        layer_dims: Optional[list] = None,
         dropout: float = 0.1,
         batch_norm: bool = False,
         layer_norm: bool = True,
         latent_dim: int = 2,
         learning_rate: float = 1e-4,
         optimizer: str = "Adam",
-    ):
+    ) -> None:
         self.in_features = in_features
         if in_features is None:
             self.in_features = data.n_features
@@ -114,7 +151,18 @@ class DeepMap(BaseModel):
 
     def train(
         self, wandb_log: bool = True, wandb_kwargs: Optional[dict] = None, **kwargs
-    ):
+    ) -> None:
+        """Training method.
+
+        Parameters
+        ----------
+        wandb_log : bool
+            Log training to Weights and Biases
+        wandb_kwargs : dict, optional
+            Keyword arguments for the logger
+        **kwargs
+            Keyword arguments passed to pytorch_lightning.Trainer
+        """
         if wandb_log:
             default_wandb_kwargs = self.default_wandb_kwargs.copy()
             if wandb_kwargs is not None:
@@ -135,13 +183,54 @@ class DeepMap(BaseModel):
             logger.experiment.finish()
 
     def load_from_checkpoints(self, ckpt: str) -> None:
+        """Load model from checkpoints.
+
+        Parameters
+        ----------
+        ckpt : str
+            Path to checkpoint file
+        """
         self.model = self.model.load_from_checkpoint(ckpt)
 
-    def get_latent(
-        self,
-    ) -> Union[ad.AnnData, dict]:
-        loader = self.data.test_dataloader()
-        adata = self.data.test
+    def get_latent(self, loader: str = "test") -> Union[ad.AnnData, dict]:
+        """Load latent representation.
+
+        Latent features and predictions can be loaded
+        from the train, validation or test loader.
+        The latent embedding is returned as new embedding in
+        the AnnData object if DataModule as an AnnData object stored.
+        Otherwise a dictionary is returned.
+
+        Parameters
+        ----------
+        loader : str
+            Load latent representation of `train`,
+            `valid` or `test` loader
+
+        Returns
+        -------
+        anndata.AnnData or dict
+            AnnData object with embedded features and predictions (in `.obs`)
+            if an AnnData object is stored in the DataModule
+
+        Raises
+        -------
+        NotImplementedError
+            If loader in neither `train`, `valid` nor `test`
+        """
+        if loader == "test":
+            loader = self.data.test_dataloader()
+            adata = self.data.test
+        elif loader == "valid":
+            loader = self.data.val_dataloader()
+            adata = self.data.valid
+        elif loader == "train":
+            loader = self.data.train_dataloader()
+            adata = self.data.train
+        else:
+            raise NotImplementedError(
+                f"loader must be 'test', 'train' or 'valid', instead got {loader}"
+            )
         features = []
         pred = []
         classes = []

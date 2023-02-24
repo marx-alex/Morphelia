@@ -7,11 +7,14 @@ import seaborn as sns
 import anndata as ad
 
 from morphelia.tools.utils import get_subsample
+from morphelia.tools.utils import choose_representation
 
 
 def clustermap(
     adata: ad.AnnData,
     group_by: Optional[str] = None,
+    use_rep: Optional[str] = None,
+    n_pcs: int = 50,
     subsample: bool = False,
     sample_size: int = 1000,
     palette: str = "Set2",
@@ -31,6 +34,10 @@ def clustermap(
         Multidimensional morphological data
     group_by : str, optional
         Group cell by variable in `.obs`
+    use_rep : str, optional
+        Calculate similarity/distance representation of X in `.obsm`
+    n_pcs : int
+        Number principal components to use if use_pcs is `X_pca`
     subsample : bool
         If True, fit models on subsample of data
     sample_size : int
@@ -73,6 +80,11 @@ def clustermap(
     if subsample:
         adata = get_subsample(adata, sample_size=sample_size, seed=seed)
 
+    # get representation of data
+    if use_rep is None:
+        use_rep = "X"
+    X = choose_representation(adata, rep=use_rep, n_pcs=n_pcs)
+
     # get cell groups
     row_colors = None
     handles = None
@@ -92,9 +104,7 @@ def clustermap(
 
     fig = plt.figure()
     cmap = sns.diverging_palette(220, 20, as_cmap=True)
-    g = sns.clustermap(
-        adata.X, row_cluster=True, row_colors=row_colors, cmap=cmap, **kwargs
-    )
+    g = sns.clustermap(X, row_cluster=True, row_colors=row_colors, cmap=cmap, **kwargs)
     ax = g.ax_heatmap
     ax.set_xticklabels([])
     ax.set_yticklabels([])
