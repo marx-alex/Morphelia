@@ -76,7 +76,7 @@ def assign_by_threshold(
     new_var : str
         Name of new variable
     method : str
-        Thresholding method. Can be one of: `isodata`, `li`, `mean`, `minimum`, `otsu`, `triabgle`, `yen`, `multi_otsu`.
+        Thresholding method. Can be one of: `isodata`, `li`, `mean`, `minimum`, `otsu`, `triangle`, `yen`, `multi_otsu`.
         Scikit-image thesholding methods are used.
     max_val : int or float, optional
         Maximum value to consider to be a threshold

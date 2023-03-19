@@ -1,6 +1,6 @@
 import numpy as np
 import logging
-from typing import Union
+from typing import Union, Tuple
 
 from sklearn.ensemble import IsolationForest
 import anndata as ad
@@ -109,7 +109,7 @@ def thresh_outlier(
 
 def isolation_forest(
     adata: ad.AnnData, drop: bool = True, verbose: bool = False, **kwargs
-) -> ad.AnnData:
+) -> Union[ad.AnnData, Tuple[ad.AnnData, np.ndarray]]:
     """Simple wrapper for sklearn's IsolationForest.
 
     Parameters
@@ -148,6 +148,7 @@ def isolation_forest(
         logger.info(f"{y_outl.sum()} outlier samples detected.")
 
     if drop:
-        adata = adata[~y_outl, :].copy()
-
-    return adata
+        adata = adata[y_outl, :].copy()
+        return adata
+    else:
+        return adata, y_outl
