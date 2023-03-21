@@ -14,7 +14,7 @@ logger.setLevel(logging.DEBUG)
 def drop_near_zero_variance(
     adata: ad.AnnData,
     freq_thresh: float = 0.05,
-    unique_thresh: float = 0.01,
+    unique_thresh: float = 1,
     drop: bool = True,
     verbose: bool = False,
 ) -> ad.AnnData:
@@ -26,7 +26,7 @@ def drop_near_zero_variance(
     The rules are as following:
         1. A feature vector is of low variance if second_max_count / max_count < freq_thresh
 
-        2. A feature vector is of low variance if num_unique_values / n_samples < unique_thresh
+        2. A feature vector is of low variance if num_unique_values / sqrt(n_samples) < unique_thresh
 
     with:
         second_max_count: counts of second frequent value
@@ -87,12 +87,9 @@ def drop_near_zero_variance(
         uns: 'near_zero_variance_feats'
     """
     # check variables
-    assert 0 <= freq_thresh <= 1, (
-        f"freq_thresh must be between 0 and 1, " f"instead got {freq_thresh}"
-    )
-    assert 0 <= unique_thresh <= 1, (
-        f"unique_thresh must be between 0 and 1, " f"instead got {unique_thresh}"
-    )
+    assert (
+        0 <= freq_thresh <= 1
+    ), f"freq_thresh must be between 0 and 1, instead got {freq_thresh}"
 
     # store dropped features
     drop_feats = []
@@ -118,7 +115,7 @@ def drop_near_zero_variance(
                 drop_feats.append(feat)
 
             # second rule
-            unique_ratio = len(unique) / n_samples
+            unique_ratio = len(unique) / np.sqrt(n_samples)
 
             if unique_ratio < unique_thresh:
                 drop_feats.append(feat)
