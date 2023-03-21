@@ -154,7 +154,20 @@ class CellMotility:
             Series with all motility parameters for the given trajectory path
         """
         otsu, active_frac, active_avg_speed = self.speed_otsu()
-        displacement_var, displacement_skew = self.displacement_props()
+        (
+            avg_speed,
+            std_speed,
+            median_speed,
+            mad_speed,
+            min_speed,
+            max_speed,
+        ) = self.speed_props()
+        avg_angle, std_angle = self.angle_props()
+        (
+            avg_displacement,
+            std_displacement,
+            skew_displacement,
+        ) = self.displacement_props()
         result = pd.Series(
             {
                 "Length": self.n,
@@ -162,22 +175,25 @@ class CellMotility:
                 "DisplacementFromOrigin": self.displacements_from_origin()[-1],
                 "DirectionalityRatio": self.directionality_ratio(),
                 "GyrationRadius": self.gyration_radius(),
-                "AvgSpeed": self.avg_speed(),
-                "StdSpeed": self.std_speed(),
-                "MedianSpeed": self.median_speed(),
-                "MADSpeed": self.mad_speed(),
-                "MinSpeed": self.min_speed(),
-                "MaxSpeed": self.max_speed(),
+                "AvgSpeed": avg_speed,
+                "StdSpeed": std_speed,
+                "MedianSpeed": median_speed,
+                "MADSpeed": mad_speed,
+                "MinSpeed": min_speed,
+                "MaxSpeed": max_speed,
                 "OtsuSpeed": otsu,
                 "ActiveFrac": active_frac,
                 "ActiveAvgSpeed": active_avg_speed,
+                "AvgAngle": avg_angle,
+                "StdAngle": std_angle,
                 "Linearity": self.linearity(),
                 "SquaredSpearmanRho": self.spearman(),
                 "MSDalpha": self.msd_alpha(),
                 "Persistence": self.persistence(),
                 "NonGaussAlpha2": self.non_gauss_alpha2(),
-                "DisplacementVar": displacement_var,
-                "DisplacementSkew": displacement_skew,
+                "AvgDisplacement": avg_displacement,
+                "StdDisplacement": std_displacement,
+                "SkewDisplacement": skew_displacement,
                 "Hurst": self.hurst_mandelbrot(),
             }
         )
@@ -262,65 +278,22 @@ class CellMotility:
         dist = self.displacements[: self.fpu * floor]
         return np.sum(dist.reshape(-1, self.fpu), axis=1)
 
-    def avg_speed(self) -> float:
-        """Average speed.
+    def speed_props(self) -> Tuple[float, float, float, float, float, float]:
+        """Calculates mean, standard deviation, median, median absolute deviation, minimum and maximum speed.
 
         Returns
         -------
-        float
-            Average speed
+        tuple
+            Mean, standard deviation, median, median absolute deviation, minimum and maximum speed
         """
-        return self.speed.mean()
-
-    def std_speed(self) -> float:
-        """Standard deviation of speed.
-
-        Returns
-        -------
-        float
-            Standard deviation of speed
-        """
-        return self.speed.std()
-
-    def median_speed(self) -> float:
-        """Median speed.
-
-        Returns
-        -------
-        float
-            Median speed
-        """
-        return float(np.median(self.speed))
-
-    def mad_speed(self) -> float:
-        """Median absolute deviation of speed.
-
-        Returns
-        -------
-        float
-            Median absolute deviation of speed
-        """
-        return stats.median_absolute_deviation(self.speed)
-
-    def min_speed(self) -> float:
-        """Minimum speed.
-
-        Returns
-        -------
-        float
-            Minimum speed
-        """
-        return np.min(self.speed)
-
-    def max_speed(self) -> float:
-        """Maximum speed.
-
-        Returns
-        -------
-        float
-            Maximum speed
-        """
-        return np.max(self.speed)
+        return (
+            self.speed.mean(),
+            self.speed.std(),
+            float(np.median(self.speed)),
+            stats.median_absolute_deviation(self.speed),
+            np.min(self.speed),
+            np.max(self.speed),
+        )
 
     def speed_otsu(self) -> Tuple[float, float, float]:
         """Speed Otsu theshold.
@@ -338,6 +311,41 @@ class CellMotility:
         active_frac = len(self.speed[self.speed > otsu]) / len(self.speed)
         active_avg_speed = self.speed[self.speed > otsu].mean()
         return otsu, active_frac, active_avg_speed
+
+    def angle_props(self) -> Tuple[float, float]:
+        r"""Calculates the properties of the angle distribution.
+
+        Angles are calculates as following:
+
+        .. math::
+            \varphi_i = \arctan2(x_i, y_i)
+
+        The circular mean is defined as:
+
+        .. math::
+            {\overline{\varphi}} = \arctan2(\overline{x}, \overline{y})
+
+        The circular standard deviation is defined as:
+
+        .. math::
+            \sigma_{\varphi} = \sqrt{-2 \ln(\overline{R})}
+
+        with:
+
+        .. math::
+            \overline{R} = \frac{1}{N} \sum _{i=1}^{N} \sqrt{x_{i}^{2} + y_{i}^{2}}
+
+        Returns
+        -------
+        tuple
+            Mean and standard deviation of the angle distribution.
+        """
+        vect = np.diff(self.path, axis=0)
+        mean_vect = vect.mean(axis=0)
+        mean_phi = np.arctan2(mean_vect[1], mean_vect[0])
+        rho = np.sqrt(np.sum(vect ** 2, axis=1))
+        circular_std = np.sqrt(-2 * np.ln(rho.mean()))
+        return (mean_phi, circular_std)
 
     def linearity(self) -> float:
         """Linearity.
@@ -478,7 +486,7 @@ class CellMotility:
             kurtosis.append(stats.kurtosis(displacements))
         return np.array(kurtosis)
 
-    def rnon_gauss_alpha2(self) -> float:
+    def non_gauss_alpha2(self) -> float:
         r"""Calculates the non-gaussian parameter a2 for the displacement distribution.
         The a2 parameter is the fourth moment of the distribution relative to its second moment.
         The non-Gaussian parameter measures how much the tail of the distribution deviates from Gaussian, and is zero
@@ -486,7 +494,8 @@ class CellMotility:
         Broader distributions (but with the same standard deviation) result in higher values of a2.
         Levy-like motion would be expected to have alpha_2 > 0.
 
-        \alpha_2 = \frac{\langle d_i^4 \rangle}{3 {\langle d_i^2 \rangle}^2} - 1
+        .. math::
+            \alpha_2 = \frac{\langle d_i^4 \rangle}{3 {\langle d_i^2 \rangle}^2} - 1
 
         with:
         d: displacement
@@ -508,15 +517,19 @@ class CellMotility:
             / (3 * np.mean(self.displacements ** 2) ** 2)
         ) - 1
 
-    def displacement_props(self) -> Tuple[float, float]:
-        """Calculates the variance and the skewness of the displacement distribution.
+    def displacement_props(self) -> Tuple[float, float, float]:
+        """Calculates the mean, standard deviation and the skewness of the displacement distribution.
 
         Returns
         -------
         tuple
-            Variance and skewness of displacement distribution
+            Mean, standard deviation and skewness of displacement distribution
         """
-        return float(np.var(self.displacements)), float(stats.skew(self.displacements))
+        return (
+            self.displacements.mean(),
+            self.displacements.std(),
+            float(stats.skew(self.displacements)),
+        )
 
     def hurst_mandelbrot(self) -> float:
         """Calculates the Hurst coefficient for cell movement.

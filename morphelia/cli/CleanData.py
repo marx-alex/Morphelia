@@ -12,7 +12,15 @@ logging.basicConfig()
 logger.setLevel(logging.DEBUG)
 
 
-def run(inp, out, fname=None, nan_frac=0.5, drop_near_zero_variance=True):
+def run(
+    inp,
+    out,
+    fname=None,
+    nan_frac=0.5,
+    drop_near_zero_variance=True,
+    freq_thresh=0.05,
+    unique_thresh=1,
+):
     """Basic cleaning routine for morphological data."""
     if not os.path.exists(out):
         os.makedirs(out)
@@ -44,7 +52,9 @@ def run(inp, out, fname=None, nan_frac=0.5, drop_near_zero_variance=True):
 
     if drop_near_zero_variance:
         logger.info("Drop near-zero variance")
-        adata = mp.ft.drop_near_zero_variance(adata, verbose=True)
+        adata = mp.ft.drop_near_zero_variance(
+            adata, freq_thresh=freq_thresh, unique_thresh=unique_thresh, verbose=True
+        )
 
     # write file
     if fname is not None:
@@ -92,6 +102,18 @@ def main(args=None):
         default=True,
         help="Drop features with near-zero variance.",
     )
+    parser.add_argument(
+        "--freq_thresh",
+        type=float,
+        default=0.05,
+        help="Threshold for the frequency rule.",
+    )
+    parser.add_argument(
+        "--unique_thresh",
+        type=float,
+        default=1.0,
+        help="Threshold for the uniqueness rule.",
+    )
 
     # parser
     args = parser.parse_args(args)
@@ -103,4 +125,6 @@ def main(args=None):
         fname=args.fname,
         nan_frac=args.nan_frac,
         drop_near_zero_variance=args.drop_near_zero_variance,
+        freq_thresh=args.freq_thresh,
+        unique_thresh=args.unique_thresh,
     )
