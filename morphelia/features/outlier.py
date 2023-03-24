@@ -12,7 +12,7 @@ logger.setLevel(logging.DEBUG)
 
 def thresh_outlier(
     adata: ad.AnnData,
-    thresh: Union[int, float] = 15,
+    thresh: Union[int, float] = 3.5,
     axis: int = 0,
     drop: bool = True,
     verbose: bool = False,
@@ -70,15 +70,13 @@ def thresh_outlier(
         1,
     ], f"axis has to be either 0 (features) or 1 (cells), instead got {axis}"
 
-    max_values = np.abs(np.max(adata.X, axis=axis))
-    min_values = np.abs(np.min(adata.X, axis=axis))
+    max_values = np.max(np.abs(adata.X), axis=axis)
 
     assert isinstance(thresh, (int, float)), (
-        f"thresh expected to be of type(int) or type(float), "
-        f"instead got {type(thresh)}"
+        f"thresh expected to be of type int or float, " f"instead got {type(thresh)}"
     )
 
-    mask = np.logical_and((max_values < thresh), (min_values < thresh))
+    mask = max_values <= thresh
 
     if axis == 0:
         dropped_feats = adata.var_names[~mask]
@@ -100,9 +98,7 @@ def thresh_outlier(
         if drop:
             adata = adata[mask, :].copy()
         if verbose:
-            logger.info(
-                f"{n_before - len(adata)} cells removed with feature values < -{thresh} or > {thresh}"
-            )
+            logger.info(f"{n_before - len(adata)} cells removed with outlier values")
 
     return adata
 

@@ -15,7 +15,7 @@ def normalize(
     pop_var: str = "Metadata_Treatment",
     norm_pop: Optional[str] = None,
     drop_outlier: bool = False,
-    outlier_thresh: Union[int, float] = 3,
+    outlier_thresh: Union[int, float] = 3.5,
     drop_nan: bool = True,
     verbose: bool = False,
     **kwargs,

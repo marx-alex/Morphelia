@@ -98,7 +98,7 @@ class CellMotility:
     kurtosis_max_tau : int
         Maximal tau for the calculation of the kurtosis of the displacement distribution
     autocorr_max_tau : int
-        Maximal lag for the autocorrelation calculation
+        Maximal lag for the autocorrelation and circular autocorrelation calculation
     """
 
     def __init__(
@@ -205,6 +205,10 @@ class CellMotility:
         ac = self.autocorrelation()
         for i in range(self.autocorr_max_tau):
             result[f"Autocorrelation_{i+1}"] = ac[i]
+
+        angle_ac = self.angle_autocorrelation()
+        for i in range(self.autocorr_max_tau):
+            result[f"AngleAutocorrelation_{i + 1}"] = angle_ac[i]
 
         return result
 
@@ -345,7 +349,56 @@ class CellMotility:
         mean_phi = np.arctan2(mean_vect[1], mean_vect[0])
         rho = np.sqrt(np.sum(vect ** 2, axis=1))
         circular_std = np.sqrt(-2 * np.ln(rho.mean()))
-        return (mean_phi, circular_std)
+        return mean_phi, circular_std
+
+    def angle_autocorrelation(self):
+        r"""Circular autocorrelation of angles.
+
+        The angles of cell movement is the movement direction on a uniform polar system.
+        We consider the underlying process to be stationary. The circular autocorrelation function is then defined as:
+
+        .. math::
+            R_c(k) := R_c(\phi_0, \phi_k), \; k \geq  0
+
+        The circular correlation coefficient as introduced by Fisher and Lee (1983) can be written as:
+
+        .. math::
+            R_c(k) = \frac{E[\cos(\phi_0)\cos(\phi_k)] \cdot E[\sin(\phi_0)\sin(\phi_k)] -
+            E[\sin(\phi_0)\cos(\phi_k)] \cdot E[\cos(\phi_0)\sin(\phi_k)]}
+            {(1 - E[\cos(\phi_0)^2]) \cdot E[\cos(\phi_0)^2] - (E[\sin(\phi_0) \cos(\phi_0)])^2}
+
+        Returns
+        -------
+        numpy.ndarray
+            Circular autocorrelation for all lags between 1 and autocorr_max_tau
+
+        References
+        ----------
+        Fisher, N. I., & Lee, A. J. (1983). A Correlation Coefficient for Circular Data.
+        Biometrika, 70(2), 327–332. https://doi.org/10.2307/2335547
+        Holzmann, H., Munk, A., Suster, M. et al. Hidden Markov models for circular and linear-circular time series.
+        Environ Ecol Stat 13, 325–347 (2006). https://doi.org/10.1007/s10651-006-0015-7
+        """
+
+        vect = np.diff(self.path, axis=0)
+        phi = np.arctan2(vect[:, 1], vect[:, 0])  # angles
+
+        ac = []
+        for tau in range(1, self.autocorr_max_tau + 1):
+            phi_0 = phi[: len(phi) - tau]
+            phi_t = phi[tau:]
+
+            sin_phi_0, cos_phi_0 = np.sin(phi_0), np.cos(phi_0)
+            sin_phi_t, cos_phi_t = np.sin(phi_t), np.cos(phi_t)
+
+            numerator = np.mean(cos_phi_0 * cos_phi_t) * np.mean(
+                sin_phi_0 * sin_phi_t
+            ) - np.mean(sin_phi_0 * cos_phi_t) * np.mean(cos_phi_0 * sin_phi_t)
+            denominator = (1 - np.mean(cos_phi_0 ** 2)) * np.mean(cos_phi_0 ** 2) - (
+                np.mean(sin_phi_0 * cos_phi_0)
+            ) ** 2
+            ac.append(numerator / denominator)
+        return np.array(ac)
 
     def linearity(self) -> float:
         """Linearity.

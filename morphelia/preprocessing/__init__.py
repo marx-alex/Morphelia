@@ -5,9 +5,9 @@ from .basic import (
     drop_duplicates,
     drop_invariant,
 )
-from .normalize import normalize
+from .normalization import normalize
 from .pseudostitch import pseudostitch
-from .aggregate import aggregate, aggregate_chunks
+from .aggregation import aggregate, aggregate_chunks
 from .subsample import subsample
 from .positional_corr import correct_plate_eff
 from .photobleach import correct_bleaching, correct_bleached_var

@@ -5,6 +5,7 @@ from typing import Union, Optional, List
 
 # import external libraries
 import numpy as np
+from scipy import stats
 import pandas as pd
 import anndata as ad
 from tqdm import tqdm
@@ -150,6 +151,7 @@ def aggregate(
 
         # cache indices of group
         group_ix = sub_df.index
+        agg = None
 
         if method == "mean":
             agg = np.nanmean(adata[group_ix, :].X.copy(), axis=0, **kwargs).reshape(
@@ -181,7 +183,8 @@ def aggregate(
                     X_reps[rep].append(agg_rep)
 
         # concatenate aggregated groups
-        X_agg.append(agg)
+        if agg is not None:
+            X_agg.append(agg)
 
     # make anndata object from aggregated data
     X_agg = np.concatenate(X_agg, axis=0)
@@ -215,24 +218,21 @@ def aggregate(
 
 
 def _modz(
-    arr: np.ndarray,
-    method: str = "spearman",
-    min_weight: Union[float, int] = 0.01,
-    precision: int = 4,
+    X: np.ndarray, method: str = "spearman", min_weight: Union[float, int] = 0.01
 ) -> np.ndarray:
-    """Modified z score transformation.
+    """Modified z-score transformation.
+
+    Modified z-scores (normally calculated with median and median absolute deviation) are aggregated by
+    weighting each sample by their mean correlation to all other samples. This procedure is modified from cmapPy.
 
     Parameters
     ----------
-    arr : np.array
+    X : np.array
         Data representation
     method : str
-        Correlation method.
-        One of `pearson`, `spearman` or `kendall`.
+        Correlation method. Either `pearson` or `spearman`.
     min_weight : float or int
         Minimum correlation to clip all non-negative values lower to
-    precision : int
-        Number of digits to round weights to
 
     Returns
     -------
@@ -244,58 +244,47 @@ def _modz(
     AssertionError
         If array is empty
     AssertionError
-        If method is neither `pearson`, `spearman` nor `kendall`
+        If method is neither `pearson` nor `spearman`
 
     References
     __________
-    .. [1] https://github.com/cytomining/pycytominer/blob/master/pycytominer/cyto_utils/modz.py
+    .. [1] https://github.com/cmap/cmapPy/blob/master/cmapPy/math/agg_wt_avg.py
     """
     # check variables
-    assert arr.shape[0] > 0, "array object must include at least one sample"
+    assert X.shape[0] > 0, "array object must include at least one sample"
 
-    avail_methods = ["pearson", "spearman", "kendall"]
+    method_dict = {
+        "pearson": lambda x: np.corrcoef(x),
+        "spearman": lambda x: stats.spearmanr(x.T)[0],
+    }
     method = method.lower()
-    assert method in avail_methods, (
-        f"method must be one of {avail_methods}, " f"instead got {method}"
-    )
+    assert method in list(
+        method_dict.keys()
+    ), f"method must be one of {list(method_dict.keys())}, instead got {method}"
+    corr_func = method_dict[method]
 
-    # adata to pandas dataframe
-    arr = pd.DataFrame(data=arr)
+    # extract pairwise correlations of samples
+    R = corr_func(X)
 
-    # Step 1: Extract pairwise correlations of samples
-    # Transpose so samples are columns
-    arr = arr.transpose()
-    corr_df = arr.corr(method=method)
+    # fill diagonal of correlation matrix with np.nan
+    np.fill_diagonal(R, np.nan)
 
-    # Step 2: Identify sample weights
-    # Fill diagonal of correlation_matrix with np.nan
-    np.fill_diagonal(corr_df.values, np.nan)
+    # remove negative values
+    R = R.clip(min=0)
 
-    # Remove negative values
-    corr_df = corr_df.clip(lower=0)
+    # get average correlation for each profile (will ignore NaN)
+    raw_weights = np.nanmean(R, axis=1)
 
-    # Get average correlation for each profile (will ignore NaN)
-    raw_weights = corr_df.mean(axis=1)
-
-    # Threshold weights (any value < min_weight will become min_weight)
-    raw_weights = raw_weights.clip(lower=min_weight)
+    # threshold weights (any value < min_weight will become min_weight)
+    raw_weights = raw_weights.clip(min=min_weight)
 
     # normalize raw_weights so that they add to 1
     weights = raw_weights / sum(raw_weights)
-    weights = weights.round(precision)
 
-    # Step 3: Normalize
-    if arr.shape[1] == 1:
-        # There is only one sample (note that columns are now samples)
-        modz_df = arr.sum(axis=1)
-    else:
-        modz_df = arr * weights
-        modz_df = modz_df.sum(axis=1)
+    # apply weights to values
+    X = np.sum(X * weights.reshape(-1, 1), axis=0).reshape(1, -1)
 
-    # convert series back to array
-    modz = modz_df.to_numpy()
-
-    return modz
+    return X
 
 
 def aggregate_chunks(
