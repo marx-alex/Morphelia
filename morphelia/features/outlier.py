@@ -1,8 +1,7 @@
 import numpy as np
 import logging
-from typing import Union, Tuple
+from typing import Union
 
-from sklearn.ensemble import IsolationForest
 import anndata as ad
 
 logger = logging.getLogger(__name__)
@@ -101,50 +100,3 @@ def thresh_outlier(
             logger.info(f"{n_before - len(adata)} cells removed with outlier values")
 
     return adata
-
-
-def isolation_forest(
-    adata: ad.AnnData, drop: bool = True, verbose: bool = False, **kwargs
-) -> Union[ad.AnnData, Tuple[ad.AnnData, np.ndarray]]:
-    """Simple wrapper for sklearn's IsolationForest.
-
-    Parameters
-    ----------
-    adata : anndata.AnnData
-        Multidimensional morphological data
-    drop : bool
-        Drop outliers
-    verbose : bool
-    kwargs
-        Keyword arguments for `sklearn.ensemble.IsolationForest`
-
-    Returns
-    -------
-    anndata.AnnData
-        AnnData object without dropped features if `drop` is True
-
-    Examples
-    --------
-    >>> import anndata as ad
-    >>> import morphelia as mp
-    >>> import numpy as np
-
-    >>> data = np.random.rand(10, 5)
-    >>> adata = ad.AnnData(data)
-    >>> mp.ft.isolation_forest(adata)
-    AnnData object with n_obs × n_vars = 5 × 5
-    """
-    kwargs.setdefault("random_state", 0)
-    clf = IsolationForest(**kwargs)
-    y_outl = clf.fit_predict(adata.X)
-
-    y_outl = np.clip(y_outl, a_min=0, a_max=None).astype(bool)
-
-    if verbose:
-        logger.info(f"{y_outl.sum()} outlier samples detected.")
-
-    if drop:
-        adata = adata[y_outl, :].copy()
-        return adata
-    else:
-        return adata, y_outl

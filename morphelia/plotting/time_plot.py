@@ -5,7 +5,7 @@ import pandas as pd
 import anndata as ad
 
 # import internal libraries
-from morphelia.preprocessing import aggregate
+import morphelia as mp
 import os
 from typing import Optional, Union, Tuple, List
 
@@ -79,7 +79,7 @@ def time_plot(
             by.append(units)
         if hue is not None:
             by.append(hue)
-        adata = aggregate(adata, by=by, qc=False)
+        adata = mp.pp.aggregate(adata, by=by, qc=False)
 
     # generate data frame from variables given
     if time_var in adata.obs.columns:
@@ -255,13 +255,13 @@ def time_heatmap(
         adata_df = pd.concat([adata.obs[[time_var, treat_var]], adata.to_df()], axis=1)
         df_ix = treat_var
     elif conc_var is not None:
-        adata = aggregate(adata, by=[time_var, treat_var, conc_var], qc=False)
+        adata = mp.pp.aggregate(adata, by=[time_var, treat_var, conc_var], qc=False)
         adata_df = pd.concat(
             [adata.obs[[time_var, treat_var, conc_var]], adata.to_df()], axis=1
         )
         df_ix = [treat_var, conc_var]
     else:
-        adata = aggregate(adata, by=[time_var, treat_var], qc=False)
+        adata = mp.pp.aggregate(adata, by=[time_var, treat_var], qc=False)
         adata_df = pd.concat([adata.obs[[time_var, treat_var]], adata.to_df()], axis=1)
         df_ix = treat_var
 

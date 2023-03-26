@@ -14,3 +14,4 @@ from .photobleach import correct_bleaching, correct_bleached_var
 from .thresholding import assign_by_threshold
 from .select import select_by_group
 from .transformation import transform
+from .outlier import outlier_detection

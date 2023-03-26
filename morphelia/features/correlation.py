@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy import stats
 import anndata as ad
 from morphelia.plotting import plot_corr_matrix
 from morphelia.tools.utils import get_subsample
@@ -16,13 +17,14 @@ logger.setLevel(logging.DEBUG)
 def drop_highly_correlated(
     adata: ad.AnnData,
     thresh: float = 0.95,
+    method: str = "spearman",
     subsample: bool = False,
     sample_size: int = 1000,
     seed: int = 0,
     verbose: bool = False,
     neg_corr: bool = False,
     drop: bool = True,
-    make_plot: bool = True,
+    make_plot: bool = False,
     show: bool = True,
     save: Optional[bool] = None,
     **kwargs,
@@ -49,8 +51,10 @@ def drop_highly_correlated(
     adata : anndata.AnnData
         Multidimensional morphological data
     thresh : float
-        Correlated features with Pearson correlation coefficient
+        Correlated features with correlation coefficient
         above threshold are dropped
+    method : str
+        Correlation method. Either `pearson` or `spearman`
     save : str, optional
         Path where to save figure
     subsample : bool
@@ -100,8 +104,18 @@ def drop_highly_correlated(
     else:
         adata_ss = adata.copy()
 
+    method_dict = {
+        "pearson": lambda x: np.corrcoef(x.T),
+        "spearman": lambda x: stats.spearmanr(x)[0],
+    }
+    method = method.lower()
+    assert method in list(
+        method_dict.keys()
+    ), f"method must be one of {list(method_dict.keys())}, instead got {method}"
+    corr_func = method_dict[method]
+
     # calculate correlation coefficients
-    corr_matrix = np.corrcoef(adata_ss.X.T)
+    corr_matrix = corr_func(adata_ss.X)
 
     # cache features with only nan correlations
     nan_mask = np.all(np.isnan(corr_matrix), axis=0)
