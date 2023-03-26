@@ -16,7 +16,7 @@ def run(
     inp,
     out,
     fname=None,
-    nan_frac=0.5,
+    nan_frac=0.1,
     drop_near_zero_variance=True,
     freq_thresh=0.05,
     unique_thresh=1,
@@ -93,7 +93,7 @@ def main(args=None):
     parser.add_argument(
         "--nan_frac",
         type=float,
-        default=0.5,
+        default=0.1,
         help="Minimum fraction of nan values in features before being dropped.",
     )
     parser.add_argument(

@@ -144,7 +144,7 @@ def drop_highly_correlated(
     # drop highly correlated features
     if drop_ix is not None:
         all_vars = adata.var_names
-        drop_vars = all_vars[drop_ix]
+        drop_vars = list(all_vars[drop_ix])
 
         if verbose:
             logger.info(f"Dropped {len(drop_vars)} features: {drop_vars}")
