@@ -20,8 +20,8 @@ def run(
     group_vars=("Metadata_Well", "Metadata_Field"),
     x_loc="Cells_Location_Center_X",
     y_loc="Cells_Location_Center_Y",
-    filter_dummies=True,
-    filter_delayed_roots=True,
+    filter_dummies=False,
+    filter_delayed_roots=False,
     drop_untracked=True,
     max_search_radius=100,
     field_size=(2048, 2048),
@@ -114,13 +114,13 @@ def main(args=None):
     parser.add_argument(
         "--filter_dummies",
         type=bool,
-        default=True,
+        default=False,
         help="Filter tracks that contain dummies.",
     )
     parser.add_argument(
         "--filter_delayed_roots",
         type=bool,
-        default=True,
+        default=False,
         help="Filter tracks that start late.",
     )
     parser.add_argument(

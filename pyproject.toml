@@ -11,33 +11,23 @@ license = {text = "MIT Licence"}
 dynamic = ["version"]
 readme = "README.md"
 dependencies = [
-  "anndata >= 0.7.4",
+  "anndata >= 0.8.0",
   "scanpy",
   "matplotlib",
   "networkx",
   "numpy",
   "pandas",
   "scikit-learn",
-  "scikit-learn-intelex",
   "scikit-image",
-  "torch",
-  "pytorch-lightning",
   "scipy",
   "seaborn",
   "napari",
-  "leidenalg",
-  "umap-learn",
-  "fastcluster",
   "jupyter",
-  "tables",
-  "fa2",
   "pygam",
   "pyyaml",
   "statsmodels",
   "dtaidistance",
-  "tqdm",
   "hmmlearn",
-  "wandb",
   "btrack"
 ]
 
@@ -46,7 +36,6 @@ include = ["morphelia*"]
 exclude = ["tests"]
 
 [project.scripts]
-cli-name = "mypkg.mymodule:some_func"
 StorePlates = "morphelia.cli.StorePlates:main"
 CollectData = "morphelia.cli.CollectData:main"
 Pseudostitch = "morphelia.cli.Pseudostitch:main"

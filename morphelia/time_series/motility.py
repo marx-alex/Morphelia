@@ -11,8 +11,9 @@ from tqdm import tqdm
 
 def cell_motility(
     adata: ad.AnnData,
-    x_loc: str,
-    y_loc: str,
+    x_loc: Optional[str] = None,
+    y_loc: Optional[str] = None,
+    use_rep: Optional[str] = None,
     track_id: str = "Metadata_Track",
     time_var: str = "Metadata_Time",
     fpu: int = 1,
@@ -28,10 +29,12 @@ def cell_motility(
     ----------
     adata : anndata.AnnData
         Multidimensional morphological data
-    x_loc : str
+    x_loc : str, optional
         Location of cell on x-coordinate
-    y_loc : str
+    y_loc : str, optional
         Location of cell on y-coordinate
+    use_rep : str, optional
+        If specified, a representation in `.obsm` is used as path, `x_loc` and `y_loc` is ignored.
     track_id : str
         Name of track identifiers in '.obs'
     time_var : str
@@ -61,7 +64,11 @@ def cell_motility(
 
     for track, sdata in tqdm(adata.obs.groupby(track_id)):
         sdata = sdata.sort_values(time_var)
-        path = sdata[[x_loc, y_loc]].values
+        index = sdata.index
+        if use_rep is not None:
+            path = adata[index, :].obsm[use_rep][:, :2]
+        else:
+            path = sdata[[x_loc, y_loc]].values
         ts_len = len(sdata)
 
         if ts_len >= min_track_len:
@@ -345,11 +352,10 @@ class CellMotility:
             Mean and standard deviation of the angle distribution.
         """
         vect = np.diff(self.path, axis=0)
-        mean_vect = vect.mean(axis=0)
-        mean_phi = np.arctan2(mean_vect[1], mean_vect[0])
-        rho = np.sqrt(np.sum(vect ** 2, axis=1))
-        circular_std = np.sqrt(-2 * np.ln(rho.mean()))
-        return mean_phi, circular_std
+        phi = np.arctan2(vect[1], vect[0])
+        circ_mean = stats.circmean(phi, low=-np.pi, high=np.pi)
+        circ_std = stats.circstd(phi, low=-np.pi, high=np.pi)
+        return circ_mean, circ_std
 
     def angle_autocorrelation(self):
         r"""Circular autocorrelation of angles.

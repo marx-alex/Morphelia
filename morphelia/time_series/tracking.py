@@ -12,148 +12,118 @@ from typing import Union, Tuple, List, Optional
 logger = logging.getLogger("worker_process")
 logger.setLevel(level=logging.WARN)
 
-tracker_config = {
-    "TrackerConfig": {
-        "MotionModel": {
-            "name": "cell_motion",
-            "dt": 1.0,
-            "measurements": 3,
-            "states": 6,
-            "accuracy": 7.5,
-            "prob_not_assign": 0.001,
-            "max_lost": 3,
-            "A": {
-                "matrix": [
-                    1,
-                    0,
-                    0,
-                    1,
-                    0,
-                    0,
-                    0,
-                    1,
-                    0,
-                    0,
-                    1,
-                    0,
-                    0,
-                    0,
-                    1,
-                    0,
-                    0,
-                    1,
-                    0,
-                    0,
-                    0,
-                    1,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    1,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    1,
-                ]
-            },
-            "H": {
-                "matrix": [
-                    1,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    1,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    1,
-                    0,
-                    0,
-                    0,
-                ]
-            },
-            "P": {
-                "sigma": 150.0,
-                "matrix": [
-                    0.1,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0.1,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0.1,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    1,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    1,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    1,
-                ],
-            },
-            "G": {"sigma": 15.0, "matrix": [0.5, 0.5, 0.5, 1, 1, 1]},
-            "R": {"sigma": 5.0, "matrix": [1, 0, 0, 0, 1, 0, 0, 0, 1]},
+btrack_config = {
+    "MotionModel": {
+        "name": "cell_motion",
+        "dt": 1.0,
+        "measurements": 3,
+        "states": 6,
+        "accuracy": 7.5,
+        "prob_not_assign": 0.001,
+        "max_lost": 5,
+        "A": {
+            "matrix": [
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+            ]
         },
-        "ObjectModel": {},
-        "HypothesisModel": {
-            "name": "cell_hypothesis",
-            "hypotheses": [
-                "P_FP",
-                "P_init",
-                "P_term",
-                "P_link",
-                "P_branch",
-                "P_dead",
+        "H": {"matrix": [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]},
+        "P": {
+            "sigma": 150.0,
+            "matrix": [
+                0.1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0.1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0.1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
             ],
-            "lambda_time": 5.0,
-            "lambda_dist": 3.0,
-            "lambda_link": 10.0,
-            "lambda_branch": 50.0,
-            "eta": 1e-10,
-            "theta_dist": 20.0,
-            "theta_time": 5.0,
-            "dist_thresh": 40,
-            "time_thresh": 2,
-            "apop_thresh": 5,
-            "segmentation_miss_rate": 0.1,
-            "apoptosis_rate": 0.001,
-            "relax": True,
         },
-    }
+        "G": {"sigma": 15.0, "matrix": [0.5, 0.5, 0.5, 1, 1, 1]},
+        "R": {"sigma": 5.0, "matrix": [1, 0, 0, 0, 1, 0, 0, 0, 1]},
+    },
+    "ObjectModel": {},
+    "HypothesisModel": {
+        "name": "cell_hypothesis",
+        "hypotheses": ["P_FP", "P_init", "P_term", "P_link", "P_branch", "P_dead"],
+        "lambda_time": 5.0,
+        "lambda_dist": 3.0,
+        "lambda_link": 10.0,
+        "lambda_branch": 50.0,
+        "eta": 1e-10,
+        "theta_dist": 20.0,
+        "theta_time": 5.0,
+        "dist_thresh": 40,
+        "time_thresh": 2,
+        "apop_thresh": 5,
+        "segmentation_miss_rate": 0.1,
+        "apoptosis_rate": 0.001,
+        "relax": True,
+    },
 }
 
 fate_dict = {
@@ -176,11 +146,13 @@ def track(
     fate_id: str = "Metadata_Fate",
     root_id: str = "Metadata_Track_Root",
     gen_id: str = "Metadata_Gen",
+    use_features: Optional[Union[str, List[str]]] = None,
     filter_dummies: bool = False,
-    filter_delayed_roots: bool = True,
+    filter_delayed_roots: bool = False,
     drop_untracked: bool = True,
     max_search_radius: int = 100,
     field_size: Tuple[int, int] = (2048, 2048),
+    disable_btrack_logger: bool = False,
     approx: bool = False,
     verbose: bool = False,
 ) -> ad.AnnData:
@@ -212,16 +184,20 @@ def track(
         Variable name used to store root of a track
     gen_id : str
         Variable name to store generation of a track
+    use_features : list
+        Use these features for tracking
     filter_dummies : bool
         Filter trees with dummies
     filter_delayed_roots : bool
         Filter roots that initiate after t=0
     drop_untracked : bool
-        Drop all false positive tracks from the anndata object
+        Drop all cell that have not been tracked
     max_search_radius : int
         Local spatial search radius (pixels)
     field_size : tuple of ints
         Height and width in of field
+    disable_btrack_logger : bool
+        Disable the btrack logger
     approx : bool
         Speed up processing on very large datasets
     verbose : bool
@@ -243,6 +219,9 @@ def track(
     .. [1] Automated deep lineage tree analysis using a Bayesian single cell tracking approach
        Ulicna K, Vallardi G, Charras G and Lowe AR. bioRxiv (2020)
     """
+    if disable_btrack_logger:
+        btrack_logger = logging.getLogger("btrack")
+        btrack_logger.setLevel(logging.WARNING)
     # check variables
     if isinstance(group_vars, str):
         group_vars = [group_vars]
@@ -259,9 +238,13 @@ def track(
             f"instead got {type(group_vars)}"
         )
 
-    assert time_var in adata.obs.columns, f"time_var not in .obs.columns: {time_var}"
-    assert x_loc in adata.obs.columns, f"x_loc not in .obs.columns: {x_loc}"
-    assert y_loc in adata.obs.columns, f"y_loc not in .obs.columns: {y_loc}"
+    if isinstance(use_features, str):
+        use_features = [use_features]
+    if use_features is not None:
+        tracking_updates = ["motion", "visual"]
+    else:
+        tracking_updates = ["motion"]
+
     assert x_loc != y_loc, (
         f"x_loc expected to be different from y_loc, " f"x_loc: {x_loc}, y_loc: {y_loc}"
     )
@@ -269,20 +252,19 @@ def track(
     field_height, field_width = field_size
 
     # create new column to store index of parent object
-    adata.obs[parent_id] = np.nan
+    adata.obs[parent_id] = -1
     # create new column and store id for every trace tree
-    adata.obs[track_id] = np.nan
+    adata.obs[track_id] = -1
     # store fate, root and generation
     adata.obs[fate_id] = np.nan
-    adata.obs[root_id] = np.nan
-    adata.obs[gen_id] = np.nan
+    adata.obs[root_id] = -1
+    adata.obs[gen_id] = -1
 
     # load config settings
-    config = tracker_config["TrackerConfig"]
     t_config = {
-        "MotionModel": btrack.utils.read_motion_model(config),
-        "ObjectModel": btrack.utils.read_object_model(config),
-        "HypothesisModel": btrack.optimise.hypothesis.read_hypothesis_model(config),
+        "motion_model": btrack.utils.read_motion_model(btrack_config),
+        "object_model": btrack.utils.read_object_model(btrack_config),
+        "hypothesis_model": btrack.utils.read_hypothesis_model(btrack_config),
     }
 
     # id of first track
@@ -306,7 +288,11 @@ def track(
             "t": field_df[time_var].to_numpy(),
             "id": _id,
         }
-        objects = btrack.dataio.objects_from_dict(objects_raw)
+        if use_features is not None:
+            for feat in use_features:
+                objects_raw[feat] = adata[_id, feat].X.flatten()
+
+        objects = btrack.io.objects_from_dict(objects_raw)
 
         # start tracker
         with btrack.BayesianTracker(verbose=False) as tracker:
@@ -317,13 +303,16 @@ def track(
             if approx:
                 tracker.update_method = BayesianUpdates.APPROXIMATE
 
+            if use_features is not None:
+                tracker.features = use_features
+
             tracker.append(objects)
 
             # set the volume (Z axis volume is set very large for 2D data)
             tracker.volume = ((0, field_height), (0, field_width), (-1e5, 1e5))
 
             # track them
-            tracker.track()
+            tracker.track(tracking_updates=tracking_updates)
 
             # generate hypotheses and run the global optimizer
             tracker.optimize()
@@ -369,12 +358,11 @@ def track(
 
     if drop_untracked:
         len_before = len(adata)
-        # drop false positive
-        adata = adata[adata.obs[fate_id] != "false_positive", :]
         # drop untracked cells
-        adata = adata[adata.obs[track_id].notna(), :]
-        adata = adata[adata.obs[parent_id].notna(), :]
-        adata = adata[adata.obs[root_id].notna(), :]
+        adata = adata[adata.obs[track_id] != -1, :]
+        adata = adata[adata.obs[parent_id] != -1, :]
+        adata = adata[adata.obs[root_id] != -1, :]
+        adata = adata[adata.obs[fate_id].notna(), :]
         if verbose:
             logging.info(
                 f"Dropped {len_before - len(adata)} cells with false positive tracks."

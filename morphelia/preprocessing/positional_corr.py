@@ -3,7 +3,7 @@ from typing import Union, List, Tuple, Optional
 import numpy as np
 from tqdm import tqdm
 import anndata as ad
-from scipy.stats import median_absolute_deviation as mad
+from scipy.stats import median_abs_deviation as mad
 from morphelia.tools import MedianPolish
 
 

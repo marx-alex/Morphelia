@@ -16,7 +16,7 @@ def run(
     inp,
     out,
     fname=None,
-    nan_frac=0.1,
+    nan_frac=0.5,
     drop_near_zero_variance=True,
     freq_thresh=0.05,
     unique_thresh=1,
@@ -31,10 +31,10 @@ def run(
 
     # nan values
     logger.info(f"Drop features with more than {nan_frac * 100}% Nan values")
-    adata = mp.pp.drop_nan(adata, axis=0, min_nan_frac=nan_frac, verbose=True)
+    adata = mp.pp.drop_nan(adata, axis=1, min_nan_frac=nan_frac, verbose=True)
 
     logger.info("Drop cells with Nan values")
-    adata = mp.pp.drop_nan(adata, axis=1, verbose=True)
+    adata = mp.pp.drop_nan(adata, axis=0, verbose=True)
 
     # duplicated features / cells
     logger.info("Drop duplicated features")
@@ -93,7 +93,7 @@ def main(args=None):
     parser.add_argument(
         "--nan_frac",
         type=float,
-        default=0.1,
+        default=0.5,
         help="Minimum fraction of nan values in features before being dropped.",
     )
     parser.add_argument(

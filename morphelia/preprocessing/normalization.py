@@ -3,9 +3,8 @@ from typing import Union, Optional
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
 import anndata as ad
 
-from morphelia.tools import RobustMAD
+from morphelia.tools import RobustMAD, choose_layer
 from morphelia.preprocessing import drop_nan as drop_nan_feats
-from morphelia.features import thresh_outlier
 
 
 def normalize(
@@ -14,9 +13,8 @@ def normalize(
     method: str = "standard",
     pop_var: str = "Metadata_Treatment",
     norm_pop: Optional[str] = None,
-    drop_outlier: bool = False,
-    outlier_thresh: Union[int, float] = 3.5,
-    drop_nan: bool = True,
+    drop_nan: bool = False,
+    obsm: Optional[str] = None,
     verbose: bool = False,
     **kwargs,
 ):
@@ -49,10 +47,8 @@ def normalize(
         This is not used if norm_pop is None
     drop_nan : bool
         Drop feature containing nan values after transformation
-    drop_outlier : bool
-        Drop outlier values
-    outlier_thresh : int or float
-        Values above are considered outliers and will be removed
+    obsm : str, optional
+        If provided, which element of obsm to scale
     verbose : bool
     **kwargs
         Arguments passed to scaler
@@ -70,8 +66,6 @@ def normalize(
         If `pop_var` is not in `.obs.columns`
     AssertionError
         If method is not valid
-    AssertionError
-        If `outlier_thresh` is 0
 
     Examples
     --------
@@ -113,41 +107,51 @@ def normalize(
         f"Method must be one of {avail_methods}, " f"instead got {method}"
     )
 
-    scaler = None
+    scaler_method = None
     if method == "standard":
-        scaler = StandardScaler(**kwargs)
+        scaler_method = StandardScaler
     elif method == "robust":
-        scaler = RobustScaler(**kwargs)
+        scaler_method = RobustScaler
     elif method == "mad_robust":
-        scaler = RobustMAD(**kwargs)
+        scaler_method = RobustMAD
     elif method == "min_max":
-        scaler = MinMaxScaler(**kwargs)
+        scaler_method = MinMaxScaler
 
     # iterate over adata with grouping variables
     if by is not None:
+        x = choose_layer(adata, obsm=obsm, copy=True)
         for groups, sub_df in adata.obs.groupby(by):
+            scaler = scaler_method(**kwargs)
             # cache indices of group
             group_ix = sub_df.index
+            mask = adata.obs.index.isin(group_ix)
             # transform group with scaler
             if norm_pop is not None:
                 norm_ix = sub_df[sub_df[pop_var] == norm_pop].index
-                scaler.fit(adata[norm_ix, :].X.copy())
+                norm_pop_mask = adata.obs.index.isin(norm_ix)
+                scaler.fit(x[norm_pop_mask, :])
             else:
-                scaler.fit(adata[group_ix, :].X.copy())
+                scaler.fit(x[mask, :])
+
             # transform
-            adata[group_ix, :].X = scaler.transform(adata[group_ix, :].X.copy())
+            x[mask, :] = scaler.transform(x[mask, :])
+        if obsm is not None:
+            adata.obsm[obsm] = x
+        else:
+            adata.X = x
 
     else:
-        scaler.fit(adata.X.copy())
-        adata.X = scaler.transform(adata.X.copy())
-
-    if drop_outlier:
-        assert (
-            outlier_thresh > 0
-        ), f"Value for outlier_thresh should be above 0, instead got {outlier_thresh}"
-        adata = thresh_outlier(adata, thresh=outlier_thresh, axis=1, verbose=verbose)
+        scaler = scaler_method(**kwargs)
+        if obsm is None:
+            scaler.fit(adata.X)
+            adata.X = scaler.transform(adata.X)
+        else:
+            scaler.fit(choose_layer(adata, obsm=obsm, copy=True))
+            adata.obsm[obsm] = scaler.transform(
+                choose_layer(adata, obsm=obsm, copy=True)
+            )
 
     if drop_nan:
-        adata = drop_nan_feats(adata, verbose=verbose)
+        adata = drop_nan_feats(adata, verbose=verbose, obsm=obsm, axis=0)
 
     return adata

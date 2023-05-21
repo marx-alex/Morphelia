@@ -266,6 +266,10 @@ def _modz(
     # extract pairwise correlations of samples
     R = corr_func(X)
 
+    # for constant arrays the mean is calculated
+    if isinstance(R, float):
+        R = np.ones((X.shape[0], X.shape[0]))
+
     # fill diagonal of correlation matrix with np.nan
     np.fill_diagonal(R, np.nan)
 

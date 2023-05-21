@@ -20,8 +20,6 @@ def run(
     method="standard",
     pop_var="Metadata_Treatment",
     norm_pop=None,
-    drop_outlier=False,
-    outlier_thresh=3,
 ):
     """Normalize data."""
     if not os.path.exists(out):
@@ -38,8 +36,6 @@ def run(
         method=method,
         pop_var=pop_var,
         norm_pop=norm_pop,
-        drop_outlier=drop_outlier,
-        outlier_thresh=outlier_thresh,
         verbose=True,
     )
 
@@ -103,17 +99,6 @@ def main(args=None):
         default=None,
         help="Control population to be found under pop_var",
     )
-    parser.add_argument(
-        "--drop_outlier",
-        type=bool,
-        default=False,
-        help="Drop outlier values after normalization.",
-    )
-    parser.add_argument(
-        "--outlier_thresh",
-        default=3,
-        help="Values above are considered outliers and will be removed.",
-    )
 
     # parser
     args = parser.parse_args(args)
@@ -127,6 +112,4 @@ def main(args=None):
         method=args.method,
         pop_var=args.pop_var,
         norm_pop=args.norm_pop,
-        drop_outlier=args.drop_outlier,
-        outlier_thresh=args.outlier_thresh,
     )

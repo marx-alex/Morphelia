@@ -96,6 +96,37 @@ def choose_representation(
     return X
 
 
+def choose_layer(
+    adata: ad.AnnData, obsm: Optional[str] = None, copy=False
+) -> np.ndarray:
+    """Fetch a layer from an AnnData object.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Multidimensional morphological data
+    obsm : str, optional
+        Key in `.obsm`
+    copy : bool
+        Return a copy
+
+    Returns
+    -------
+    numpy.ndarray
+        The chosen layer of the AnnData object
+    """
+    if obsm is not None:
+        if copy:
+            return adata.obsm[obsm].copy()
+        else:
+            return adata.obsm[obsm]
+
+    if copy:
+        return adata.X.copy()
+    else:
+        return adata.X
+
+
 def get_subsample(
     adata: ad.AnnData, sample_size: Optional[int] = None, seed: int = 0
 ) -> ad.AnnData:

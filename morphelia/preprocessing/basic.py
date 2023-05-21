@@ -5,6 +5,8 @@ import anndata as ad
 import logging
 from typing import Optional, Union
 
+import morphelia as mp
+
 logger = logging.getLogger(__name__)
 logging.basicConfig()
 logger.setLevel(logging.DEBUG)
@@ -16,6 +18,7 @@ def drop_nan(
     drop_inf: bool = True,
     drop_dtype_max: bool = True,
     min_nan_frac: Optional[Union[float, int]] = None,
+    obsm: Optional[str] = None,
     verbose: bool = False,
 ):
     """Drop rows or columns that contain invalid values.
@@ -25,13 +28,15 @@ def drop_nan(
     adata : anndata.AnnData
         Multidimensional morphological data
     axis : int
-        Drop features (0) or cells (1)
+        Drop cells (0) or features (1)
     drop_inf : bool
         Drop infinite values
     drop_dtype_max : bool
         Drop values to large for dtype
     min_nan_frac : float or int, optional
         Minimum fraction of column/ or row that has to be invalid to be dropped
+    obsm : str, optional
+        If provided, which element of obsm to scale
     verbose : bool
 
     Returns
@@ -62,28 +67,51 @@ def drop_nan(
         uns: 'nan_feats'
     """
     assert axis in [0, 1], f"axis should be either 0 or 1, but got {axis}"
-    n_vals = adata.X.shape[axis]
+
+    x = mp.tl.choose_layer(adata, obsm=obsm)
 
     if drop_inf:
-        adata.X[(adata.X == np.inf) | (adata.X == -np.inf)] = np.nan
+        x[(x == np.inf) | (x == -np.inf)] = np.nan
 
     if drop_dtype_max:
-        adata.X[adata.X > np.finfo(adata.X.dtype).max] = np.nan
+        x[x > np.finfo(x.dtype).max] = np.nan
 
-    n_nan = np.isnan(adata.X).sum(axis=axis)
+    n_nan = np.isnan(x).sum(axis=1 if axis == 0 else 0)
 
     # nan values must be a minimum fraction of all values
     if min_nan_frac is not None:
+        m, n = x.shape
         assert (
             0 <= min_nan_frac <= 1
         ), "min_nan_frac should be of type float and between 0 and 1, instead got {min_nan_frac}"
-        frac = n_nan / n_vals
+        if axis == 0:
+            frac = n_nan / n
+        else:
+            frac = n_nan / m
         mask = frac >= min_nan_frac
     else:
         mask = n_nan > 0
 
-    # --> filter features
+    # if axis 0 --> filter cells
     if axis == 0:
+        dropped = list(adata.obs.index[mask])
+
+        if verbose:
+            logger.info(f"Dropped {len(dropped)} cells with missing values: {dropped}")
+
+        adata = adata[~mask, :].copy()
+
+        # store dropped features in adata.uns
+        if "nan_cells" in adata.uns:
+            if isinstance(adata.uns["nan_cells"], list):
+                adata.uns["nan_cells"].extend(dropped)
+            else:
+                adata.uns["nan_cells"] = dropped
+        else:
+            adata.uns["nan_cells"] = dropped
+
+    # --> filter features
+    else:
         dropped = list(adata.var_names[mask])
 
         if verbose:
@@ -101,24 +129,6 @@ def drop_nan(
                 adata.uns["nan_feats"] = dropped
         else:
             adata.uns["nan_feats"] = dropped
-
-    # if axis 1 --> filter cells
-    else:
-        dropped = list(adata.obs.index[mask])
-
-        if verbose:
-            logger.info(f"Dropped {len(dropped)} cells with missing values: {dropped}")
-
-        adata = adata[~mask, :].copy()
-
-        # store dropped features in adata.uns
-        if "nan_cells" in adata.uns:
-            if isinstance(adata.uns["nan_cells"], list):
-                adata.uns["nan_cells"].extend(dropped)
-            else:
-                adata.uns["nan_cells"] = dropped
-        else:
-            adata.uns["nan_cells"] = dropped
 
     return adata
 

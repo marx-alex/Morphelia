@@ -1,40 +1,27 @@
 name: morphelia
 channels:
-  - pytorch
-  - defaults
   - conda-forge
+  - defaults
   - anaconda
 dependencies:
   - python>=3.8
-  - anndata>=0.7.4
+  - anndata>=0.8.0
   - scanpy
   - matplotlib
-  - networkx
   - numpy
   - pandas
   - scikit-learn
-  - scikit-learn-intelex
   - scikit-image
-  - pytorch
-  - cudatoolkit
-  - pytorch-lightning
+  - networkx
   - scipy
   - seaborn
   - napari
-  - leidenalg
-  - umap-learn
-  - fastcluster
   - jupyter
-  - pytables
-  - multicore-tsne
-  - fa2
   - pygam
   - pyyaml
   - statsmodels
   - dtaidistance
-  - tqdm
   - hmmlearn
-  - wandb
   - pip
   - pip:
     - btrack

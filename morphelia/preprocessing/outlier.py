@@ -22,7 +22,7 @@ def outlier_detection(
     adata: ad.AnnData,
     method: str = "if",
     use_rep: Optional[str] = None,
-    n_pcs: int = 50,
+    n_pcs: Optional[int] = None,
     drop: bool = True,
     verbose: bool = False,
     nystroem_kwargs: Optional[dict] = None,
@@ -95,7 +95,7 @@ def outlier_detection(
     if use_rep is not None:
         X = choose_representation(adata, rep=use_rep, n_pcs=n_pcs)
     else:
-        X = adata.X
+        X = adata.X.copy()
 
     o = clf.fit_predict(X)
 
