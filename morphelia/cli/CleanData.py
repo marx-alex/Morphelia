@@ -2,6 +2,7 @@ import argparse
 import os
 from pathlib import Path
 import logging
+import gc
 
 import anndata as ad
 
@@ -28,6 +29,8 @@ def run(
     # load data
     logger.info(f"Read AnnData object: {inp}")
     adata = ad.read_h5ad(inp)
+    # collect garbage
+    gc.collect()
 
     # nan values
     logger.info(f"Drop features with more than {nan_frac * 100}% Nan values")
@@ -36,12 +39,18 @@ def run(
     logger.info("Drop cells with Nan values")
     adata = mp.pp.drop_nan(adata, axis=0, verbose=True)
 
+    # collect garbage
+    gc.collect()
+
     # duplicated features / cells
     logger.info("Drop duplicated features")
     adata = mp.pp.drop_duplicates(adata, axis=1, verbose=True)
 
     logger.info("Drop duplicated cells")
     adata = mp.pp.drop_duplicates(adata, axis=0, verbose=True)
+
+    # collect garbage
+    gc.collect()
 
     # invariant features / cells
     logger.info("Drop invariant features")
