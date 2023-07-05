@@ -33,7 +33,7 @@ def run(
     # concatenate
     if len(plates) > 1:
         logger.info(f"Merge {len(plates)} plates.")
-        plates = plates[0].concatenate(*plates[1:])
+        plates = ad.concat(plates, merge='same')
         logger.info(f"Write file as {new_name}")
         plates.write(Path(os.path.join(out, new_name)))
     elif len(plates) == 1:

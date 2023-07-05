@@ -19,3 +19,4 @@ from .cluster import clustermap
 from .volcano import volcano_plot
 from .density import plot_density
 from .hmm import plot_hmm
+from .rank_feats import rank_feats_groups

@@ -1,4 +1,4 @@
-from typing import Union, List, Callable, Optional
+from typing import Union, List, Callable, Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -8,40 +8,59 @@ from tqdm import tqdm
 import morphelia as mp
 
 
-def v_mean(X: np.ndarray, fpu: int = 1) -> np.ndarray:
-    return np.mean(np.diff(X, axis=0) * fpu, axis=0)
+def _diff(a: np.ndarray, diff: int = 1) -> np.ndarray:
+    assert diff >= 1, f"Difference must be greater than 0, instead got {diff}"
+
+    out_shape = [*a.shape]
+    out_shape[0] = out_shape[0] - diff
+    out = np.zeros(out_shape).astype(a.dtype)
+
+    for i in range(out.shape[0]):
+        out[i, ...] = a[i + diff, ...] - a[i, ...]
+
+    return out
 
 
-def v_std(X: np.ndarray, fpu: int = 1) -> np.ndarray:
-    return np.std(np.diff(X, axis=0) * fpu, axis=0)
+def v_mean(x: np.ndarray, fpu: int = 1) -> np.ndarray:
+    return np.mean(_diff(x, diff=fpu), axis=0)
 
 
-def v_max(X: np.ndarray, fpu: int = 1) -> np.ndarray:
-    return np.max(np.diff(X, axis=0) * fpu, axis=0)
+def v_std(x: np.ndarray, fpu: int = 1) -> np.ndarray:
+    return np.std(_diff(x, diff=fpu), axis=0)
 
 
-def v_min(X: np.ndarray, fpu: int = 1) -> np.ndarray:
-    return np.min(np.diff(X, axis=0) * fpu, axis=0)
+def v_max(x: np.ndarray, fpu: int = 1) -> np.ndarray:
+    return np.max(_diff(x, diff=fpu), axis=0)
 
 
-method_dict = {"mean": v_mean, "std": v_std, "max": v_max, "min": v_min}
+def v_min(x: np.ndarray, fpu: int = 1) -> np.ndarray:
+    return np.min(_diff(x, diff=fpu), axis=0)
+
+
+def diff(x: np.ndarray, **kwargs) -> np.ndarray:
+    return x[-1, :] - x[0, :]
+
+
+TrajectoryReductionMethods = {
+    'mean': v_mean,
+    'std': v_std,
+    'max': v_max,
+    'min': v_min,
+    'diff': diff
+}
 
 
 def ts_aggregate(
     adata: ad.AnnData,
-    x_loc: str,
-    y_loc: str,
     method: Union[str, List[Union[Callable, str]]] = "mean",
-    add_mot: bool = True,
-    obs_cols: Optional[Union[str, list]] = None,
     track_id: str = "Metadata_Track",
     time_var: str = "Metadata_Time",
+    use_rep: Optional[str] = None,
     fpu: int = 1,
-    msd_max_tau: Optional[int] = 30,
-    kurtosis_max_tau: Optional[int] = 3,
-    autocorr_max_tau: Optional[int] = 10,
     min_len: int = 30,
-) -> ad.AnnData:
+    var_names: Optional[Sequence] = None,
+    store_vars: Optional[Union[str, list]] = None,
+) -> pd.DataFrame:
     """
     Collates all trajectories of a time series experiments by given methods to reduce the whole
     trajectory to one dimension.
@@ -50,109 +69,99 @@ def ts_aggregate(
     ----------
     adata : anndata.AnnData
         Multidimensional morphological data
-    x_loc : str
-        Location of cell on x-coordinate
-    y_loc : str
-        Location of cell on y-coordinate
     method : list, str
         List of callable functions to apply on tracks to aggregate them.
+        Can be one of mean, std, max, min, diff
         Default is to take the mean change.
-    add_mot : bool
-        Add motility measurements to `.X`
-    obs_cols : str, list
-        Only keep specified columns for new AnnData object
     track_id : str
         Name of track identifiers in '.obs'
     time_var : str
         Name of time variable in '.obs'
+    use_rep : str, optional
+        Use a representation from '.obsm'
     fpu : int
         Frames per unit
-    msd_max_tau : int
-        Maximal tau for Mean Squared Displacement
-    kurtosis_max_tau : int
-        Maximal tau for the calculation of the kurtosis of the displacement distribution
-    autocorr_max_tau : int
-        Maximal tau for Autocorrelation
     min_len : int
         Minimum length of track to consider. Only used if `add_mot` is False.
+    var_names : sequence, list
+        Names for variables two override names from the AnnData object
+    store_vars : str, list
+        Store additional variables for every track
 
     Returns
     -------
-    adata : anndata.AnnData
+    pandas.DataFrame
         New motility parameters are stored in '.obs'
-    .uns['motility']
-        Averaged values per track
     """
-    if add_mot:
-        min_track_len = max(msd_max_tau, autocorr_max_tau) + 1
-    else:
-        min_track_len = min_len
 
-    obs_list = []
-    Z_list = []
-    mot_list = []
+    if isinstance(store_vars, str):
+        store_vars = [store_vars]
 
-    if isinstance(obs_cols, str):
-        obs_cols = [obs_cols]
-    elif obs_cols is None:
-        obs_cols = list(adata.obs.columns)
-
-    if isinstance(method, str):
+    if isinstance(method, str) or callable(method):
         method = [method]
 
-    var_names = []
-    for i, m in enumerate(method):
-        if isinstance(m, str):
-            c = m
-        else:
-            c = f"method_{i}"
-        for v in adata.var_names:
-            var_names.append(f"{v}_{c}")
+    # assign variable names
+    if use_rep is None:
+        n_vars = adata.n_vars
+    else:
+        n_vars = adata.obsm[use_rep].shape[1]
+
+    if var_names is not None:
+        assert (
+            len(var_names) == n_vars
+        ), f"Number of variables names ({len(var_names)}) must match number of features ({n_vars})"
+    elif use_rep is None:
+        var_names = adata.var_names
+    else:
+        var_names = np.array([f"{use_rep}_{i}" for i in range(n_vars)])
+
+    # assign variable names for multiple methods
+    if len(method) > 1:
+        multiple_var_names = []
+        for i, m in enumerate(method):
+            if isinstance(m, str):
+                c = m
+            else:
+                c = f"method_{i}"
+            for v in var_names:
+                multiple_var_names.append(f"{v}_{c}")
+        var_names = multiple_var_names
+
+    output = []
 
     for track, sdata in tqdm(adata.obs.groupby(track_id)):
         ts_len = len(sdata)
 
-        if ts_len >= min_track_len:  # only continue with trajectories of minimum length
+        if ts_len >= min_len:  # only continue with trajectories of minimum length
             sdata = sdata.sort_values(time_var)
-            sdata["Length"] = ts_len  # add trajectory length to annotations
             index = sdata.index
-            obs_list.append(sdata.iloc[0, :][obs_cols])
-            path = sdata[[x_loc, y_loc]].values
 
-            # get motility of trajectory
-            if add_mot:
-                mot = mp.ts.CellMotility(
-                    path=path,
-                    fpu=fpu,
-                    msd_max_tau=msd_max_tau,
-                    kurtosis_max_tau=kurtosis_max_tau,
-                    autocorr_max_tau=autocorr_max_tau,
-                )
-                mot_list.append(mot.result())
+            results = pd.Series({'Track': track, 'Length': ts_len})
+            if store_vars is not None:
+                results = pd.concat((results, sdata.iloc[0, :][store_vars]))
 
-            # collate X
-            Zs = []
+            # get representation
+            if use_rep is not None:
+                X = adata[index, :].obsm[use_rep]
+            else:
+                X = adata[index, :].X
+
+            # apply methods
+            reductions = []
             for m in method:
-                if m in method_dict.keys():
-                    m = method_dict[m]
+                if isinstance(m, str):
+                    assert m in TrajectoryReductionMethods.keys(), f"Method {m} not implemented"
+                    m = TrajectoryReductionMethods[m]
 
-                Z = m(adata[index, :].X.copy())
-                Z = Z.flatten()
+                reduction = m(X.copy(), fpu=fpu)
+                reduction = reduction.flatten()
 
-                assert (
-                    len(Z.shape) == 1
-                ), f"Method {m} does not collate trajectory to shape (1, x)"
-                Zs.append(Z)
+                reductions.append(reduction)
 
-            Z_list.append(np.concatenate(Zs))
+            reductions = np.concatenate(reductions, axis=None)
+            reductions = pd.Series(reductions, index=var_names)
 
-    # concatenate cached elements
-    obs = pd.DataFrame(obs_list)
-    X = np.vstack(Z_list)
-    if add_mot:
-        mot = pd.DataFrame(mot_list)
-        X = np.hstack((X, mot.values))
-        var_names = var_names + list(mot.columns)
-    var = pd.DataFrame(index=var_names)
+            results = pd.concat((results, reductions))
+            output.append(results)
 
-    return ad.AnnData(X=X, obs=obs, var=var)
+    return pd.DataFrame(output)

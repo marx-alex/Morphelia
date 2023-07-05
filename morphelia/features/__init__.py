@@ -5,3 +5,4 @@ from .noise import drop_noise
 from .outlier import thresh_outlier
 from .model_select import svm_rfe
 from .lmem import feature_lmem
+from .rank_feats import rank_feats_groups
