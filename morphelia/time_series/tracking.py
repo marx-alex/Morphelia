@@ -342,19 +342,20 @@ def track(
             dummy_roots = output.loc[output["dummy"], "root"].unique()
             output = output.loc[~output["root"].isin(dummy_roots), :]
         # add absolute ids to output
-        output, end_id = _add_absolute_ids(
-            output, start_id=track_start_id, return_end_id=True
-        )
-        # delete dummies before updating adata
-        output = output[output["id"] != "nan"]
-
-        track_start_id = end_id
-
-        # update adata
         if len(output) > 0:
-            adata.obs.loc[
-                output["id"], [track_id, parent_id, fate_id, root_id, gen_id]
-            ] = output[["track_id", "parent_id", "fate", "root_id", "gen"]].to_numpy()
+            output, end_id = _add_absolute_ids(
+                output, start_id=track_start_id, return_end_id=True
+            )
+            # delete dummies before updating adata
+            output = output[output["id"] != "nan"]
+
+            track_start_id = end_id
+
+            # update adata
+            if len(output) > 0:
+                adata.obs.loc[
+                    output["id"], [track_id, parent_id, fate_id, root_id, gen_id]
+                ] = output[["track_id", "parent_id", "fate", "root_id", "gen"]].to_numpy()
 
     if drop_untracked:
         len_before = len(adata)
