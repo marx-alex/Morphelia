@@ -1,11 +1,10 @@
-from typing import Union, List, Callable, Optional, Sequence
+from typing import Union, Callable
+from collections import defaultdict
 
 import numpy as np
 import pandas as pd
 import anndata as ad
 from tqdm import tqdm
-
-import morphelia as mp
 
 
 def _diff(a: np.ndarray, diff: int = 1) -> np.ndarray:
@@ -42,25 +41,23 @@ def diff(x: np.ndarray, **kwargs) -> np.ndarray:
 
 
 TrajectoryReductionMethods = {
-    'mean': v_mean,
-    'std': v_std,
-    'max': v_max,
-    'min': v_min,
-    'diff': diff
+    "mean": v_mean,
+    "std": v_std,
+    "max": v_max,
+    "min": v_min,
+    "diff": diff,
 }
 
 
 def ts_aggregate(
     adata: ad.AnnData,
-    method: Union[str, List[Union[Callable, str]]] = "mean",
+    method: Union[str, Callable, str] = "mean",
     track_id: str = "Metadata_Track",
     time_var: str = "Metadata_Time",
-    use_rep: Optional[str] = None,
+    aggregate_reps: bool = False,
     fpu: int = 1,
     min_len: int = 30,
-    var_names: Optional[Sequence] = None,
-    store_vars: Optional[Union[str, list]] = None,
-) -> pd.DataFrame:
+) -> ad.AnnData:
     """
     Collates all trajectories of a time series experiments by given methods to reduce the whole
     trajectory to one dimension.
@@ -69,7 +66,7 @@ def ts_aggregate(
     ----------
     adata : anndata.AnnData
         Multidimensional morphological data
-    method : list, str
+    method : str, callable
         List of callable functions to apply on tracks to aggregate them.
         Can be one of mean, std, max, min, diff
         Default is to take the mean change.
@@ -77,57 +74,28 @@ def ts_aggregate(
         Name of track identifiers in '.obs'
     time_var : str
         Name of time variable in '.obs'
-    use_rep : str, optional
-        Use a representation from '.obsm'
+    aggregate_reps : bool
+        Aggregate representations in `.obsm` similar to `adata.X`
     fpu : int
         Frames per unit
     min_len : int
         Minimum length of track to consider. Only used if `add_mot` is False.
-    var_names : sequence, list
-        Names for variables two override names from the AnnData object
-    store_vars : str, list
-        Store additional variables for every track
 
     Returns
     -------
-    pandas.DataFrame
-        New motility parameters are stored in '.obs'
+    anndata.AnnData
+        Aggregated data
     """
-
-    if isinstance(store_vars, str):
-        store_vars = [store_vars]
-
-    if isinstance(method, str) or callable(method):
-        method = [method]
-
-    # assign variable names
-    if use_rep is None:
-        n_vars = adata.n_vars
-    else:
-        n_vars = adata.obsm[use_rep].shape[1]
-
-    if var_names is not None:
+    if isinstance(method, str):
         assert (
-            len(var_names) == n_vars
-        ), f"Number of variables names ({len(var_names)}) must match number of features ({n_vars})"
-    elif use_rep is None:
-        var_names = adata.var_names
-    else:
-        var_names = np.array([f"{use_rep}_{i}" for i in range(n_vars)])
+            method in TrajectoryReductionMethods.keys()
+        ), f"Method {method} not implemented"
+        method = TrajectoryReductionMethods[method]
 
-    # assign variable names for multiple methods
-    if len(method) > 1:
-        multiple_var_names = []
-        for i, m in enumerate(method):
-            if isinstance(m, str):
-                c = m
-            else:
-                c = f"method_{i}"
-            for v in var_names:
-                multiple_var_names.append(f"{v}_{c}")
-        var_names = multiple_var_names
-
-    output = []
+    # store aggregated data
+    X_agg = []
+    obs_agg = defaultdict(list)
+    X_reps = defaultdict(list)
 
     for track, sdata in tqdm(adata.obs.groupby(track_id)):
         ts_len = len(sdata)
@@ -136,32 +104,34 @@ def ts_aggregate(
             sdata = sdata.sort_values(time_var)
             index = sdata.index
 
-            results = pd.Series({'Track': track, 'Length': ts_len})
-            if store_vars is not None:
-                results = pd.concat((results, sdata.iloc[0, :][store_vars]))
+            # cache annotations from first element
+            for key, val in sdata.iloc[0, :].to_dict().items():
+                obs_agg[key].append(val)
+            # Add length to annotations
+            obs_agg["Length"].append(ts_len)
 
-            # get representation
-            if use_rep is not None:
-                X = adata[index, :].obsm[use_rep]
+            agg = method(adata[index, :].X.copy(), fpu=fpu)
+            X_agg.append(agg.reshape(1, -1))
+            if aggregate_reps:
+                for rep in adata.obsm.keys():
+                    agg_rep = method(adata[index, :].obsm[rep].copy(), fpu=fpu)
+                    X_reps[rep].append(agg_rep.reshape(1, -1))
+
+    # make anndata object from aggregated data
+    X_agg = np.concatenate(X_agg, axis=0)
+    obs_agg = pd.DataFrame(obs_agg)
+
+    # concatenate chunks of representations
+    if len(list(X_reps.keys())) > 0:
+        for _key, _val in X_reps.items():
+            if len(_val) > 1:
+                _val = np.vstack(_val)
             else:
-                X = adata[index, :].X
+                _val = _val[0]
+            X_reps[_key] = _val
 
-            # apply methods
-            reductions = []
-            for m in method:
-                if isinstance(m, str):
-                    assert m in TrajectoryReductionMethods.keys(), f"Method {m} not implemented"
-                    m = TrajectoryReductionMethods[m]
+        adata = ad.AnnData(X=X_agg, obs=obs_agg, var=adata.var, obsm=X_reps)
+    else:
+        adata = ad.AnnData(X=X_agg, obs=obs_agg, var=adata.var)
 
-                reduction = m(X.copy(), fpu=fpu)
-                reduction = reduction.flatten()
-
-                reductions.append(reduction)
-
-            reductions = np.concatenate(reductions, axis=None)
-            reductions = pd.Series(reductions, index=var_names)
-
-            results = pd.concat((results, reductions))
-            output.append(results)
-
-    return pd.DataFrame(output)
+    return adata

@@ -8,7 +8,6 @@ import numpy as np
 from scipy import stats
 import pandas as pd
 import anndata as ad
-from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
@@ -20,8 +19,8 @@ def aggregate(
     by: Union[tuple, list, str] = ("BatchNumber", "PlateNumber", "Metadata_Well"),
     method: str = "median",
     keep_obs: Optional[Union[List[str], str]] = None,
-    count: bool = True,
-    aggregate_reps: bool = True,
+    count: bool = False,
+    aggregate_reps: bool = False,
     qc: bool = False,
     drop_qc: bool = False,
     min_cells: int = 300,
@@ -252,6 +251,9 @@ def _modz(
     """
     # check variables
     assert X.shape[0] > 0, "array object must include at least one sample"
+    # No aggregation if length of array is 1
+    if X.shape[0] == 1:
+        return X
 
     method_dict = {
         "pearson": lambda x: np.corrcoef(x),
@@ -293,14 +295,10 @@ def _modz(
 
 def aggregate_chunks(
     adata: ad.AnnData,
-    by: Union[tuple, list, str] = ("BatchNumber", "PlateNumber", "Metadata_Well"),
+    by: Union[tuple, list, str],
     chunk_size: int = 25,
-    with_replacement: bool = False,
-    n_chunks: int = 500,
+    n_chunks: Optional[Union[int, str]] = None,
     method: str = "median",
-    keep_obs: Optional[Union[List[str], str]] = None,
-    count: bool = False,
-    aggregate_reps: bool = False,
     seed: int = 0,
     **kwargs,
 ):
@@ -317,24 +315,16 @@ def aggregate_chunks(
         Variables to aggregate by
     chunk_size : int
         Size of chunks
-    with_replacement : bool
-        Draw random chunks from data with replacement
-    n_chunks : int
-        If with_replacement is True, this many chunks are aggregated per group
+    n_chunks : int, optional
+        Number of chunks. If None, as many chunks as possible are aggregated.
+        If 'equal' all groups have equal size.
     method : str
         Method of aggregation.
         Should be one of: `Mean`, `median` or `modz`.
-    keep_obs : list of str or str, optional
-        Identifiers for observations to keep.
-        Keep all if None.
-    count : bool
-        Add population count to observations if True
-    aggregate_reps : bool
-        Aggregate representations similar to adata.X
     seed : int
         Seed random data selection
     **kwargs
-        Keyword arguments passed to methods
+        Keyword arguments passed to aggregate
 
     Returns
     -------
@@ -364,6 +354,7 @@ def aggregate_chunks(
     AnnData object with n_obs × n_vars = 10 × 5
         obs: 'group', 'batch'
     """
+    adata.obs_names_make_unique()
     # check that variables in by are in anndata
     if isinstance(by, str):
         by = [by]
@@ -372,40 +363,52 @@ def aggregate_chunks(
     if not all(var in adata.obs.columns for var in by):
         raise KeyError(f"Variables defined in 'by' are not in annotations: {by}")
 
-    np.random.seed(seed)
+    avail_methods = ["equal"]
+    if isinstance(n_chunks, str):
+        assert (
+            n_chunks in avail_methods
+        ), f"`n_chunks` must be one of {avail_methods}, instead got {n_chunks}"
+        if n_chunks == "equal":
+            n_chunks = np.min(adata.obs[by].value_counts() // chunk_size)
 
-    adata_agg = []
+    rng = np.random.default_rng(seed)
 
-    for groups, sub_df in tqdm(
-        adata.obs.groupby(list(by)), desc="Aggregating chunks.."
-    ):
+    # Get group indices as list of lists
+    group_ixs = adata.obs.groupby(by).apply(lambda x: list(x.index)).to_list()
 
-        group_ix = sub_df.index
-        avail_ix = list(group_ix)
-        stop = True
-        counter = 0
+    # Get sample of every group
+    if n_chunks is None:
+        sample_ixs = np.concatenate(
+            [
+                rng.choice(
+                    ixs, size=(len(ixs) // chunk_size) * chunk_size, replace=False
+                )
+                for ixs in group_ixs
+            ]
+        ).flatten()
+    else:
+        sample_ixs = np.concatenate(
+            [
+                rng.choice(ixs, size=n_chunks * chunk_size, replace=False)
+                for ixs in group_ixs
+            ]
+        ).flatten()
 
-        while (len(avail_ix) >= chunk_size) and stop:
-            choice = np.random.choice(avail_ix, chunk_size, replace=False)
-            if not with_replacement:
-                avail_ix = [ix for ix in avail_ix if ix not in choice]
-            choice_adata = adata[choice, :].copy()
-            choice_adata = aggregate(
-                choice_adata,
-                by=by,
-                method=method,
-                keep_obs=keep_obs,
-                count=count,
-                aggregate_reps=aggregate_reps,
-                qc=False,
-                verbose=False,
-                **kwargs,
-            )
-            adata_agg.append(choice_adata)
-            if (counter >= n_chunks - 1) and with_replacement:
-                stop = False
-            counter += 1
+    # Chunk names
+    n_all_chunks = int(len(sample_ixs) / chunk_size)
+    chunks = np.repeat(np.arange(n_all_chunks), chunk_size)
 
-    adata_agg = adata_agg[0].concatenate(*adata_agg[1:])
+    # Add chunk names to adata
+    adata.obs.loc[:, "Chunk"] = -1
+    adata.obs.loc[sample_ixs, "Chunk"] = chunks
+    adata = adata[adata.obs["Chunk"] != -1, :]
 
-    return adata_agg
+    agg_adata = aggregate(
+        adata,
+        by="Chunk",
+        method=method,
+        verbose=False,
+        **kwargs,
+    )
+
+    return agg_adata

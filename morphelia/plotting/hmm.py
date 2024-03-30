@@ -76,9 +76,8 @@ def plot_hmm(
     assert "hmm" in adata.uns, "`hmm` not in `.uns`, use `fit_hmm` beforehand"
 
     # hmm to directed graph
-    adjacency = adata.uns["hmm"]['params']["transmat"].copy()
-    stationary = adata.uns["hmm"]['params']["stationary"].copy()
-    startprob = adata.uns["hmm"]['params']["startprob"].copy()
+    adjacency = adata.uns["hmm"]["params"]["transmat"].copy()
+    stationary = adata.uns["hmm"]["params"]["stationary"].copy()
     G = nx.from_numpy_array(adjacency, create_using=nx.DiGraph)
 
     # calculate state positions
@@ -86,13 +85,15 @@ def plot_hmm(
         pos = nx.spring_layout(G, seed=seed)
     adata.uns["hmm"]["positions"] = pos
 
-    # create G with new weights
-    edge_adjacency = 100 * edge_width_factor * (adjacency * startprob.reshape(-1, 1))
     # self assigning edges to zero
     if not show_self_loops:
-        np.fill_diagonal(edge_adjacency, 0)
-    G = nx.from_numpy_array(edge_adjacency, create_using=nx.DiGraph)
-    edge_widths = list(nx.get_edge_attributes(G, 'weight').values())
+        np.fill_diagonal(adjacency, 0)
+        adjacency = adjacency / adjacency.sum(axis=1).reshape(-1, 1)
+    # Make adjacency lines bigger
+    adjacency = edge_width_factor * adjacency
+    # create G with new weights
+    G = nx.from_numpy_array(adjacency, create_using=nx.DiGraph)
+    edge_widths = list(nx.get_edge_attributes(G, "weight").values())
 
     node_sizes = node_size_factor * stationary
 
@@ -111,7 +112,7 @@ def plot_hmm(
         if f"{state_key}_colors" in adata.uns:
             node_palette = adata.uns[f"{state_key}_colors"][: len(node_sizes)]
 
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig, ax = plt.subplots()
 
     nx.draw_networkx_edges(G, pos, width=edge_widths, ax=ax, **edge_kwargs)
 
@@ -130,9 +131,12 @@ def plot_hmm(
         assert (
             "hmm_by_key" in adata.uns
         ), "'hmm_by_key' not in '.uns', use 'fit_hmm_by_key' beforehand"
-        stationary_dist = {k: adata.uns['hmm_by_key'][k]['stationary'] for k in adata.uns['hmm_by_key'].keys()}
+        stationary_dist = {
+            k: adata.uns["hmm_by_key"][k]["stationary"]
+            for k in adata.uns["hmm_by_key"].keys()
+        }
         stationary_dist = pd.DataFrame(stationary_dist)
-        labels = list(adata.uns['hmm_by_key'].keys())
+        labels = list(adata.uns["hmm_by_key"].keys())
 
         if pie_palette is None:
             if f"{draw_stationary_dist}_colors" in adata.uns:
@@ -144,13 +148,9 @@ def plot_hmm(
             ins = ax.inset_axes(
                 [loc[0] - radius, loc[1] - radius, radius * 2, radius * 2], zorder=0
             )
-            patches, texts = ins.pie(
-                stationary_dist.iloc[ix, :], colors=pie_palette
-            )
+            patches, texts = ins.pie(stationary_dist.iloc[ix, :], colors=pie_palette)
 
-        ax.legend(
-            patches, labels, bbox_to_anchor=(1.1, 1.05), frameon=False
-        )
+        ax.legend(patches, labels, bbox_to_anchor=(1.1, 1.05), frameon=False)
 
     if draw_labels:
         nx.draw_networkx_labels(G, pos, ax=ax, **label_kwargs)

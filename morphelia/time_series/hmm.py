@@ -31,11 +31,13 @@ def _fit_hmm(
     init_means: Optional[np.ndarray] = None,
     init_covars: Optional[np.ndarray] = None,
     n_init: int = 10,
-    emissions: str = 'g',
+    emissions: str = "g",
     **kwargs,
 ):
-    avail_emissions = ['g', 'gm']
-    assert emissions in avail_emissions, f"emissions must be one of {avail_emissions}, instead got {emissions}"
+    avail_emissions = ["g", "gm"]
+    assert (
+        emissions in avail_emissions
+    ), f"emissions must be one of {avail_emissions}, instead got {emissions}"
     rs = check_random_state(546)
 
     kwargs.setdefault("covariance_type", "full")
@@ -45,9 +47,9 @@ def _fit_hmm(
     best_model = None
 
     for i in range(n_init):
-        if emissions == 'g':
+        if emissions == "g":
             model = hmm.GaussianHMM(n_components=n_components, **kwargs)
-        elif emissions == 'gm':
+        elif emissions == "gm":
             model = hmm.GMMHMM(n_components=n_components, **kwargs)
         else:
             raise NotImplementedError(f"Emission {emissions} not implemented")
@@ -62,15 +64,23 @@ def _fit_hmm(
             model.covars_ = init_covars
 
         model.fit(X, lengths=lengths)
-        ll = model.score(X, lengths=lengths)
+        try:
+            ll = model.score(X, lengths=lengths)
+        except ValueError:
+            # If transmat_ rows don't sum to 1
+            ll = np.nan
 
-        if best_model is None or ll > best_ll:
-            best_ll = ll
-            best_model = model
+        if ll != np.nan:
+            if best_model is None or ll > best_ll:
+                best_ll = ll
+                best_model = model
 
-    aic = best_model.aic(X, lengths=lengths)
-    bic = best_model.bic(X, lengths=lengths)
-    silhouette = silhouette_score(X, best_model.predict(X, lengths=lengths))
+    if best_model is not None:
+        aic = best_model.aic(X, lengths=lengths)
+        bic = best_model.bic(X, lengths=lengths)
+        silhouette = silhouette_score(X, best_model.predict(X, lengths=lengths))
+    else:
+        aic, bic, silhouette = np.nan, np.nan, np.nan
 
     return best_model, best_ll, aic, bic, silhouette
 
@@ -82,7 +92,7 @@ def _get_X_and_lengths(
     rep: Optional[str] = None,
     n_pcs: Optional[int] = None,
     return_index: bool = False,
-    min_track_len: Optional[int] = None
+    min_track_len: Optional[int] = None,
 ) -> Union[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray, pd.Index]]:
     adata.strings_to_categoricals()
     # sort adata by tracks and time
@@ -93,7 +103,9 @@ def _get_X_and_lengths(
     if min_track_len is not None:
         tracks = tracks[lengths >= min_track_len]
         lengths = lengths[lengths >= min_track_len]
-        X = choose_representation(adata[adata.obs[track_key].isin(tracks), :], rep=rep, n_pcs=n_pcs)
+        X = choose_representation(
+            adata[adata.obs[track_key].isin(tracks), :], rep=rep, n_pcs=n_pcs
+        )
     else:
         X = choose_representation(adata, rep=rep, n_pcs=n_pcs)
 
@@ -110,38 +122,48 @@ def _get_track_subsample(
     root_choice = np.random.choice(
         adata.obs[track_key].unique(), size=sample_size, replace=False
     )
-    sdata = adata[adata.obs[track_key].isin(root_choice), :]
+    sdata = adata[adata.obs[track_key].isin(root_choice), :].copy()
 
     return sdata
 
 
 def _get_best_model(
-        models: list,
-        model_selection_params: dict,
-        select_model_by: str = 'bic',
-        verbose: bool = False
+    models: list,
+    model_selection_params: dict,
+    select_model_by: str = "bic",
+    verbose: bool = False,
 ):
-    avail_methods = ['bic', 'aic', 'silhouette']
+    avail_methods = ["bic", "aic", "silhouette"]
     assert (
         select_model_by in avail_methods
-    ), f'select_model_by must be one of {avail_methods}, instead got {select_model_by}'
+    ), f"select_model_by must be one of {avail_methods}, instead got {select_model_by}"
 
-    if select_model_by == 'bic' or select_model_by == 'aic':
-        select_ix = np.argmin(model_selection_params[select_model_by])
-        select_criterion = np.min(model_selection_params[select_model_by])
+    assert not all(
+        np.isnan(model_selection_params[select_model_by])
+    ), "No model was found for given parameters"
+
+    if select_model_by == "bic" or select_model_by == "aic":
+        select_ix = np.nanargmin(model_selection_params[select_model_by])
+        select_criterion = np.nanmin(model_selection_params[select_model_by])
     else:
-        select_ix = np.argmax(model_selection_params[select_model_by])
-        select_criterion = np.max(model_selection_params[select_model_by])
+        select_ix = np.nanargmin(model_selection_params[select_model_by])
+        select_criterion = np.nanmax(model_selection_params[select_model_by])
 
-    selected_component = model_selection_params['tested_components'][select_ix]
+    selected_component = model_selection_params["tested_components"][select_ix]
 
     if select_ix == 0:
-        logger.warning(f"Lower bound of components seems to be too high, selected component {selected_component}")
-    elif select_ix == (len(model_selection_params['bic']) - 1):
-        logger.warning(f"Upper bound of components seems to be too low, selected component {selected_component}")
+        logger.warning(
+            f"Lower bound of components seems to be too high, selected component {selected_component}"
+        )
+    elif select_ix == (len(model_selection_params["bic"]) - 1):
+        logger.warning(
+            f"Upper bound of components seems to be too low, selected component {selected_component}"
+        )
 
     if verbose:
-        logger.info(f"Choose {selected_component} components with {select_model_by}: {select_criterion}")
+        logger.info(
+            f"Choose {selected_component} components with {select_model_by}: {select_criterion}"
+        )
 
     return models[select_ix]
 
@@ -154,8 +176,8 @@ def fit_hmm(
     hidden_state_key: Optional[str] = "HMMState",
     rep: Optional[str] = "X_umap",
     n_pcs: Optional[str] = None,
-    select_model_by: str = 'bic',
-    emissions: str = 'g',
+    select_model_by: str = "bic",
+    emissions: str = "g",
     min_track_len: Optional[int] = None,
     sample_size: int = 1000,
     n_init: int = 10,
@@ -206,11 +228,20 @@ def fit_hmm(
         in `.obs[hidden_state_key]`
     """
     np.random.seed(seed)
-    # get subsample of all tracks
-    sdata = _get_track_subsample(adata, track_key, sample_size)
+
+    if sample_size is not None:
+        # get subsample of all tracks
+        sdata = _get_track_subsample(adata, track_key, sample_size)
+    else:
+        sdata = adata
 
     X, lengths = _get_X_and_lengths(
-        sdata, track_key=track_key, time_key=time_key, rep=rep, n_pcs=n_pcs, min_track_len=min_track_len
+        sdata,
+        track_key=track_key,
+        time_key=time_key,
+        rep=rep,
+        n_pcs=n_pcs,
+        min_track_len=min_track_len,
     )
 
     if isinstance(n_components, int):
@@ -227,7 +258,12 @@ def fit_hmm(
         pbar.set_description(f"{n} Components")
 
         model, ll, aic, bic, silhouette = _fit_hmm(
-            X, lengths=lengths, n_components=n, n_init=n_init, emissions=emissions, **kwargs
+            X,
+            lengths=lengths,
+            n_components=n,
+            n_init=n_init,
+            emissions=emissions,
+            **kwargs,
         )
         aics.append(aic)
         bics.append(bic)
@@ -241,18 +277,23 @@ def fit_hmm(
         aic=aics,
         bic=bics,
         silhouette=silhouettes,
-        ll=lls
+        ll=lls,
     )
     best_model = _get_best_model(
         models=models,
         model_selection_params=model_selection_params,
         select_model_by=select_model_by,
-        verbose=verbose
+        verbose=verbose,
     )
 
     # predict hidden states for all cells
     X, lengths, index = _get_X_and_lengths(
-        adata, track_key=track_key, time_key=time_key, rep=rep, n_pcs=n_pcs, return_index=True
+        adata,
+        track_key=track_key,
+        time_key=time_key,
+        rep=rep,
+        n_pcs=n_pcs,
+        return_index=True,
     )
     states = best_model.predict(X, lengths=lengths)
 
@@ -287,7 +328,7 @@ def fit_hmm_by_key(
     time_key: str,
     rep: Optional[str] = "X_umap",
     n_pcs: Optional[str] = None,
-    emissions: str = 'g',
+    emissions: str = "g",
     min_track_len: Optional[int] = None,
     sample_size: int = 100,
     n_init: int = 10,
@@ -357,7 +398,12 @@ def fit_hmm_by_key(
         # get subsample
         sdata = _get_track_subsample(kdata, track_key, sample_size)
         X, lengths = _get_X_and_lengths(
-            sdata, track_key=track_key, time_key=time_key, rep=rep, n_pcs=n_pcs, min_track_len=min_track_len
+            sdata,
+            track_key=track_key,
+            time_key=time_key,
+            rep=rep,
+            n_pcs=n_pcs,
+            min_track_len=min_track_len,
         )
 
         model, ll, aic, bic, silhouette = _fit_hmm(
@@ -389,7 +435,12 @@ def fit_hmm_by_key(
 
         # predict hidden states
         X, lengths, index = _get_X_and_lengths(
-            kdata, track_key=track_key, time_key=time_key, rep=rep, n_pcs=n_pcs, return_index=True
+            kdata,
+            track_key=track_key,
+            time_key=time_key,
+            rep=rep,
+            n_pcs=n_pcs,
+            return_index=True,
         )
         states = model.predict(X, lengths=lengths)
         adata.obs.loc[index, hidden_state_key] = states
@@ -401,7 +452,7 @@ def fit_hmm_by_key(
         adata.obs[hidden_state_key].astype(int).astype("category")
     )
 
-    adata.uns[f"hmm_by_key"] = key_summary
+    adata.uns["hmm_by_key"] = key_summary
 
     return adata
 

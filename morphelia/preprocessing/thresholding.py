@@ -160,6 +160,8 @@ def assign_by_threshold(
         elif dist in adata.var_names:
             dist = adata[:, dist].X
             dist = np.asarray(dist)
+        else:
+            raise ValueError(f"{dist} not in .obs or .var_names")
 
     if plt_kwargs is None:
         plt_kwargs = {}
@@ -190,7 +192,7 @@ def assign_by_threshold(
             group_mask = index_table[sub_df.index].to_numpy()
             group_dist = dist[group_mask]
 
-            thresh, class_annotation = _find_thresh(
+            thresh, class_annotation = find_thresh(
                 dist=group_dist,
                 func=func,
                 min_val=min_val,
@@ -229,7 +231,7 @@ def assign_by_threshold(
                 fig.append(f)
 
     else:
-        thresh, class_annotation = _find_thresh(
+        thresh, class_annotation = find_thresh(
             dist=dist,
             func=func,
             min_val=min_val,
@@ -281,7 +283,7 @@ def assign_by_threshold(
     return adata
 
 
-def _find_thresh(
+def find_thresh(
     dist,
     func,
     subsample=False,

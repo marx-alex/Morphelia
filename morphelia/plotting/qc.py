@@ -6,6 +6,7 @@ from typing import Optional, Union, Tuple
 
 # import external libraries
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from matplotlib import font_manager
 from matplotlib.lines import Line2D
 import matplotlib
@@ -25,6 +26,7 @@ def plot_plate(
     size: Optional[str] = None,
     select: Optional[dict] = None,
     wells: int = 96,
+    cmap: str = "plasma",
     show: bool = False,
     save: Optional[str] = None,
     fname: str = "qc_plot.png",
@@ -50,6 +52,8 @@ def plot_plate(
         Masks data by annotations
     wells : int
         Select type of plate: `96` or `384`
+    cmap : str
+        Matplotlib colormap
     show : bool
         Show and return axes
     save : str, optional
@@ -111,15 +115,9 @@ def plot_plate(
             "Values for Wells are not unique. Maybe use select to pass a single plate."
         )
 
-    # create figure
-    fig = plt.figure(figsize=(15, 7))
-    ax = plt.subplot2grid((1, 1), (0, 0), fig=fig)
+    # default
     top = 1000
     bot = 50
-    font_size = 15
-    ticks_font = font_manager.FontProperties(
-        style="normal", size=font_size, weight="normal"
-    )
 
     def char_range(c1, c2):
         """Generates the characters from `c1` to `c2`, inclusive."""
@@ -149,7 +147,6 @@ def plot_plate(
     kwargs.setdefault("c", "white")
     kwargs.setdefault("edgecolor", ["black"] * len(kwargs["y"]))
     kwargs.setdefault("linewidths", 1.5)
-    # kwargs.setdefault('cmap', 'plasma')
     kwargs.setdefault("plotnonfinite", True)
 
     if color is not None:
@@ -198,88 +195,101 @@ def plot_plate(
         kwargs["s"] = points
 
     # nan colors
-    cmap = matplotlib.cm.plasma.copy()
+    cmap = mpl.colormaps.get_cmap(cmap)
     cmap.set_bad("lightgrey")
     kwargs["cmap"] = cmap
 
-    # plot
-    mesh = ax.scatter(**kwargs)
-
-    # make color bar
-    if color is not None:
-        cbar = plt.colorbar(mesh, fraction=0.046, pad=0.04)
-        cbar.ax.get_yaxis().labelpad = 15
-        cbar.ax.set_ylabel(f"{color}", rotation=270)
-
-    # make size legend
-    if size is not None:
-        poslab = 1.2 if color is not None else 1.05
-        medv = ((np.nanmax(size_arr) - np.nanmin(size_arr)) / 2) + np.nanmin(size_arr)
-        topl = f"{np.nanmax(size_arr):.2f}"
-        botl = f"{np.nanmax(size_arr):.2f}"
-        medl = f"{medv:.2f}"
-        medv = ((max(points) - min(points)) / 2) + max(points)
-
-        legend_elements = [
-            Line2D(
-                [0],
-                [0],
-                marker="o",
-                color="lightgrey",
-                label=topl,
-                markeredgecolor="black",
-                markersize=math.sqrt(top),
-                lw=0,
-            ),
-            Line2D(
-                [0],
-                [0],
-                marker="o",
-                color="lightgrey",
-                label=medl,
-                markeredgecolor="black",
-                markersize=math.sqrt(medv),
-                lw=0,
-            ),
-            Line2D(
-                [0],
-                [0],
-                marker="o",
-                color="lightgrey",
-                label=botl,
-                markeredgecolor="black",
-                markersize=math.sqrt(bot),
-                lw=0,
-            ),
-        ]
-
-        lbl_space = top / 300
-        ax.legend(
-            handles=legend_elements,
-            labelspacing=lbl_space,
-            handletextpad=2,
-            borderpad=2,
-            frameon=True,
-            bbox_to_anchor=(poslab, 1),
-            loc="upper left",
-            title=size,
+    # create figure
+    with sns.axes_style("white"):
+        fig = plt.figure(figsize=(10, 5))
+        ax = plt.subplot2grid((1, 1), (0, 0), fig=fig)
+        top = 1000
+        bot = 50
+        font_size = 15
+        ticks_font = font_manager.FontProperties(
+            style="normal", size=font_size, weight="normal"
         )
 
-    # image aspects
-    ax.set_xticks(sorted(list(set(well_cols))))
-    ax.xaxis.tick_top()
-    ax.set_yticks(sorted(list(range(1, len(set(well_rows)) + 1))))
-    ax.set_yticklabels(string.ascii_uppercase[0 : len(set(well_rows))])
-    ax.set_ylim(((len(set(well_rows)) + 0.5), 0.48))
-    ax.set_aspect(1)
-    ax.tick_params(axis="both", which="both", length=0)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-    for label in ax.get_xticklabels():
-        label.set_fontproperties(ticks_font)
+        # plot
+        mesh = ax.scatter(**kwargs)
 
-    for label in ax.get_yticklabels():
-        label.set_fontproperties(ticks_font)
+        # make color bar
+        if color is not None:
+            cbar = plt.colorbar(mesh, fraction=0.046, pad=0.04)
+            cbar.ax.get_yaxis().labelpad = 15
+            cbar.ax.set_ylabel(f"{color}", rotation=270)
+
+        # make size legend
+        if size is not None:
+            poslab = 1.2 if color is not None else 1.05
+            medv = ((np.nanmax(size_arr) - np.nanmin(size_arr)) / 2) + np.nanmin(
+                size_arr
+            )
+            topl = f"{np.nanmax(size_arr):.2f}"
+            botl = f"{np.nanmax(size_arr):.2f}"
+            medl = f"{medv:.2f}"
+            medv = ((max(points) - min(points)) / 2) + max(points)
+
+            legend_elements = [
+                Line2D(
+                    [0],
+                    [0],
+                    marker="o",
+                    color="lightgrey",
+                    label=topl,
+                    markeredgecolor="black",
+                    markersize=math.sqrt(top),
+                    lw=0,
+                ),
+                Line2D(
+                    [0],
+                    [0],
+                    marker="o",
+                    color="lightgrey",
+                    label=medl,
+                    markeredgecolor="black",
+                    markersize=math.sqrt(medv),
+                    lw=0,
+                ),
+                Line2D(
+                    [0],
+                    [0],
+                    marker="o",
+                    color="lightgrey",
+                    label=botl,
+                    markeredgecolor="black",
+                    markersize=math.sqrt(bot),
+                    lw=0,
+                ),
+            ]
+
+            lbl_space = top / 300
+            ax.legend(
+                handles=legend_elements,
+                labelspacing=lbl_space,
+                handletextpad=2,
+                borderpad=2,
+                frameon=True,
+                bbox_to_anchor=(poslab, 1),
+                loc="upper left",
+                title=size,
+            )
+
+        # image aspects
+        ax.set_xticks(sorted(list(set(well_cols))))
+        ax.xaxis.tick_top()
+        ax.set_yticks(sorted(list(range(1, len(set(well_rows)) + 1))))
+        ax.set_yticklabels(string.ascii_uppercase[0 : len(set(well_rows))])
+        ax.set_ylim(((len(set(well_rows)) + 0.5), 0.48))
+        ax.set_aspect(1)
+        ax.tick_params(axis="both", which="both", length=0)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        for label in ax.get_xticklabels():
+            label.set_fontproperties(ticks_font)
+
+        for label in ax.get_yticklabels():
+            label.set_fontproperties(ticks_font)
 
     # save
     if save is not None:

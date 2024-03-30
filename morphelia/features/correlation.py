@@ -17,12 +17,12 @@ logger.setLevel(logging.DEBUG)
 def drop_highly_correlated(
     adata: ad.AnnData,
     thresh: float = 0.95,
-    method: str = "spearman",
+    method: str = "pearson",
     subsample: bool = False,
     sample_size: int = 1000,
     seed: int = 0,
     verbose: bool = False,
-    neg_corr: bool = False,
+    neg_corr: bool = True,
     drop: bool = True,
     make_plot: bool = False,
     show: bool = True,
@@ -127,7 +127,7 @@ def drop_highly_correlated(
 
     # get features above threshold
     if neg_corr:
-        drop_ix = np.argwhere((tri > thresh) | (tri < -thresh))
+        drop_ix = np.argwhere(np.abs(tri > thresh))
     elif neg_corr is False:
         drop_ix = np.argwhere(tri > thresh)
     else:

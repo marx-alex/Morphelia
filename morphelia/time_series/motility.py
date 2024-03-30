@@ -1,64 +1,59 @@
-from typing import Optional, Union, Tuple
-import math
+from typing import Optional, Union, Tuple, List
 import warnings
 
 import anndata as ad
 import numpy as np
+from numpy.linalg import LinAlgError
 import pandas as pd
-from scipy import stats, optimize
-from skimage import filters
+from scipy import stats
+from scipy.interpolate import interp1d
 from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
 
 
-def cell_motility(
-    adata: ad.AnnData,
-    x_loc: Optional[str] = None,
-    y_loc: Optional[str] = None,
+def motility_features(
+    data: Union[ad.AnnData, pd.DataFrame],
+    coords: Optional[List[str]] = None,
     use_rep: Optional[str] = None,
+    rep_dims: Optional[int] = None,
     track_id: str = "Metadata_Track",
     time_var: str = "Metadata_Time",
-    state_var: Optional[str] = None,
     fpu: int = 1,
     min_len: Optional[int] = 30,
     msd_max_tau: Optional[int] = None,
     kurtosis_max_tau: Optional[int] = 3,
     autocorr_max_tau: Optional[int] = 10,
-    dependence_max_tau: Optional[int] = 3,
     store_vars: Optional[Union[str, list]] = None,
 ) -> pd.DataFrame:
-    """Calculates cell motility parameters based on the x- and y-coordinates of single cells over time.
+    """
+    This function calculates motility profiles based on n-dimensional trajectories of single cells.
     Instead of location parameters also other variables can be analyzed.
 
     Parameters
     ----------
-    adata : anndata.AnnData
-        Multidimensional morphological data
-    x_loc : str, optional
-        Location of cell on x-coordinate
-    y_loc : str, optional
-        Location of cell on y-coordinate
+    data : anndata.AnnData, pandas.DataFrame
+        Trajectory data
+    coords : list, tuple, optional
+        Coordinates in n-dimensions
     use_rep : str, optional
-        If specified, a representation in `.obsm` is used as path, `x_loc` and `y_loc` is ignored.
+        If specified, a representation in `.obsm` is used as path, 'coords' is ignored.
+    rep_dims : int, optional
+        Dimensions of the representation to use.
     track_id : str
-        Name of track identifiers in '.obs'
+        Name of track identifiers.
+        Must be in '.obs' for AnnData objects.
     time_var : str
-        Name of time variable in '.obs'
-    state_var : str, optional
-        Variable in `.obs` with information about cell states.
-        If this variable is given,  state features are calculated as well.
+        Name of time variable. Must be in '.obs' for AnnData objects.
     fpu : int
         Frames per unit
     min_len : int, optional
-        Minimum length of track to consider. Only used if `add_mot` is False.
+        Minimum length of tracks to consider.
     msd_max_tau : int
         Maximal tau for Mean Squared Displacement
     kurtosis_max_tau : int
         Maximal tau for the calculation of the kurtosis of the displacement distribution
     autocorr_max_tau : int
-        Maximal tau for Autocorrelation
-    dependence_max_tau : int
-        Maximal lag for all signed dependence measures
+        Maximal tau for autocorrelation
     store_vars : str, list
         Store additional variables for every track
 
@@ -67,52 +62,51 @@ def cell_motility(
     pd.DataFrame
         Motility measurements for every cell track with given length
     """
+    if use_rep is not None:
+        assert isinstance(
+            data, ad.AnnData
+        ), "If 'use_rep' is not None, data must be an AnnData object"
+
+    if min_len is not None:
+        taus = [msd_max_tau, autocorr_max_tau, kurtosis_max_tau]
+        taus = [tau for tau in taus if tau is not None]
+        assert all(
+            [tau < min_len for tau in taus]
+        ), f"All taus must be smaller than min_len ({min_len})"
+
     if isinstance(store_vars, str):
         store_vars = [store_vars]
 
-    if state_var is not None:
-        unique_states = np.sort(np.unique(adata.obs[state_var]))
+    # Group data by track
+    if isinstance(data, pd.DataFrame):
+        grouper = data.groupby(track_id)
     else:
-        unique_states = None
-
-    if min_len is not None:
-        taus = [msd_max_tau, autocorr_max_tau, kurtosis_max_tau, dependence_max_tau]
-        taus = [tau for tau in taus if tau is not None]
-        assert all([tau < min_len for tau in taus]), f"All taus must be smaller than min_len ({min_len})"
+        grouper = data.obs.groupby(track_id)
 
     output = []
 
-    for track, sdata in tqdm(adata.obs.groupby(track_id)):
+    # Get motility data for every track
+    for track, sdata in tqdm(grouper, desc="Motility Profiling"):
         sdata = sdata.sort_values(time_var)
         index = sdata.index
         if use_rep is not None:
-            path = adata[index, :].obsm[use_rep][:, :2]
+            if rep_dims is None:
+                path = data[index, :].obsm[use_rep]
+            else:
+                path = data[index, :].obsm[use_rep][:, :rep_dims]
         else:
-            path = sdata[[x_loc, y_loc]].values
+            path = sdata[coords].values
         ts_len = len(sdata)
 
         accept = True if min_len is None else ts_len >= min_len
         if accept:
-            if state_var is None:
-                mot = CellMotility(
-                    path=path,
-                    fpu=fpu,
-                    msd_max_tau=msd_max_tau,
-                    kurtosis_max_tau=kurtosis_max_tau,
-                    autocorr_max_tau=autocorr_max_tau,
-                )
-            else:
-                states = adata[index, :].obs[state_var].to_numpy()
-                mot = CellStateMotility(
-                    path=path,
-                    states=states,
-                    unique_states=unique_states,
-                    fpu=fpu,
-                    msd_max_tau=msd_max_tau,
-                    kurtosis_max_tau=kurtosis_max_tau,
-                    autocorr_max_tau=autocorr_max_tau,
-                    dependence_max_tau=dependence_max_tau
-                )
+            mot = Motility(
+                path=path,
+                fpu=fpu,
+                msd_max_tau=msd_max_tau,
+                kurtosis_max_tau=kurtosis_max_tau,
+                autocorr_max_tau=autocorr_max_tau,
+            )
 
             results = mot.result()
             # add id and other information to results
@@ -127,13 +121,13 @@ def cell_motility(
     return output
 
 
-class CellMotility:
+class Motility:
     """Class for motility calculations of cell trajectories.
 
     Parameters
     ----------
     path : numpy.ndarray
-        Trajectory coordinates with dimensions of path length x 2
+        Trajectory coordinates with dimensions [path length x d]
     fpu : int
         Frames per unit
     msd_max_tau : int
@@ -142,6 +136,10 @@ class CellMotility:
         Maximal tau for the calculation of the kurtosis of the displacement distribution
     autocorr_max_tau : int
         Maximal lag for the autocorrelation and circular autocorrelation calculation
+
+    References
+    ----------
+    https://github.com/cellgeometry/heteromotility
     """
 
     def __init__(
@@ -152,9 +150,13 @@ class CellMotility:
         kurtosis_max_tau: Optional[int] = 3,
         autocorr_max_tau: Optional[int] = 10,
     ):
-        assert path.shape[-1] == 2, "Class only accepts 2d coordinates"
+        assert (
+            len(path.shape) == 2
+        ), f"path must have 2 dimensions, got {len(path.shape)}"
+        assert path.shape[1] >= 2, "path must have at least 2 coordinates"
         self.path = path
-        self.n = len(path)
+        self.n = path.shape[0]
+        self.dim = path.shape[1]
         # frames per unit
         self.fpu = fpu
 
@@ -196,7 +198,6 @@ class CellMotility:
         pandas.Series
             Series with all motility parameters for the given trajectory path
         """
-        otsu, active_frac, active_avg_speed = self.speed_otsu()
         (
             avg_speed,
             std_speed,
@@ -205,7 +206,16 @@ class CellMotility:
             min_speed,
             max_speed,
         ) = self.speed_props()
-        avg_angle, std_angle = self.angle_props()
+        msd_alpha = self.msd_alpha()
+        (
+            act_ratio,
+            avg_active_speed,
+            avg_idling_speed,
+            std_active_speed,
+            std_idling_speed,
+            v_thresh,
+        ) = self.phase_props(msd_alpha=msd_alpha)
+        avg_theta, active_theta, idling_theta = self.turn_angle_props(v_thresh=v_thresh)
         (
             avg_displacement,
             std_displacement,
@@ -224,15 +234,17 @@ class CellMotility:
                 "MADSpeed": mad_speed,
                 "MinSpeed": min_speed,
                 "MaxSpeed": max_speed,
-                "OtsuSpeed": otsu,
-                "ActiveFrac": active_frac,
-                "ActiveAvgSpeed": active_avg_speed,
-                "AvgAngle": avg_angle,
-                "StdAngle": std_angle,
-                "Linearity": self.linearity(),
-                "SquaredSpearmanRho": self.spearman(),
-                "MSDalpha": self.msd_alpha(),
-                "Persistence": self.persistence(),
+                "ActiveRatio": act_ratio,
+                "AvgActiveSpeed": avg_active_speed,
+                "AvgIdlingSpeed": avg_idling_speed,
+                "StdActiveSpeed": std_active_speed,
+                "StdIdlingSpeed": avg_idling_speed,
+                "AvgTurnAngle": avg_theta,
+                "AvgActiveTurnAngle": active_theta,
+                "AvgIdlingTurnAngle": idling_theta,
+                "Linearity": self.mcor(),
+                "Monotonicity": self.mcor_spearman(),
+                "MSDalpha": msd_alpha,
                 "NonGaussAlpha2": self.non_gauss_alpha2(),
                 "AvgDisplacement": avg_displacement,
                 "StdDisplacement": std_displacement,
@@ -245,13 +257,13 @@ class CellMotility:
         for i in range(self.kurtosis_max_tau):
             result[f"DisplacementKurtosis_{i+1}"] = kurtosis[i]
 
-        ac = self.autocorrelation()
+        ac = self.displacement_autocorrelation()
         for i in range(self.autocorr_max_tau):
-            result[f"Autocorrelation_{i+1}"] = ac[i]
+            result[f"DisplacementAC_{i+1}"] = ac[i]
 
-        angle_ac = self.angle_autocorrelation()
+        vac = self.velocity_autocorrelation()
         for i in range(self.autocorr_max_tau):
-            result[f"AngleAutocorrelation_{i + 1}"] = angle_ac[i]
+            result[f"VelocityAC_{i + 1}"] = vac[i]
 
         return result
 
@@ -265,8 +277,8 @@ class CellMotility:
 
         Returns
         -------
-        numpy.ndarray
-            Array of length path length - 1
+        distance : numpy.ndarray
+            Array of length n (path length) - 1
         """
         distance = np.sqrt(
             np.sum((self.path[: (self.n - tau), :] - self.path[tau:, :]) ** 2, axis=1)
@@ -316,9 +328,7 @@ class CellMotility:
             Radius of Gyration
         """
         center_of_mass = np.mean(self.path, axis=0)
-        return np.sqrt(
-            np.sum(np.sum((self.path - center_of_mass) ** 2, axis=1) / self.n)
-        )
+        return np.sqrt(np.mean(np.sum((self.path - center_of_mass) ** 2, axis=1)))
 
     def _speed(self) -> np.ndarray:
         floor = len(self.displacements) // self.fpu
@@ -342,145 +352,76 @@ class CellMotility:
             np.max(self.speed),
         )
 
-    def speed_otsu(self) -> Tuple[float, float, float]:
-        """Speed Otsu theshold.
+    def mcor(self) -> float:
+        r"""
+        We use the multi-way correlation coefficient (mcor) [Taylor 2020] as a measure of linearity.
+        Mcor is applicable for the multidimensional and similar to Pearson's correlation coefficient
+        in the 2-dimensional case.
 
-        Calculates an Otsu threshold of all velocities to distinguish slow from fast states.
-        The threshold is returned together with the proportion of both states and the average
-        speed of the active state.
+        It is defined as:
+
+        .. math::
+            mcor[v_1,...,v_n] = \frac{1}{\sqrt{d}} \sqrt{\frac{1}{d-1}\sum_{i=0}^{d}(\lambda_i - \bar{\lambda})^2}
+
+        where lambda_i is the ith eigenvalue of the empirical correlation matrix with
+        column vectors v_i.
 
         Returns
         -------
-        tuple
-            Otsu threshold, Fraction of active states, Average speed in active state
-        """
-        otsu = filters.threshold_otsu(self.speed)
-        active_frac = len(self.speed[self.speed > otsu]) / len(self.speed)
-        active_avg_speed = self.speed[self.speed > otsu].mean()
-        return otsu, active_frac, active_avg_speed
-
-    def angle_props(self) -> Tuple[float, float]:
-        r"""Calculates the properties of the angle distribution.
-
-        Angles are calculates as following:
-
-        .. math::
-            \varphi_i = \arctan2(x_i, y_i)
-
-        The circular mean is defined as:
-
-        .. math::
-            {\overline{\varphi}} = \arctan2(\overline{x}, \overline{y})
-
-        The circular standard deviation is defined as:
-
-        .. math::
-            \sigma_{\varphi} = \sqrt{-2 \ln(\overline{R})}
-
-        with:
-
-        .. math::
-            \overline{R} = \frac{1}{N} \sum _{i=1}^{N} \sqrt{x_{i}^{2} + y_{i}^{2}}
-
-        Returns
-        -------
-        tuple
-            Mean and standard deviation of the angle distribution.
-        """
-        vect = np.diff(self.path, axis=0)
-        phi = np.arctan2(vect[1], vect[0])
-        circ_mean = stats.circmean(phi, low=-np.pi, high=np.pi)
-        circ_std = stats.circstd(phi, low=-np.pi, high=np.pi)
-        return circ_mean, circ_std
-
-    def angle_autocorrelation(self):
-        r"""Circular autocorrelation of angles.
-
-        The angles of cell movement is the movement direction on a uniform polar system.
-        We consider the underlying process to be stationary. The circular autocorrelation function is then defined as:
-
-        .. math::
-            R_c(k) := R_c(\phi_0, \phi_k), \; k \geq  0
-
-        The circular correlation coefficient as introduced by Fisher and Lee (1983) can be written as:
-
-        .. math::
-            R_c(k) = \frac{E[\cos(\phi_0)\cos(\phi_k)] \cdot E[\sin(\phi_0)\sin(\phi_k)] -
-            E[\sin(\phi_0)\cos(\phi_k)] \cdot E[\cos(\phi_0)\sin(\phi_k)]}
-            {(1 - E[\cos(\phi_0)^2]) \cdot E[\cos(\phi_0)^2] - (E[\sin(\phi_0) \cos(\phi_0)])^2}
-
-        Returns
-        -------
-        numpy.ndarray
-            Circular autocorrelation for all lags between 1 and autocorr_max_tau
+        float
+            Multi-way correlation coefficient
 
         References
         ----------
-        Fisher, N. I., & Lee, A. J. (1983). A Correlation Coefficient for Circular Data.
-        Biometrika, 70(2), 327–332. https://doi.org/10.2307/2335547
-        Holzmann, H., Munk, A., Suster, M. et al. Hidden Markov models for circular and linear-circular time series.
-        Environ Ecol Stat 13, 325–347 (2006). https://doi.org/10.1007/s10651-006-0015-7
+        Taylor, B.M. (2020). A Multi-Way Correlation Coefficient. arXiv: Methodology.
         """
-
-        vect = np.diff(self.path, axis=0)
-        phi = np.arctan2(vect[:, 1], vect[:, 0])  # angles
-
-        ac = []
-        for tau in range(1, self.autocorr_max_tau + 1):
-            phi_0 = phi[: len(phi) - tau]
-            phi_t = phi[tau:]
-
-            sin_phi_0, cos_phi_0 = np.sin(phi_0), np.cos(phi_0)
-            sin_phi_t, cos_phi_t = np.sin(phi_t), np.cos(phi_t)
-
-            numerator = np.mean(cos_phi_0 * cos_phi_t) * np.mean(
-                sin_phi_0 * sin_phi_t
-            ) - np.mean(sin_phi_0 * cos_phi_t) * np.mean(cos_phi_0 * sin_phi_t)
-            denominator = (1 - np.mean(cos_phi_0 ** 2)) * np.mean(cos_phi_0 ** 2) - (
-                np.mean(sin_phi_0 * cos_phi_0)
-            ) ** 2
-            ac.append(numerator / denominator)
-        return np.array(ac)
-
-    def linearity(self) -> float:
-        """Linearity.
-
-        R-squared value of a linear regression of the path coordinates.
-
-        Returns
-        -------
-        float
-            R-squared value
-        """
-        _, _, r_value, _, _ = stats.linregress(self.path[:, 0], self.path[:, 1])
-        return r_value ** 2
-
-    def spearman(self) -> float:
-        """Squared Spearman Rho.
-
-        Squared Spearman Rho of the path coordinates.
-
-        Returns
-        -------
-        float
-            Squared Spearman Rho
-        """
-        if len(np.unique(self.path[:, 0])) == 1 or len(np.unique(self.path[:, 1])) == 1:
+        if np.any(np.std(self.path, axis=0) == 0):
             # no displacement in one coordinate
-            rho = 0.0
+            mcor = np.nan
         else:
-            rho, _ = stats.spearmanr(self.path)
-        return rho ** 2
+            try:
+                evs = np.linalg.eigvals(np.corrcoef(self.path, rowvar=False))
+                mcor = (1 / np.sqrt(self.dim)) * np.std(evs, ddof=1)
+            except LinAlgError:
+                mcor = np.nan
+        return mcor
 
-    def squared_displacement(self) -> np.ndarray:
-        """Squared displacement from the origin.
+    def mcor_spearman(self) -> float:
+        """
+        This metrics works the same as the multi-way correlation coefficient
+        in self.linearity. Instead of Pearson's correlation coefficient,
+        Spearman's rank correlation coefficient is used to calculate the
+        empirical correlation matrix.
 
         Returns
         -------
-        numpy.ndarray
-            Squared displacement
+        float
+            Multi-way correlation coefficient using Spearman's rank correlation coefficient
+
+        References
+        ----------
+        Taylor, B.M. (2020). A Multi-Way Correlation Coefficient. arXiv: Methodology.
         """
-        return np.sum((self.path - self.path[0, :]) ** 2, axis=1)
+        if np.any(np.std(self.path, axis=0) == 0):
+            # no displacement in one coordinate
+            mcor = np.nan
+        else:
+            if self.dim == 2:
+                # Rho need to be converted into a correlation matrix
+                rho = stats.spearmanr(self.path).statistic
+                R = np.full(shape=(self.dim, self.dim), fill_value=rho)
+                np.fill_diagonal(R, 1)
+            else:
+                # stats.spearmanr returns a correlation matrix
+                R = stats.spearmanr(self.path)
+
+            try:
+                evs = np.linalg.eigvals(R)
+                mcor = (1 / np.sqrt(self.dim)) * np.std(evs, ddof=1)
+            except LinAlgError:
+                mcor = np.nan
+
+        return mcor
 
     def _msd(self, tau):
         """MSD of a given path."""
@@ -498,10 +439,11 @@ class CellMotility:
         r"""Mean squared displacement alpha value.
 
         Slope of the mean squared displacement in relation to tau in log-log space.
-        This is a indication of the underlying diffusion process:
+        This is an indication of the underlying diffusion process:
             alpha > 1: superdiffusion
             alpha = 1: normal diffusion
             alpha < 1: subdiffusion
+            alpha = 2: ballistic motion
 
         The mean squared displacement with different values for tau is calculated as following:
 
@@ -514,7 +456,7 @@ class CellMotility:
             Mean squared displacement alpha value
         """
         msd_distribution = self._msd_distribution()
-        # return nan if msd distribution ha zeros
+        # return nan if msd distribution has zeros
         if sum(msd_distribution == 0) > 0:
             return np.nan
 
@@ -524,45 +466,127 @@ class CellMotility:
         )  # slope in log-log space
         return msd_alpha
 
-    def _vacf(self):
-        """Velocity Autocorrelation Function"""
-        vect = np.diff(self.path, axis=0)
-        va = np.sum(vect * vect[0, :], axis=1)
-        va = va / va[0]
-        return va
+    def phase_props(
+        self, msd_alpha: float = None
+    ) -> Tuple[float, float, float, float, float, float]:
+        r"""
+        Cell movements are categorized into active and idling phases
+        depending on a speed threshold.
 
-    def persistence(self) -> float:
-        r"""Calculates the inverse of the decay rate of the velocity autocorrelation function,
-        also known as cell persistence.
-
-        The velocity autocorrelation function is the following:
+        The threshold is defined by:
 
         .. math::
-            R_v(t) = \frac{v_{t_0} \cdot v_{t+t_0}}{v_{t_0} \cdot v_{t_0}}
+            v_{thr} = CDF_{v}^{-1} (1 - \frac{\alpha}{2})
 
-        The exponential decay rate tau is calculated with:
+        where alpha is the MSD alpha value.
 
-        .. math::
-            R(t) = \exp^{-\frac{t}{\tau}}
+        Parameters
+        ----------
+        msd_alpha : float
+            Slope of the log-log MSD curve.
+            If None, the alpha value is calculated from the trajectory.
 
         Returns
         -------
         float
-            Persistence of cell migration
+            Proportion of time spent in active phase
+        float
+            Mean speed in active phase
+        float
+            Mean speed in idling phase
+        float
+            Speed standard deviation in active phase
+        float
+            Speed standard deviation in idling phase
+        float
+            Speed threshold to identivy active and idling cells
 
         References
         ----------
         Tee JY, Mackay-Sim A. Directional Persistence of Cell Migration in Schizophrenia Patient-Derived Olfactory Cells.
         International Journal of Molecular Sciences. 2021; 22(17):9177. https://doi.org/10.3390/ijms22179177
         """
-        va = self._vacf()
-        stop = (1 / self.fpu) * (len(va) - 1)
-        xdata = np.linspace(0, stop, len(va))
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            popt, _ = optimize.curve_fit(exponential_decay, xdata, va)
+        if msd_alpha is None:
+            msd_alpha = self.msd_alpha()
+        v = self.speed
 
-        return popt[0]
+        # Threshold to distinguish between active and idling phase
+        v_sorted = np.sort(v)
+        p = np.linspace(0, 1, len(v))
+        cdf_inv = interp1d(p, v_sorted)
+        p_thresh = np.clip(1 - (msd_alpha / 2), a_min=0, a_max=1)
+        v_thresh = cdf_inv(p_thresh)
+        v_active, v_idling = v[v >= v_thresh], v[v < v_thresh]
+        act_ratio = len(v_active) / len(v)
+
+        if len(v_active) > 0:
+            avg_active_speed = float(np.mean(v_active))
+            std_active_speed = float(np.std(v_active))
+        else:
+            avg_active_speed = 0.0
+            std_active_speed = 0.0
+
+        if len(v_idling) > 0:
+            avg_idling_speed = float(np.mean(v_idling))
+            std_idling_speed = float(np.std(v_idling))
+        else:
+            avg_idling_speed = 0.0
+            std_idling_speed = 0.0
+
+        return (
+            act_ratio,
+            avg_active_speed,
+            avg_idling_speed,
+            std_active_speed,
+            std_idling_speed,
+            v_thresh,
+        )
+
+    def turn_angle_props(self, v_thresh: float = None) -> Tuple[float, float, float]:
+        """
+        The mean turning angle for the whole cell trajectory as well as for the active
+        and idling phase is calculated with possible values between 0 and 180 degrees.
+
+        Parameters
+        ----------
+        v_thresh : float
+            Speed threshold to identify active and idling cells.
+            If None, the threshold is calculated.
+
+        Returns
+        -------
+        float
+            Mean turning angle
+        float
+            Mean turning angle in active phase
+        float
+            Mean turning angle in idling phase
+        """
+        if v_thresh is None:
+            v_thresh = self.phase_props()[-1]
+        v = self.speed
+
+        # Vectorize the trajectory coordinates
+        vect = self.path[:: self.fpu, :][1:, :] - self.path[:: self.fpu, :][:-1, :]
+        # Vector Normalization
+        unit_vect = vect / np.linalg.norm(vect, axis=1).reshape(-1, 1)
+        # Calculate angles between vectors
+        coeff = np.sum(unit_vect[:-1, :] * unit_vect[1:, :], axis=1)
+        theta = np.arccos(np.clip(coeff, -1.0, 1.0))
+
+        avg_theta = np.mean(theta) * 180 / np.pi
+
+        if len(theta[v[:-1] >= v_thresh]) > 0:
+            active_theta = np.mean(theta[v[:-1] >= v_thresh]) * 180 / np.pi
+        else:
+            active_theta = 0.0
+
+        if len(theta[v[:-1] < v_thresh]) > 0:
+            idling_theta = np.mean(theta[v[:-1] < v_thresh]) * 180 / np.pi
+        else:
+            idling_theta = 0.0
+
+        return avg_theta, active_theta, idling_theta
 
     def displacement_kurtosis(self) -> np.ndarray:
         r"""Calculates the kurtosis of the displacement distribution. We consider different time lags tau
@@ -611,8 +635,8 @@ class CellMotility:
         Cell. 2014 Jan 16;156(1-2):183-94. doi: 10.1016/j.cell.2013.11.028
         """
         return (
-            np.mean(self.displacements ** 4)
-            / (3 * np.mean(self.displacements ** 2) ** 2)
+            np.mean(self.displacements**4)
+            / (3 * np.mean(self.displacements**2) ** 2)
         ) - 1
 
     def displacement_props(self) -> Tuple[float, float, float]:
@@ -626,7 +650,7 @@ class CellMotility:
         return (
             self.displacements.mean(),
             self.displacements.std(),
-            float(stats.skew(self.displacements)),
+            float(stats.skew(self.displacements, bias=False)),
         )
 
     def hurst_mandelbrot(self) -> float:
@@ -637,6 +661,9 @@ class CellMotility:
         H : 0.5 - 1 ; long-term positive autocorrelation
         H : 0.5 ; fractal Brownian motion
         H : 0-0.5 ; long-term negative autocorrelation
+
+        This function raises a warning and return nan if the time series is too short (i.e. <= 15)
+        because the linear regression will have < 3 points in those cases.
 
         Returns
         -------
@@ -649,30 +676,48 @@ class CellMotility:
         Some long-run properties of geophysical records, Water Resour. Res., 5( 2), 321– 340,
         doi:10.1029/WR005i002p00321
         """
-        largest_pow2 = math.floor(math.log2(self.n - 1))
-        ns = (self.n - 1) / (2 ** np.arange(largest_pow2))
-        ns = ns.astype(int)
 
-        RSl = []
-        for n in ns:
-            RS = []
-            # create subsereies of size n
-            for i in range((self.n - 1) // n):
-                subseries = self.displacements[i * n : (n + (i * n))]
+        N = len(self.displacements)
+        # alpha is the largest power of 2 less n
+        alpha = int(np.log2(N)) - 1
+        if (2**alpha) >= N:
+            alpha -= 1
+        ns = N / (2 ** np.arange(alpha))
+        ns = ns.astype(int)  # lengths of nonoverlapping time series
+        nxs = N // ns  # number of time series
 
-                # calculate rescaled range R/S for subseries n
-                Z = np.cumsum(subseries - np.mean(subseries))
-                R = Z.max() - Z.min()
-                S = np.std(subseries)
-                if S > 0:
-                    RS.append(R / S)
+        rs_n = []
 
-            RSl.append(np.mean(RS))
+        for n, nx in zip(ns, nxs):
+            x = self.displacements[: n * nx].reshape(nx, n)
+            # 1. Calculate the mean for each time series of length n
+            # and create a mean-adjusted series
+            y = x - np.mean(x, axis=1).reshape(-1, 1)
+            # 2. Calculate the cumulative deviate series z
+            z = np.cumsum(y, axis=1)
+            # 3. Calculate the range r and the standard deviation s
+            r = np.max(z, axis=1) - np.min(z, axis=1)
+            s = np.std(x, axis=1)
+            if len(s[s != 0]) > 0:
+                # 4. Calculate the rescaled range r/s
+                # and average over all the partial time series of length n
+                rs = np.mean(r[s != 0] / s[s != 0])
+                rs_n.append(rs)
 
-        hurst, _, _, _, _ = stats.linregress(np.log(ns), np.log(RSl))
+        if len(rs_n) >= 3:
+            rs_n = np.array(rs_n)
+            hurst, _, _, _, _ = stats.linregress(np.log2(ns), np.log2(rs_n))
+        else:
+            warnings.warn(
+                "Linear regression can not be performed with < 3 points. "
+                "The displacement time series might be too short or has too many parts with zero variance. "
+                "The Hurst coefficient will be nan."
+            )
+            hurst = np.nan
+
         return hurst
 
-    def autocorrelation(self) -> np.ndarray:
+    def displacement_autocorrelation(self) -> np.ndarray:
         r"""Calculates autocorrelation of cell displacements.
 
         The autocorrelation is estimated with:
@@ -700,59 +745,161 @@ class CellMotility:
 
         return np.array(acs)
 
+    def velocity_autocorrelation(self) -> np.ndarray:
+        r"""The normalized velocity autocorrelation is a measure of cell persistence.
 
-def exponential_decay(x, a):
-    with np.errstate(over='ignore'):
-        decay = np.exp(-x / a)
-    return decay
+        It is calculated with:
+
+        .. math::
+            R_{vac}(\tau) = \frac{1}{N-\tau}(\sum_{t=0}^{N-\tau} v \cdot v_{t + \tau}) \times
+            \frac{1}{Norm}
+
+        with the normalization factor:
+
+        .. math::
+            Norm = \frac{1}{N} \sum_{t=0}^{N-1} \mid v_t \mid^2
+
+        Returns
+        -------
+        numpy.ndarray
+            Normalized velocity autocorrelation for every lag tau
+        """
+        # Vectorize the trajectory coordinates
+        vect = self.path[:: self.fpu, :][1:, :] - self.path[:: self.fpu, :][:-1, :]
+        n = len(vect)
+
+        norm = np.mean(np.linalg.norm(vect, axis=1) ** 2)
+
+        # Store correlation coefficients
+        acs = []
+        # Calculate Autocorrelations
+        for tau in range(1, self.autocorr_max_tau + 1):
+            coeff = np.sum(vect[: n - tau, :] * vect[tau:, :], axis=1)
+            ac = np.mean(coeff) / norm
+            acs.append(ac)
+
+        return np.array(acs)
 
 
-class CellStateMotility(CellMotility):
-    """Class for motility calculations of cell trajectories using location and state information.
+def state_motility_features(
+    data: Union[ad.AnnData, pd.DataFrame],
+    state_var: str,
+    track_id: str = "Metadata_Track",
+    time_var: str = "Metadata_Time",
+    min_len: Optional[int] = 30,
+    max_tau: Optional[int] = 5,
+    store_vars: Optional[Union[str, list]] = None,
+) -> pd.DataFrame:
+    """
+    This function calculates motility profiles based on one-dimensional discrete trajectories of single cells.
 
     Parameters
     ----------
-    path : numpy.ndarray
-        Trajectory coordinates with dimensions of path length x 2
+    data : anndata.AnnData, pandas.DataFrame
+        Trajectory data
+    state_var : str
+        Cell state variable. Must be in '.obs' for AnnData objects.
+    track_id : str
+        Name of track identifiers.
+        Must be in '.obs' for AnnData objects.
+    time_var : str
+        Name of time variable. Must be in '.obs' for AnnData objects.
+    min_len : int, optional
+        Minimum length of tracks to consider.
+    max_tau : int
+        Maximal lag for all signed dependence measures
+    store_vars : str, list
+        Store additional variables for every track
+
+    Returns
+    -------
+    pd.DataFrame
+        Motility measurements for every cell track with given length
+    """
+    if min_len is not None:
+        if max_tau is not None:
+            assert (
+                max_tau < min_len
+            ), f"max_tau must be smaller than min_len ({min_len})"
+
+    if isinstance(store_vars, str):
+        store_vars = [store_vars]
+
+    # Get all unique states
+    if isinstance(data, pd.DataFrame):
+        unique_states = np.sort(np.unique(data[state_var]))
+    else:
+        unique_states = np.sort(np.unique(data.obs[state_var]))
+
+    # Group data by track
+    if isinstance(data, pd.DataFrame):
+        grouper = data.groupby(track_id)
+    else:
+        grouper = data.obs.groupby(track_id)
+
+    output = []
+
+    # Get motility data for every track
+    for track, sdata in tqdm(grouper, desc="Motility Profiling"):
+        sdata = sdata.sort_values(time_var)
+        states = sdata[state_var].to_numpy()
+        ts_len = len(sdata)
+
+        accept = True if min_len is None else ts_len >= min_len
+        if accept:
+            states = sdata[state_var].to_numpy()
+            mot = StateMotility(
+                states=states, unique_states=unique_states, max_tau=max_tau
+            )
+
+            results = mot.result()
+            # add id and other information to results
+            track_info = pd.Series({"Track": track})
+            if store_vars is not None:
+                track_info = pd.concat((track_info, sdata.iloc[0, :][store_vars]))
+            results = pd.concat((track_info, results))
+
+            output.append(results)
+
+    output = pd.DataFrame(output)
+    return output
+
+
+class StateMotility:
+    """Class for motility features of discrete cell state trajectories.
+
+    Parameters
+    ----------
     states : numpy.ndarray
-        Cell states
+        State trajectory
     unique_states : numpy.ndarray, optional
         If not all possibly states occur in this trajectory, the actual states can be defined here.
         Otherwise, it is assumed stat all possible states occur in the trajectory.
-    fpu : int
-        Frames per unit
-    msd_max_tau : int
-        Maximal lag for the calculation of mean squared displacement
-    kurtosis_max_tau : int
-        Maximal tau for the calculation of the kurtosis of the displacement distribution
-    autocorr_max_tau : int
-        Maximal lag for the autocorrelation and circular autocorrelation calculation
-    dependence_max_tau : int
+    max_tau : int
         Maximal lag for all signed dependence measures
+
+    References
+    ----------
+    Oriona, Á. L., & Fernández, J. A. V. (2023).
+    Analyzing categorical time series with the R package ctsfeatures.
+    arXiv preprint arXiv:2304.12332.
+
+    Weiß CH, Göb R (2008). “Measuring serial dependence in categorical time series.” AStA Advances
+    in Statistical Analysis, 92, 71–89
     """
+
     def __init__(
         self,
-        path: np.ndarray,
         states: np.ndarray,
         unique_states: Optional[np.ndarray] = None,
-        fpu: int = 1,
-        msd_max_tau: Optional[int] = 30,
-        kurtosis_max_tau: Optional[int] = 3,
-        autocorr_max_tau: Optional[int] = 10,
-        dependence_max_tau: Optional[int] = 3
+        max_tau: Optional[int] = 5,
     ):
-        super().__init__(
-            path=path,
-            fpu=fpu,
-            msd_max_tau=msd_max_tau,
-            kurtosis_max_tau=kurtosis_max_tau,
-            autocorr_max_tau=autocorr_max_tau
-        )
         if not isinstance(states, np.ndarray):
-            states = np.array(states)
+            states = np.array(states).flatten()
         if not np.issubdtype(states.dtype, np.integer):
             states = states.astype(int)
         self.states = states
+        self.n = len(states)
 
         if unique_states is None:
             unique_states = np.sort(np.unique(states))
@@ -764,17 +911,14 @@ class CellStateMotility(CellMotility):
         self.n_states = len(unique_states)
 
         # assign the max tau for signed dependence calculation
-        if dependence_max_tau is None:
-            dependence_max_tau = self.n - 1
+        if max_tau is None:
+            max_tau = self.n - 1
         else:
-            assert (
-                    dependence_max_tau < self.n
-            ), "dependence_max_tau must be smaller than path length"
-        self.dependence_max_tau = dependence_max_tau
+            assert max_tau < self.n, "max_tau must be smaller than path length"
+        self.max_tau = max_tau
 
         # estimated marginal probabilities
-        _, counts = np.unique(states, return_counts=True)
-        self.marginal_prob = counts / np.sum(counts)
+        self.marginal_prob = self._marginal_prob()
 
     def result(self) -> pd.Series:
         """Returns all state motility parameters.
@@ -784,115 +928,102 @@ class CellStateMotility(CellMotility):
         pandas.Series
             Series with all state motility parameters for the given trajectory path
         """
-        otsu, active_frac, active_avg_speed = self.speed_otsu()
-        (
-            avg_speed,
-            std_speed,
-            median_speed,
-            mad_speed,
-            min_speed,
-            max_speed,
-        ) = self.speed_props()
-        avg_angle, std_angle = self.angle_props()
-        (
-            avg_displacement,
-            std_displacement,
-            skew_displacement,
-        ) = self.displacement_props()
-        (
-            entropy,
-            gini,
-            chebycheff
-        ) = self.state_dispersion()
+        (entropy, gini, chebycheff) = self.dispersion()
         result = pd.Series(
             {
                 "Length": self.n,
-                "AccumDisplacement": self.cum_displacements[-1],
-                "DisplacementFromOrigin": self.displacements_from_origin()[-1],
-                "DirectionalityRatio": self.directionality_ratio(),
-                "GyrationRadius": self.gyration_radius(),
-                "AvgSpeed": avg_speed,
-                "StdSpeed": std_speed,
-                "MedianSpeed": median_speed,
-                "MADSpeed": mad_speed,
-                "MinSpeed": min_speed,
-                "MaxSpeed": max_speed,
-                "OtsuSpeed": otsu,
-                "ActiveFrac": active_frac,
-                "ActiveAvgSpeed": active_avg_speed,
-                "AvgAngle": avg_angle,
-                "StdAngle": std_angle,
-                "Linearity": self.linearity(),
-                "SquaredSpearmanRho": self.spearman(),
-                "MSDalpha": self.msd_alpha(),
-                "Persistence": self.persistence(),
-                "NonGaussAlpha2": self.non_gauss_alpha2(),
-                "AvgDisplacement": avg_displacement,
-                "StdDisplacement": std_displacement,
-                "SkewDisplacement": skew_displacement,
-                "Hurst": self.hurst_mandelbrot(),
-                "StatesEntropy": entropy,
-                "StatesGini": gini,
-                "StatesChebycheff": chebycheff,
-                "StateTransitionProb": self.state_transition_prob(),
-                "StatesCovered": self.states_covered()
+                "Entropy": entropy,
+                "Gini": gini,
+                "Chebycheff": chebycheff,
+                "TransitionProb": self.transition_prob(),
             }
         )
 
-        kurtosis = self.displacement_kurtosis()
-        for i in range(self.kurtosis_max_tau):
-            result[f"DisplacementKurtosis_{i+1}"] = kurtosis[i]
-
-        ac = self.autocorrelation()
-        for i in range(self.autocorr_max_tau):
-            result[f"Autocorrelation_{i+1}"] = ac[i]
-
-        angle_ac = self.angle_autocorrelation()
-        for i in range(self.autocorr_max_tau):
-            result[f"AngleAutocorrelation_{i + 1}"] = angle_ac[i]
-
-        state_dwell_time = self.state_dwell_time()
         for i, state in enumerate(self.unique_states):
-            result[f"StateDwellTime_{state}"] = state_dwell_time[i]
+            result[f"DwellTime_{state}"] = self.marginal_prob[i]
 
-        state_stationary_dist = self.states_stationary_dist()
+        state_stationary_dist = self.stationary_dist()
         for i, state in enumerate(self.unique_states):
-            result[f"StateStationaryDist{state}"] = state_stationary_dist[i]
+            result[f"StationaryDist_{state}"] = state_stationary_dist[i]
 
-        # measures of serial dependence
+        # Measures of serial dependence
         cohens_kappa = self.cohens_kappa()
         cramers_vi = self.cramers_vi()
         sakoda = self.sakoda()
         gk_tau = self.gk_tau()
         gk_lambda = self.gk_lambda()
         uncertainty_coeff = self.uncertainty_coeff()
-        for i in range(self.dependence_max_tau):
-            result[f"StatesCohenKappa_{i+1}"] = cohens_kappa[i]
-            result[f"StatesCramerVi_{i + 1}"] = cramers_vi[i]
-            result[f"StatesSakoda_{i + 1}"] = sakoda[i]
-            result[f"StatesGKTau_{i + 1}"] = gk_tau[i]
-            result[f"StatesGKLambda_{i + 1}"] = gk_lambda[i]
-            result[f"StatesUncertainty_{i + 1}"] = uncertainty_coeff[i]
+        total_correlation = self.total_correlation()
+        for i in range(self.max_tau):
+            result[f"CohenKappa_{i+1}"] = cohens_kappa[i]
+            result[f"CramerVi_{i + 1}"] = cramers_vi[i]
+            result[f"Sakoda_{i + 1}"] = sakoda[i]
+            result[f"GKTau_{i + 1}"] = gk_tau[i]
+            result[f"GKLambda_{i + 1}"] = gk_lambda[i]
+            result[f"Uncertainty_{i + 1}"] = uncertainty_coeff[i]
+            result[f"TotalCorr_{i + 1}"] = total_correlation[i]
 
         return result
 
-    def state_dwell_time(self) -> np.ndarray:
-        """The state dwell time is the percentage a cell spend in a certain state.
-
-        Returns
-        -------
-        numpy.ndarray
-            Dwell time for every unique state
+    def _marginal_prob(self, drop_zero: bool = False) -> np.ndarray:
         """
-        dwell_time = []
-        for st in self.unique_states:
-            dwell_time.append(np.count_nonzero(self.states == st))
-        dwell_time = np.array(dwell_time)
-        dwell_time = dwell_time / np.sum(dwell_time)
-        return dwell_time
+        Estimated marginal probabilities
 
-    def state_dispersion(self) -> Tuple[float, float, float]:
-        r"""Estimated measures of dispersion for categorical time series:
+        Parameters
+        ----------
+        drop_zero : bool
+            Drop zero probabilities
+        """
+        unique, counts = np.unique(self.states, return_counts=True)
+        state_counts = dict(zip(unique, counts))
+        p = np.array(
+            [
+                state_counts[state] if state in state_counts.keys() else 0
+                for state in self.unique_states
+            ]
+        )
+        p = p / np.sum(p)
+
+        if drop_zero:
+            return p[p > 0]
+        return p
+
+    def _joint_prob(
+        self, tau: Optional[int] = 1, drop_zero: bool = False
+    ) -> np.ndarray:
+        """
+        Estimated joints probabilities for lag tau
+
+        Parameters
+        ----------
+        tau : int
+            Time lag
+        drop_zero : bool
+            Drop zero probabilities
+        """
+        if drop_zero:
+            labels = np.unique(self.states)
+        else:
+            labels = self.unique_states
+        return confusion_matrix(
+            self.states[:-tau], self.states[tau:], labels=labels, normalize="all"
+        )
+
+    def _transition_matrix(self) -> np.ndarray:
+        return confusion_matrix(
+            self.states[:-1],
+            self.states[1:],
+            labels=self.unique_states,
+            normalize="true",
+        )
+
+    def dispersion(self) -> Tuple[float, float, float]:
+        r"""
+        Estimated measures of dispersion for categorical time series.
+        All have a range of [0, 1] and reach a minimal value of 0 in case
+        of one-point-distributions and a maximum value of 1 in case of
+        uniform distributions
+
 
         Entropy:
 
@@ -902,28 +1033,27 @@ class CellStateMotility(CellMotility):
         Gini index:
 
         .. math::
-            \nu_G = \frac{m + 1}{m}(1 - \sum_j p_j^2)
+            \nu_G = \frac{m}{m-1}(1 - \sum_j p_j^2)
 
         Chebycheff dispersion:
 
         .. math::
-            \nu_C = \frac{m+1}{m} (1 - max_j p_j)
+            \nu_C = \frac{m}{m-1} (1 - max_j p_j)
 
         Returns
         -------
         float, float, float
             Entropy, Gini index, Chebycheff dispersion
         """
-        # marginal probabilities
-        _, counts = np.unique(self.states, return_counts=True)
-        p = counts / counts.sum()
+        p = self.marginal_prob[self.marginal_prob > 0]
+        m = self.n_states
 
-        entropy = -(1 / np.log(self.n_states + 1)) * np.sum(p * np.log(p))
-        gini = ((self.n_states + 1) / self.n_states) * (1 - np.sum(p ** 2))
-        chebycheff = ((self.n_states + 1) / self.n_states) * (1 - np.max(p))
+        entropy = -(1 / np.log(m)) * np.sum(p * np.log(p))
+        gini = (m / (m - 1)) * (1 - np.sum(p**2))
+        chebycheff = (m / (m - 1)) * (1 - np.max(p))
         return entropy, gini, chebycheff
 
-    def state_transition_prob(self) -> float:
+    def transition_prob(self) -> float:
         """The transition probability is the number of state transitions divided
         by the number of transitions and non-transitions.
 
@@ -932,41 +1062,10 @@ class CellStateMotility(CellMotility):
         float
             State transition probability
         """
-        transition = []
-        for i in range(self.n - 1):
-            if self.states[i] != self.states[i+1]:
-                transition.append(1)
-            else:
-                transition.append(0)
+        transition = np.diff(self.states) == 0
+        return 1 - (np.sum(transition) / len(transition))
 
-        return sum(transition) / len(transition)
-
-    def states_covered(self) -> float:
-        """Fraction of unique states that the cell walks through.
-        This is only unequal 1 if the number of unique states differs
-        to the number of unique states of the trajectory.
-
-        Returns
-        -------
-        float
-            Fraction of states covered by the trajectory
-        """
-        return len(np.unique(self.states)) / len(self.unique_states)
-
-    def _transition_matrix(self) -> np.ndarray:
-        unique_states = np.sort(np.unique(self.states))
-        state_idxs = {st: i for i, st in enumerate(unique_states)}
-        n_states = len(unique_states)
-        T = np.zeros((n_states, n_states))
-
-        for state_a, state_b in zip(self.states[:-1], self.states[1:]):
-            T[state_idxs[state_a], state_idxs[state_b]] += 1
-
-        T_sum = T.sum(axis=1)
-        T_sum[T_sum == 0] = 1   # avoid division by zero
-        return T / T_sum.reshape(-1, 1)
-
-    def states_stationary_dist(self) -> np.ndarray:
+    def stationary_dist(self) -> np.ndarray:
         """Stationary state distribution.
 
         Returns
@@ -980,20 +1079,9 @@ class CellStateMotility(CellMotility):
         close_to_1_idx = np.argmax(eigenvals)
         target_eigenvect = eigenvects[:, close_to_1_idx]
 
-        _stationary_dist = target_eigenvect / target_eigenvect.sum()
-        _stationary_dist = _stationary_dist.real
-        stationary_dist = []
+        stationary_dist = target_eigenvect / target_eigenvect.sum()
 
-        ix = 0
-
-        for state in self.unique_states:
-            if state in self.states:
-                stationary_dist.append(_stationary_dist[ix])
-                ix += 1
-            else:
-                stationary_dist.append(0)
-
-        return np.array(stationary_dist)
+        return stationary_dist.real
 
     def cohens_kappa(self) -> np.ndarray:
         r"""Estimated Cohen's Kappa for the categorical time series of states and its lagged version.
@@ -1005,25 +1093,24 @@ class CellStateMotility(CellMotility):
         -------
         numpy.ndarray
             Cohen's kappa for all given time lags
-
-        References
-        ----------
-        Weiß CH, Göb R (2008). “Measuring serial dependence in categorical time series.” AStA Advances
-        in Statistical Analysis, 92, 71–89
         """
         marg_prob = self.marginal_prob
 
         kappas = []
-        for tau in range(1, self.dependence_max_tau + 1):
+        for tau in range(1, self.max_tau + 1):
             if len(marg_prob) == 1:
                 kappas.append(0)
             else:
                 # estimated joint probabilities
-                joint_prob = confusion_matrix(self.states[:-tau], self.states[tau:], normalize='all')
+                joint_prob = self._joint_prob(tau=tau)
                 joint_prob = joint_prob.diagonal()
 
-                kappa = np.sum(joint_prob - (marg_prob ** 2))
-                kappa = kappa / (1 - np.sum(marg_prob ** 2))
+                kappa = np.sum(joint_prob - (marg_prob**2))
+                # Avoid division by zero
+                if np.sum(marg_prob**2) == 1:
+                    kappa = 0.0
+                else:
+                    kappa = kappa / (1 - np.sum(marg_prob**2))
 
                 kappas.append(kappa)
 
@@ -1044,26 +1131,21 @@ class CellStateMotility(CellMotility):
         -------
         numpy.ndarray
             Cramer's vi
-
-        References
-        ----------
-        Weiß CH, Göb R (2008). “Measuring serial dependence in categorical time series.” AStA Advances
-        in Statistical Analysis, 92, 71–89
         """
-        m = len(np.unique(self.states))
+        m = self.n_states
 
         # estimated marginal probabilities
-        marg_prob = self.marginal_prob
+        marg_prob = self.marginal_prob[self.marginal_prob > 0]
         marg_prob = np.dot(marg_prob.reshape(-1, 1), marg_prob.reshape(1, -1))
 
         vis = []
 
-        for tau in range(1, self.dependence_max_tau + 1):
+        for tau in range(1, self.max_tau + 1):
             if m == 1:
                 vis.append(0)
             else:
                 # estimated joint probabilities
-                joint_prob = confusion_matrix(self.states[:-tau], self.states[tau:], normalize='all')
+                joint_prob = self._joint_prob(tau=tau, drop_zero=True)
 
                 phi2 = np.sum(((joint_prob - marg_prob) ** 2) / marg_prob)
 
@@ -1087,26 +1169,21 @@ class CellStateMotility(CellMotility):
         -------
         numpy.ndarray
             Sakoda measure
-
-        References
-        ----------
-        Weiß CH, Göb R (2008). “Measuring serial dependence in categorical time series.” AStA Advances
-        in Statistical Analysis, 92, 71–89
         """
-        m = len(np.unique(self.states))
+        m = self.n_states
 
         # estimated marginal probabilities
-        marg_prob = self.marginal_prob
+        marg_prob = self.marginal_prob[self.marginal_prob > 0]
         marg_prob = np.dot(marg_prob.reshape(-1, 1), marg_prob.reshape(1, -1))
 
         skds = []
 
-        for tau in range(1, self.dependence_max_tau + 1):
+        for tau in range(1, self.max_tau + 1):
             if m == 1:
                 skds.append(0)
             else:
                 # estimated joint probabilities
-                joint_prob = confusion_matrix(self.states[:-tau], self.states[tau:], normalize='all')
+                joint_prob = self._joint_prob(tau=tau, drop_zero=True)
 
                 phi2 = np.sum(((joint_prob - marg_prob) ** 2) / marg_prob)
 
@@ -1126,24 +1203,21 @@ class CellStateMotility(CellMotility):
         -------
         numpy.ndarray
             Goodman and Kruskal's Tau
-
-        References
-        ----------
-        Weiß CH, Göb R (2008). “Measuring serial dependence in categorical time series.” AStA Advances
-        in Statistical Analysis, 92, 71–89
         """
-        marg_prob = self.marginal_prob
+        marg_prob = self.marginal_prob[self.marginal_prob > 0]
 
         tau_vals = []
-        for tau in range(1, self.dependence_max_tau + 1):
+        for tau in range(1, self.max_tau + 1):
             if len(marg_prob) == 1:
                 tau_vals.append(0)
             else:
                 # estimated joint probabilities
-                joint_prob = confusion_matrix(self.states[:-tau], self.states[tau:], normalize='all')
+                joint_prob = self._joint_prob(tau=tau, drop_zero=True)
 
-                tau_val = np.sum((joint_prob ** 2) / marg_prob.reshape(1, -1)) - np.sum(marg_prob ** 2)
-                tau_val = tau_val / (1 - np.sum(marg_prob ** 2))
+                tau_val = np.sum((joint_prob**2) / marg_prob.reshape(1, -1)) - np.sum(
+                    marg_prob**2
+                )
+                tau_val = tau_val / (1 - np.sum(marg_prob**2))
 
                 tau_vals.append(tau_val)
 
@@ -1159,23 +1233,18 @@ class CellStateMotility(CellMotility):
         -------
         numpy.ndarray
             Goodman and Kruskal's Lambda
-
-        References
-        ----------
-        Weiß CH, Göb R (2008). “Measuring serial dependence in categorical time series.” AStA Advances
-        in Statistical Analysis, 92, 71–89
         """
-        marg_prob = self.marginal_prob
+        marg_prob = self.marginal_prob[self.marginal_prob > 0]
         max_mp = np.max(marg_prob)
 
         lambda_vals = []
 
-        for tau in range(1, self.dependence_max_tau + 1):
+        for tau in range(1, self.max_tau + 1):
             if len(marg_prob) == 1:
                 lambda_vals.append(0)
             else:
                 # estimated joint probabilities
-                joint_prob = confusion_matrix(self.states[:-tau], self.states[tau:], normalize='all')
+                joint_prob = self._joint_prob(tau=tau, drop_zero=True)
 
                 # maximum joint probabilities
                 max_jp = joint_prob.max(axis=0)
@@ -1195,30 +1264,64 @@ class CellStateMotility(CellMotility):
         -------
         numpy.ndarray
             Uncertainty coefficient
-
-        References
-        ----------
-        Weiß CH, Göb R (2008). “Measuring serial dependence in categorical time series.” AStA Advances
-        in Statistical Analysis, 92, 71–89
         """
-        marg_prob = self.marginal_prob
+        marg_prob = self.marginal_prob[self.marginal_prob > 0]
         marg_prob_matrix = np.dot(marg_prob.reshape(-1, 1), marg_prob.reshape(1, -1))
 
         coeffs = []
 
-        for tau in range(1, self.dependence_max_tau + 1):
+        for tau in range(1, self.max_tau + 1):
             if len(marg_prob) == 1:
                 coeffs.append(0)
             else:
                 # estimated joint probabilities
-                joint_prob = confusion_matrix(self.states[:-tau], self.states[tau:], normalize='all')
+                joint_prob = self._joint_prob(tau=tau, drop_zero=True)
 
                 combined = joint_prob / marg_prob_matrix
                 combined = np.log(combined, out=combined, where=combined > 0)
 
                 coeff = np.sum(joint_prob * combined)
 
-                coeff = - coeff / np.sum(marg_prob * np.log(marg_prob))
+                coeff = -coeff / np.sum(marg_prob * np.log(marg_prob))
                 coeffs.append(coeff)
 
         return np.array(coeffs)
+
+    def total_correlation(self) -> np.ndarray:
+        r"""Estimated Uncertainty coefficient for the categorical time series of states and its lagged version.
+
+        .. math::
+            \Psi(k) = \frac{1}{m^2} \sum_{i, j}^{m} \psi_{i, j}(k)^2
+
+        with:
+
+        .. math::
+            \psi_{i, j}(k) = \frac{p_{ij}(k)-p_i p_j}{\sqrt{p_i (1-p_i) p_j (1-p_j)}}
+
+
+        Returns
+        -------
+        numpy.ndarray
+            Total correlation
+        """
+        marg_prob = self.marginal_prob[self.marginal_prob > 0]
+        marg_prob_matrix = np.dot(marg_prob.reshape(-1, 1), marg_prob.reshape(1, -1))
+
+        marg_prob_n = marg_prob * (1 - marg_prob)
+        denom = np.sqrt(np.dot(marg_prob_n.reshape(-1, 1), marg_prob_n.reshape(1, -1)))
+
+        tcs = []
+
+        for tau in range(1, self.max_tau + 1):
+            if len(marg_prob) == 1:
+                tcs.append(0)
+            else:
+                # estimated joint probabilities
+                joint_prob = self._joint_prob(tau=tau, drop_zero=True)
+
+                # Correlation matrix
+                corr = (joint_prob - marg_prob_matrix) / denom
+                total_corr = np.mean(corr**2)
+                tcs.append(total_corr)
+
+        return np.array(tcs)
